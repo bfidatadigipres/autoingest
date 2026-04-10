@@ -1,0 +1,183 @@
+-- setup_database.sql
+-- Run as postgres superuser: psql -U postgres -f setup_database.sql
+
+-- Create the dagster user
+CREATE USER dagster_user WITH PASSWORD 'I<ZHnN?sghQr/8!J;HVI';
+
+-- Create the database
+CREATE DATABASE dagster_instance OWNER dagster_user;
+
+-- Connect to the new database
+\c dagster_instance;
+
+-- Grant schema privileges for Dagster's auto-created tables
+GRANT CREATE ON SCHEMA public TO dagster_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dagster_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dagster_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT ALL PRIVILEGES ON TABLES TO dagster_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT ALL PRIVILEGES ON SEQUENCES TO dagster_user;
+
+-- ============================================================
+-- Custom application schema
+-- ============================================================
+CREATE SCHEMA IF NOT EXISTS app;
+GRANT USAGE ON SCHEMA app TO dagster_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA app TO dagster_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA app TO dagster_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA app
+    GRANT ALL PRIVILEGES ON TABLES TO dagster_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA app
+    GRANT ALL PRIVILEGES ON SEQUENCES TO dagster_user;
+
+-- ============================================================
+-- TABLE 1: pipeline_events
+-- Tracks success/failure events from your pipeline runs
+-- at a granularity you control (per-op, per-job, custom)
+-- ============================================================
+CREATE TABLE app.pipeline_events (
+    id              SERIAL PRIMARY KEY,
+    run_id          VARCHAR(255),
+    job_name        VARCHAR(255),
+    op_name         VARCHAR(255),
+    event_type      VARCHAR(100) NOT NULL,
+    status          VARCHAR(50) NOT NULL,
+    message         TEXT,
+    worker_node     VARCHAR(255),
+    metadata        JSONB DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_pe_run_id     ON app.pipeline_events(run_id);
+CREATE INDEX idx_pe_job_name   ON app.pipeline_events(job_name);
+CREATE INDEX idx_pe_status     ON app.pipeline_events(status);
+CREATE INDEX idx_pe_created_at ON app.pipeline_events(created_at);
+CREATE INDEX idx_pe_event_type ON app.pipeline_events(event_type);
+
+-- ============================================================
+-- TABLE 2: file_tracking
+-- Tracks every file moving through the pipeline with its
+-- metadata, checksums, status, and proxy paths
+-- ============================================================
+CREATE TABLE app.file_tracking (
+    id                  SERIAL PRIMARY KEY,
+    file_name           VARCHAR(512) NOT NULL,
+    status              VARCHAR(50) NOT NULL DEFAULT 'DETECTED',
+    file_path           TEXT,
+    source              TEXT,
+    incomplete_scan     TEXT,
+    part                INT,
+    whole               INT,
+    ext                 VARCHAR(10),
+    ffprobe_read        INT,
+    file_type           VARCHAR(50),
+    cid_item_priref     BIGINT,
+    cid_file_type       VARCHAR(10),
+    cid_ob_num          VARCHAR(20),
+    parts_before        TEXT,
+    parts_after         TEXT,
+    bp_bucket           TEXT,
+    file_size           BIGINT,
+    checksum_xxhash32   VARCHAR(32),
+    checksum_md5        VARCHAR(32),
+    checksum_date       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    mdata_text          TEXT,
+    mdata_full_text     TEXT,
+    mdata_json_pth      TEXT,
+    mdata_full_xml      TEXT,
+    mdata_ebu_xml       TEXT,
+    mdata_pb_xml        TEXT,
+    mdata_full_json     JSONB DEFAULT '{}'
+    file_format	        TEXT,
+    video_codec         TEXT,
+    audio_codec         TEXT,
+    writing_library     TEXT,
+    audio_format        TEXT,
+    audio_ch_layout     TEXT,
+    audio_ch_total      TEXT,
+    audio_count         INT,
+    video_count         INT,
+    height              TEXT,
+    width               TEXT,
+    sample_height       TEXT,
+    clean_ap_width      TEXT,
+    video_duration      TEXT,
+    bp_job_id           VARCHAR(32),
+    put_completion      TEXT,
+    persisted_ok        TEXT,
+    bp_etag             VARCHAR(32),
+    bp_length           BIGINT,
+    bp_version_id       VARCHAR(32),
+    cid_media_priref    BIGINT,
+    validated           TEXT,
+    reference_num       TEXT,
+    ffmpeg_command      TEXT,
+    proxy_video_path    TEXT,
+    proxy_image_path    TEXT,
+    proxy_thumb_path    TEXT,
+    updated_to_cid      TEXT,
+    source_deletion     TEXT,
+    error_message       TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ft_status      ON app.file_tracking(status);
+CREATE INDEX idx_ft_file_name   ON app.file_tracking(file_name);
+CREATE INDEX idx_ft_checksum    ON app.file_tracking(checksum_sha256);
+CREATE INDEX idx_ft_ingest_run  ON app.file_tracking(ingest_run_id);
+CREATE INDEX idx_ft_val_run     ON app.file_tracking(validation_run_id);
+CREATE INDEX idx_ft_file_type   ON app.file_tracking(file_type);
+
+-- Auto-update updated_at on row modification
+CREATE OR REPLACE FUNCTION app.set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_file_tracking_updated_at
+    BEFORE UPDATE ON app.file_tracking
+    FOR EACH ROW
+    EXECUTE FUNCTION app.set_updated_at();
+
+-- ============================================================
+-- TABLE 3: file_type_config
+-- Lookup table for processing profiles per file type
+-- Pre-populate with your known file types
+-- ============================================================
+CREATE TABLE app.file_type_config (
+    id                  SERIAL PRIMARY KEY,
+    file_extension      VARCHAR(20) NOT NULL UNIQUE,
+    file_type_label     VARCHAR(100),
+    processing_profile  JSONB DEFAULT '{}',
+    proxy_settings      JSONB DEFAULT '{}',
+    validation_rules    JSONB DEFAULT '{}',
+    active              BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed with some common video types
+INSERT INTO app.file_type_config (file_extension, file_type_label, processing_profile, proxy_settings, validation_rules) VALUES
+    ('.mp4',  'MPEG-4',       '{"codec": "h264", "container": "mp4"}',
+        '{"create_proxy": true, "proxy_scale": "640:-2", "create_thumbnail": true}',
+        '{"min_file_size": 1024, "check_streams": true}'),
+    ('.mov',  'QuickTime',    '{"codec": "prores", "container": "mov"}',
+        '{"create_proxy": true, "proxy_scale": "640:-2", "create_thumbnail": true}',
+        '{"min_file_size": 1024, "check_streams": true}'),
+    ('.mxf',  'MXF',          '{"codec": "xdcam", "container": "mxf"}',
+        '{"create_proxy": true, "proxy_scale": "640:-2", "create_thumbnail": true}',
+        '{"min_file_size": 1024, "check_streams": true}'),
+    ('.avi',  'AVI',          '{"codec": "various", "container": "avi"}',
+        '{"create_proxy": true, "proxy_scale": "640:-2", "create_thumbnail": true}',
+        '{"min_file_size": 512, "check_streams": true}'),
+    ('.mkv',  'Matroska',     '{"codec": "various", "container": "mkv"}',
+        '{"create_proxy": true, "proxy_scale": "640:-2", "create_thumbnail": true}',
+        '{"min_file_size": 1024, "check_streams": true}'),
+    ('.ts',   'MPEG-TS',      '{"codec": "h264", "container": "ts"}',
+        '{"create_proxy": true, "proxy_scale": "640:-2", "create_thumbnail": true}',
+        '{"min_file_size": 1024, "check_streams": true}')
+ON CONFLICT (file_extension) DO NOTHING;
