@@ -23,25 +23,29 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
     filesize = file_path.stat().st_size
 
     field_details = workflow_db.lookup_file_details(filename)
+    existing_error = ""
     if field_details is None:
         context.log.warning(
             f"No field details found for filename '{filename}', using defaults"
         )
+        new_fields = workflow_db.create_file_record(filename, file_path, filetype, filesize)
+        if filename in str(new_fields):
+            print(f"New record created successfully: {new_fields}")
     else:
         if len(field_details[4]) > 0:
             print(field_details[4])
-            existing_error = field_details.get("error_message")
+            existing_error = field_details[4]
 
-    # Check file ready for ingest
+    # Check file for errors/ingest confirmation
     errors = []
-    process = True
+    do_ingest = True
     context.log.info(f"** Assessing file: {filename} ({filetype}, {filesize} bytes)")
     donor, incomplete_scan, screencraft = get_data_from_path(file_path)
 
     filename_check = utils.check_filename(filename, screencraft)
     if not filename_check:
         errors.append("Filename formatted incorrectly")
-        process = False
+        do_ingest = False
 
     if screencraft is True:
         object_number, part, whole = process_image_archive(filename)
@@ -51,53 +55,53 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
 
     if not part or not whole:
         errors.append(f"Cannot parse partWhole from filename {filename}")
-        process = False
+        do_ingest = False
     if not object_number:
         errors.append("Cannot parse <object_number> from filename")
-        process = False
+        do_ingest = False
 
     priref = utils.fetch_item_priref(object_number)
     if not priref:
         error.append(f"Cannot find record with <object number> ...<{object_number}>")
-        process = False
+        do_ingest = False
 
     over_tb_accepted = check_accepted_file_type(file_path)
     bucket, bucket_list = bp.get_buckets(donor, over_tb_accepted)
     if not bucket:
         error = ""
         error = ""
-        process = False
+        do_ingest = False
 
     mime_type = check_mime_type(file_path)
     if mime_type not in ["application", "audio", "image", "video"]:
         errors.append(f"MIMEtype '{mime_type}' is not permitted...")
-        process = False
+        do_ingest = False
 
     ffprobe_exit = utils.check_ffprobe_exit(file_path)
     if ffprobe_exit != 0:
         errors.append(f"FFprobe failed to read file: [{ffprobe_exit}] status")
-        process = False
+        do_ingest = False
 
     if priref and object_number:
         file_type_match, ftype = ext_in_file_type(filetype, priref, object_number)
         if not file_type_match:
             errors.append(f"Extension '{filetype}' does not match <{ftype}> in record")
-            process = False
+            do_ingest = False
 
     media_check = utils.check_file_has_media_rec(filename)
     if media_check is None:
         errors.append(f"Media dB could not be reached at this time")
-        process = False
+        do_ingest = False
     if media_check is True:
         errors.append(f"Filename already has a CID Media record: {filename}")
-        process = False
+        do_ingest = False
     elif "Hits exceed 1" in media_check:
         errors.append(f"Filename {filename} has more than one CID Media record. Manual attention needed.")
 
     status = bp.check_no_bp_status(filename, bucket_list)
     if status is False:
-        errors.append(f"Filename has aleady been ingested to DPI: {filename}")
-        process = False
+        errors.append(f"Filename has already been ingested to DPI: {filename}")
+        do_ingest = False
     
     if not incomplete_scan or part != 1 or whole != 1:
         # pervious part returns without extension, dB search uses LIKE to match most of name
@@ -105,43 +109,54 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
         pp_field_details = workflow_db.lookup_file_details(previous_part)
         if not pp_field_details:
             errors.append("Skip object as previous part not yet ingested or queued for ingest")
-            process = False
-        if pp_field_details.get('do_ingest') == False:
+            do_ingest = False
+        if pp_field_details[6] == "FALSE":
             errors.append("Skip object as previous part not yet ingested or queued for ingest")
-            process = False
+            do_ingest = False
 
+    returns = {}
     if existing_error in errors:
         return {}
-    if process is False:
+    if do_ingest is False:
         returns = {
-            "do_ingest": "False",
+            "do_ingest": "FALSE",
             "error_message": errors[0],
         }
     else:
         returns = {
-            "do_ingest": "True",
+            "do_ingest": "TRUE",
             "error_message": "",
         }
+    if incomplete_scan is True:
+        returns["incomplete_scan"] = "TRUE"
+    else:
+        returns["incomplete_scan"] = "FALSE"
+    if screencraft is True:
+        returns["screencraft_arch"] = "TRUE"
+    else:
+        returns["screencraft_arch"] = "FALSE"
 
-    returns.extend({
-        "file_path": str(file_path),
-        "file_status": "File assessment complete",
-        "file_name": filename,
-        "file_size": filesize,
-        "extension": ext,
-        "part": part,
-        "whole": whole,
-        "ffprobe_exit": ffprobe_exit,
-        "bp_bucket": bucket,
-        "bucket_list": bucket_list,
-        "mime_type": mime_type,
-        "cid_file_type": ftype,
-        "cid_item_priref": priref,
-        "cid_ob_num": object_number,
-        "source": donor,
-        "incomplete_scan": incomplete_scan,
-        "screencraft_archive": screencraft,
-    })
+    returns["file_status"] = "File assessment complete"
+    returns["part"] = part
+    returns["whole"] = whole
+    returns["ffprobe_exit"] = ffprobe_exit
+    returns["bp_bucket"] = bucket
+    returns["bucket_list"] = bucket_list
+    returns["mime_type"] = mime_type
+    returns["cid_file_type"] = ftype
+    returns["cid_item_priref"] = priref
+    returns["cid_ob_num"] = object_number
+    returns["source"] = donor
+
+    posted = workflow_db.update_file_status(filename, returns)
+    if "File assessment complete" in str(posted):
+        print(f"Database successfully updated: {returns}")
+
+    returns["file_name"] = filename
+    returns["file_path"] = file_path
+    returns["file_size"] = filesize
+    returns["extension"] = filetype
+
     return returns
 
 

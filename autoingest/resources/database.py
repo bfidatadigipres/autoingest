@@ -38,32 +38,29 @@ class WorkflowDatabase:
                 )
                 return cur.fetchone()
 
-    def create_file_record(self, file_data: dict):
+    def create_file_record(self, file_data: list):
+        fname, fpath, ftype, fsize = file_data
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO file_catalogue
-                        (filename, filepath, filetype, filesize,
-                         checksum_md5, metadata_json, tape_object_id,
-                         tape_verified, proxy_created, status)
+                        (file_name, file_path, extension, file_size)
                     VALUES
-                        (%(filename)s, %(filepath)s, %(filetype)s, %(filesize)s,
-                         %(checksum_md5)s, %(metadata_json)s, %(tape_object_id)s,
-                         %(tape_verified)s, %(proxy_created)s, %(status)s)
+                        (%s, %s, %s, %s)
                     RETURNING id
                     """,
-                    file_data,
+                    (fname, fpath, ftype, fsize,)
                 )
                 return cur.fetchone()[0]
 
-    def update_file_status(self, file_id: int, **fields):
+    def update_file_status(self, filename: str, **fields):
         set_clause = ", ".join(f"{k} = %({k})s" for k in fields)
-        fields["file_id"] = file_id
+        fields["file_name"] = filename
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"UPDATE file_catalogue SET {set_clause} WHERE id = %(file_id)s",
+                    f"UPDATE file_catalogue SET {set_clause} WHERE file_name = %(filename)s",
                     fields,
                 )
 
