@@ -11,6 +11,15 @@ from dagster import op, Out
 def generate_largeimage(context, proxy_result: dict, encoding_config) -> dict:
     proxy_path = proxy_result["proxy_path"]
     filename_stem = Path(proxy_path).stem.replace("_proxy", "")
+
+    # Check file type first
+    mime = file_info["mime_type"]
+    if mime not in ["video", "audio"]:
+        context.log.info("MIME type is not Video and cannot be transcoded...")
+        return {
+            "file_id": file_info.get("file_id")
+        }
+
     output_dir = Path(encoding_config.proxy_output_path) / "images"
     output_path = output_dir / f"{filename_stem}_largeimage.jpg"
 
@@ -49,9 +58,17 @@ def generate_largeimage(context, proxy_result: dict, encoding_config) -> dict:
 def generate_thumbnail(context, proxy_result: dict, encoding_config) -> dict:
     proxy_path = proxy_result["proxy_path"]
     filename_stem = Path(proxy_path).stem.replace("_proxy", "")
+
+    # Check file type first
+    mime = file_info["mime_type"]
+    if mime not in ["video", "audio"]:
+        context.log.info("MIME type is not Video and cannot be transcoded...")
+        return {
+            "file_id": file_info.get("file_id")
+        }
+
     output_dir = Path(encoding_config.proxy_output_path) / "thumbnails"
     output_path = output_dir / f"{filename_stem}_thumb.jpg"
-
     output_dir.mkdir(parents=True, exist_ok=True)
 
     context.log.info(f"Generating thumbnail from proxy: {proxy_path}")

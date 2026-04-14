@@ -106,24 +106,6 @@ def accepted_file_type(ext):
     return None
 
 
-def check_control(arg):
-    """
-    Check control json for downtime requests
-    based on passed argument
-    if not utils.check_control['arg']:
-        sys.exit(message)
-    """
-    if not isinstance(arg, str):
-        arg = str(arg)
-
-    with open(CONTROL_JSON) as control:
-        j: dict[str, str] = json.load(control)
-        if j[arg]:
-            return True
-        else:
-            return False
-
-
 def check_storage(filepath):
     """
     check if storage is avaliable for use
@@ -203,6 +185,27 @@ def get_metadata(stream, arg, dpath):
 
     meta = subprocess.check_output(cmd)
     return meta.decode("utf-8").strip()
+
+
+def probe_metadata(arg, stream, fpath):
+    """
+    Use FFmpeg module to extract
+    ffprobe data from file
+    """
+    if arg == "duration":
+        new_args = "DURATION"
+    else:
+        new_args = arg
+    try:
+        probe = ffmpeg.probe(fpath)
+        for i in probe["streams"]:
+            if i["codec_type"] == stream and new_args == "DURATION":
+                return i["tags"][new_args]
+            return i[new_args]
+
+    except ffmpeg.Error as err:
+        print(err)
+        return None
 
 
 def check_part_whole(fname):
@@ -306,27 +309,6 @@ def exif_data(dpath):
     return exif_metadata
 
 
-def probe_metadata(arg, stream, fpath):
-    """
-    Use FFmpeg module to extract
-    ffprobe data from file
-    """
-    if arg == "duration":
-        new_args = "DURATION"
-    else:
-        new_args = arg
-    try:
-        probe = ffmpeg.probe(fpath)
-        for i in probe["streams"]:
-            if i["codec_type"] == stream and new_args == "DURATION":
-                return i["tags"][new_args]
-            return i[new_args]
-
-    except ffmpeg.Error as err:
-        print(err)
-        return None
-
-
 def check_ffprobe_exit(fpath):
     """
     Get return code for read attempt
@@ -395,26 +377,6 @@ def get_duration(filepath):
     if duration:
         return duration.decode("utf-8").rstrip("\n")
     return None
-
-
-def get_size(fpath):
-    """
-    Check the size of given folder path
-    return size in kb
-    """
-    if os.path.isfile(fpath):
-        return os.path.getsize(fpath)
-
-    try:
-        byte_size: int = sum(
-            os.path.getsize(os.path.join(fpath, f))
-            for f in os.listdir(fpath)
-            if os.path.isfile(os.path.join(fpath, f))
-        )
-        return byte_size
-    except OSError as err:
-        print(f"get_size(): Cannot reach folderpath for size check: {fpath}\n{err}")
-        return None
 
 
 def create_md5_65536(fpath):
@@ -605,3 +567,300 @@ def get_current_api():
     except FileNotFoundError:
         print(f"Control JSON file not found: {CONTROL_JSON}")
         return None
+
+
+def create_transcode(
+    fullpath: str,
+    output_path: str,
+    height: Union[int, str],
+    width: Union[int, str],
+    dar: str,
+    par: str,
+    audio: Optional[str],
+    default: Optional[str],
+    vs: str,
+    mixed_dict: Optional[dict[str, int]],
+    fl_fr: bool,
+    twelve_chnl: bool,
+) -> Optional[list[str]]:
+    """
+    Builds FFmpeg command based on height/dar input
+    """
+    print(
+        f"Received DAR {dar} PAR {par} H {height} W {width} Audio {audio} Default audio {default} Video stream {vs} Mixed audio {mixed_dict}"
+    )
+    print(f"Fullpath {fullpath} Output path {output_path}")
+
+    ffmpeg_program_call = ["ffmpeg"]
+
+    input_video_file = ["-i", fullpath]
+
+    video_settings = [
+        "-c:v",
+        "libx264",
+        "-crf",
+        "28",
+    ]
+
+    pix = ["-pix_fmt", "yuv420p"]
+
+    fast_start = ["-movflags", "faststart"]
+
+    crop_sd_608 = [
+        "-vf",
+        "yadif,crop=672:572:24:32,scale=734:576:flags=lanczos,pad=768:576:-1:-1,blackdetect=d=0.05:pix_th=0.1",
+    ]
+
+    no_stretch_4x3 = ["-vf", "yadif,pad=768:576:-1:-1,blackdetect=d=0.05:pix_th=0.10"]
+
+    crop_sd_4x3 = [
+        "-vf",
+        "yadif,crop=672:572:24:2,scale=734:576:flags=lanczos,pad=768:576:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    upscale_sd_width = [
+        "-vf",
+        "yadif,scale=1024:-1:flags=lanczos,pad=1024:576:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    upscale_sd_height = [
+        "-vf",
+        "yadif,scale=-1:576:flags=lanczos,pad=1024:576:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    scale_sd_4x3 = [
+        "-vf",
+        "yadif,scale=768:576:flags=lanczos,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    scale_sd_16x9 = [
+        "-vf",
+        "yadif,scale=1024:576:flags=lanczos,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    crop_sd_15x11 = [
+        "-vf",
+        "yadif,crop=704:572,scale=768:576:flags=lanczos,pad=768:576:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    crop_ntsc_486 = [
+        "-vf",
+        "yadif,crop=672:480,scale=734:486:flags=lanczos,pad=768:486:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    crop_ntsc_486_16x9 = [
+        "-vf",
+        "yadif,crop=672:480,scale=1024:486:flags=lanczos,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    crop_ntsc_640x480 = [
+        "-vf",
+        "yadif,pad=768:480:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    crop_sd_16x9 = [
+        "-vf",
+        "yadif,crop=704:572:8:2,scale=1024:576:flags=lanczos,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    sd_downscale_4x3 = [
+        "-vf",
+        "yadif,scale=768:576:flags=lanczos,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    hd_16x9 = [
+        "-vf",
+        "yadif,scale=-1:720:flags=lanczos,pad=1280:720:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    hd_16x9_letterbox = [
+        "-vf",
+        "yadif,scale=1280:-1:flags=lanczos,pad=1280:720:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    fhd_all = [
+        "-vf",
+        "yadif,scale=-1:1080:flags=lanczos,pad=1920:1080:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    fhd_letters = [
+        "-vf",
+        "yadif,scale=1920:-1:flags=lanczos,pad=1920:1080:-1:-1,blackdetect=d=0.05:pix_th=0.10",
+    ]
+
+    output = ["-nostdin", "-y", output_path, "-f", "null", "-"]
+
+    if vs:
+        print(f"VS {vs}")
+        map_video = ["-map", f"0:v:{vs}"]
+    else:
+        map_video = ["-map", "0:v:0"]
+
+    if mixed_dict:
+        print(f"Mixed DL DR audio found: {mixed_dict}")
+        map_audio = [
+            "-map",
+            f"0:a:{mixed_dict['DL']}",
+            "-map",
+            f"0:a:{mixed_dict['DR']}",
+            "-ac",
+            "2",
+            "-c:a:0",
+            "aac",
+            "-ab:1",
+            "320k",
+            "-ar:1",
+            "48000",
+            "-ac:1",
+            "2",
+            "-disposition:a:0",
+            "default",
+            "-c:a:1",
+            "aac",
+            "-ab:2",
+            "210k",
+            "-ar:2",
+            "48000",
+            "-ac:2",
+            "1",
+            "-disposition:a:1",
+            "0",
+            "-strict",
+            "2",
+            "-async",
+            "1",
+            "-dn",
+        ]
+    elif fl_fr is True:
+        map_audio = ["-map", "0:a?", "-c:a", "aac", "-ac", "2", "-dn"]
+    elif twelve_chnl is True:
+        map_audio = [
+            "-map",
+            "0:a?",
+            "-af",
+            "pan=stereo|c0=FL+0.707*FC|c1=FR+0.707*FC",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-dn",
+        ]
+    elif default and audio:
+        print(f"Default {default}, Audio {audio}")
+        map_audio = [
+            "-map",
+            "0:a?",
+            "-c:a",
+            "aac",
+            f"-disposition:a:{default}",
+            "default",
+            "-dn",
+        ]
+    else:
+        map_audio = ["-map", "0:a?", "-c:a", "aac", "-dn"]
+    print(f"Audio command chosen: {map_audio}")
+
+    # Calculate height/width to decide HD scale path
+    height = int(height)
+    width = int(width)
+    aspect = round(width / height, 3)
+    cmd_mid = []
+
+    if height < 480 and aspect >= 1.778:
+        cmd_mid = upscale_sd_width
+    elif height < 480 and aspect < 1.778:
+        cmd_mid = upscale_sd_height
+    elif height == 486 and dar == "16:9":
+        cmd_mid = crop_ntsc_486_16x9
+    elif height == 486 and dar == "4:3":
+        cmd_mid = crop_ntsc_486
+    elif height <= 486 and width == 640:
+        cmd_mid = crop_ntsc_640x480
+    elif height < 576 and width == 720 and dar == "4:3":
+        cmd_mid = scale_sd_4x3
+    elif height == 576 and width == 703 and dar != "16:9":
+        cmd_mid = scale_sd_4x3
+    elif height == 576 and width == 703 and dar == "16:9":
+        cmd_mid = scale_sd_16x9
+    elif height == 576 and width == 1024:
+        cmd_mid = scale_sd_16x9
+    elif height < 576 and width > 720 and dar == "16:9":
+        cmd_mid = scale_sd_16x9
+    elif height < 576 and width > 720 and dar == "4:3":
+        cmd_mid = sd_downscale_4x3
+    elif height <= 576 and dar == "16:9":
+        cmd_mid = crop_sd_16x9
+    elif height <= 576 and width == 768:
+        cmd_mid = no_stretch_4x3
+    elif height <= 576 and par == "1.000":
+        cmd_mid = no_stretch_4x3
+    elif height <= 576 and dar == "4:3":
+        cmd_mid = crop_sd_4x3
+    elif height <= 576 and dar == "15:11":
+        cmd_mid = crop_sd_15x11
+    elif height == 608:
+        cmd_mid = crop_sd_608
+    elif height == 576 and dar == "1.85:1":
+        cmd_mid = crop_sd_16x9
+    elif height == 576 and aspect < 1.778:
+        cmd_mid = scale_sd_4x3
+    elif width <= 768 and aspect < 1.778:
+        cmd_mid = scale_sd_4x3
+    elif height < 720 and dar == "16:9":
+        cmd_mid = scale_sd_16x9
+    elif height < 720 and dar == "4:3":
+        cmd_mid = sd_downscale_4x3
+    elif width == 1280 and height <= 720:
+        cmd_mid = hd_16x9_letterbox
+    elif height == 720 and dar == "16:9":
+        cmd_mid = hd_16x9
+    elif height == 720:
+        cmd_mid = hd_16x9
+    elif width == 1920 and aspect >= 1.778:
+        cmd_mid = fhd_letters
+    elif height > 720 and width <= 1920:
+        cmd_mid = fhd_all
+    elif width >= 1920 and aspect < 1.778:
+        cmd_mid = fhd_all
+    elif height >= 1080 and aspect >= 1.778:
+        cmd_mid = fhd_letters
+    elif height > 720 and aspect >= 1.778:
+        cmd_mid = fhd_letters
+    print(f"Middle command chosen: {cmd_mid}")
+
+    if audio is None:
+        return (
+            ffmpeg_program_call
+            + input_video_file
+            + map_video
+            + video_settings
+            + pix
+            + fast_start
+            + cmd_mid
+            + output
+        )
+    if len(cmd_mid) > 0 and audio:
+        return (
+            ffmpeg_program_call
+            + input_video_file
+            + map_video
+            + video_settings
+            + pix
+            + cmd_mid
+            + map_audio
+            + fast_start
+            + output
+        )
+    if len(cmd_mid) > 0 and not audio:
+        return (
+            ffmpeg_program_call
+            + input_video_file
+            + map_video
+            + video_settings
+            + pix
+            + cmd_mid
+            + map_audio
+            + fast_start
+            + output
+        )
+

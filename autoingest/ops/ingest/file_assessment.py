@@ -18,9 +18,9 @@ Updates all data to new dB entry
 Returns full dct of data
 """
 
-import utils
-import bp_utils as bp
-import adlib
+from .. import utils
+from .. import bp_utils as bp
+from .. import adlib
 import magic
 from pathlib import Path
 from typing import Optional
@@ -82,7 +82,7 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
 
     priref = utils.fetch_item_priref(object_number)
     if not priref:
-        context.log.info(f"Cannot find a record with object_number: {object_numner}")
+        context.log.info(f"Cannot find a record with object_number: {object_number}")
         error.append(f"Cannot find record with <object number> ...<{object_number}>")
         do_ingest = False
 

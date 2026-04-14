@@ -78,6 +78,7 @@ CREATE TABLE app.file_tracking (
     cid_item_priref     BIGINT,
     cid_file_type       VARCHAR(10),
     cid_ob_num          VARCHAR(20),
+    cid_media_priref    VARCHAR(20),
     bp_bucket           TEXT,
     bucket_list         TEXT,
     file_size           BIGINT,
