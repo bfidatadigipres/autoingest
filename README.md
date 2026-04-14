@@ -44,13 +44,13 @@ pip install -e ".[dev]"
 
 ### Running Dagster
 
-Start the Dagster UI web server:
+Navigate terminal into your autoingest/ folder. Start the Dagster UI web server:
 
 ```bash
-dg dev
+dagster dev -w workflow -h 0.0.0.0 -p 3000
 ```
 
-Open http://localhost:3000 in your browser to see the project.
+Open http://localhost:3000 in your browser to see the project. Local host and port can be adjusted as needed.
 
 ## Learn more
 

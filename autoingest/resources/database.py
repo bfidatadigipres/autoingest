@@ -26,15 +26,15 @@ class WorkflowDatabase:
         finally:
             conn.close()
 
-    def lookup_file_details(self, filename, filetype):
+    def lookup_file_details(self, filename):
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     SELECT * FROM file_fields
-                    WHERE filetype = %s
+                    WHERE filename LIKE %s
                     """,
-                    (filetype,),
+                    (filename,),
                 )
                 return cur.fetchone()
 

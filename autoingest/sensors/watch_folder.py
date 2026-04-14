@@ -1,14 +1,11 @@
 import os
 import json
+from ..ops import utils
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from media_pipeline.jobs.single_file_ingest import single_file_ingest_job
 
-SUPPORTED_EXTENSIONS = {
-    ".mxf", ".mov", ".mp4", ".avi", ".mkv", ".ts",
-    ".wav", ".dpx", ".tif", ".tiff", ".dng",
-}
 
 
 @sensor(
@@ -17,6 +14,7 @@ SUPPORTED_EXTENSIONS = {
     default_status=DefaultSensorStatus.RUNNING,
 )
 def watch_folder_sensor(context: SensorEvaluationContext):
+    # WATCH_FOLDER_PATHS to provide all paths at ingest/ level
     watch_paths = os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
     watch_paths = [p.strip() for p in watch_paths if p.strip()]
 
@@ -39,7 +37,8 @@ def watch_folder_sensor(context: SensorEvaluationContext):
         for file_path in watch_dir.rglob("*"):
             if not file_path.is_file():
                 continue
-            if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            file_type = utils.accepted_file_type(file_path.split(".")[-1])
+            if not file_type:
                 continue
 
             file_key = str(file_path)
