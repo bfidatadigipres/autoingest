@@ -1,4 +1,5 @@
 import os
+import utils
 import subprocess
 from pathlib import Path
 from dagster import op, Out
@@ -11,8 +12,11 @@ from dagster import op, Out
 def encode_proxy_mp4(context, file_info: dict, encoding_config) -> dict:
     source_path = file_info["file_path"]
     filename_stem = Path(source_path).stem
+    filename = Path(source_path).name
     output_dir = Path(encoding_config.proxy_output_path)
-    output_path = output_dir / f"{filename_stem}_proxy.mp4"
+    # Get input date from Media dB here for path
+    input_date = utils.get_media_input_date(filename)
+    output_path = output_dir / f"{input_date}" / f"{filename_stem}.mp4"
 
     output_dir.mkdir(parents=True, exist_ok=True)
 

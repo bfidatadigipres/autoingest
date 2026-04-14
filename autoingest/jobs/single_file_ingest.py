@@ -13,6 +13,7 @@ from autoingest.ops.catalogue.db_documentation import create_catalogue_record
 )
 def single_file_ingest_job():
     file_info = assess_filename()
-    enriched = extract_metadata(file_info)
-    checksummed = generate_checksum(enriched)
-    create_catalogue_record(checksummed)
+    if file_info:
+        enriched = extract_metadata(file_info)
+        checksummed = generate_checksum(enriched)
+        create_catalogue_record(checksummed)

@@ -1,4 +1,23 @@
-import os
+"""
+Mostly completed, for review later
+- Creates new dB entry for file (check this doesn't occur elsewhere)
+Achieves following file assessment:
+- Filename check
+- If incomplete scan
+- If Screencraft archive path
+- PartWhole formatted correctly
+- Priref and object number available
+- Filetype matches extension
+- BP Bucket extraction
+- If ingested to BP already (deprecate later in favour of dB info)
+- FFprobe read file okay
+- Mime type accepted
+- Check for Media dB record
+- Check if reel is next part for ingest
+Updates all data to new dB entry
+Returns full dct of data
+"""
+
 import utils
 import bp_utils as bp
 import adlib
@@ -28,9 +47,6 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
         context.log.warning(
             f"No field details found for filename '{filename}', using defaults"
         )
-        new_fields = workflow_db.create_file_record(filename, file_path, filetype, filesize)
-        if filename in str(new_fields):
-            print(f"New record created successfully: {new_fields}")
     else:
         if len(field_details[4]) > 0:
             print(field_details[4])
@@ -44,62 +60,74 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
 
     filename_check = utils.check_filename(filename, screencraft)
     if not filename_check:
+        context.log.info(f"Filename did not pass filename checks: {filename}")
         errors.append("Filename formatted incorrectly")
         do_ingest = False
 
     if screencraft is True:
+        context.log.info("File path identified as Screencraft archive")
         object_number, part, whole = process_image_archive(filename)
     else:
         object_number = utils.get_object_number(filename)
         part, whole = utils.check_part_whole(filename)
 
     if not part or not whole:
+        context.log.info(f"Part whole failed checks: {filename}")
         errors.append(f"Cannot parse partWhole from filename {filename}")
         do_ingest = False
     if not object_number:
+        context.log.info(f"Object number could not be extracted from {filename}")
         errors.append("Cannot parse <object_number> from filename")
         do_ingest = False
 
     priref = utils.fetch_item_priref(object_number)
     if not priref:
+        context.log.info(f"Cannot find a record with object_number: {object_numner}")
         error.append(f"Cannot find record with <object number> ...<{object_number}>")
         do_ingest = False
 
     over_tb_accepted = check_accepted_file_type(file_path)
     bucket, bucket_list = bp.get_buckets(donor, over_tb_accepted)
     if not bucket:
-        error = ""
-        error = ""
+        context.log.info(f"Failed to match Donor {donor} to buckets")
+        error = f"Failed to match Donor {donor} to Black Pearl bucket"
         do_ingest = False
 
     mime_type = check_mime_type(file_path)
     if mime_type not in ["application", "audio", "image", "video"]:
+        context.log.info(f"Mime type does not confirm to accepted type: {mime_type}")
         errors.append(f"MIMEtype '{mime_type}' is not permitted...")
         do_ingest = False
 
     ffprobe_exit = utils.check_ffprobe_exit(file_path)
     if ffprobe_exit != 0:
+        context.log.info(f"FFprobe failed to read file: {filename} / Exit code: {ffprobe_exit}")
         errors.append(f"FFprobe failed to read file: [{ffprobe_exit}] status")
         do_ingest = False
 
     if priref and object_number:
         file_type_match, ftype = ext_in_file_type(filetype, priref, object_number)
         if not file_type_match:
+            context.log.info(f"File exension {filetype} does not match CID Item file_type: {ftype}")
             errors.append(f"Extension '{filetype}' does not match <{ftype}> in record")
             do_ingest = False
 
     media_check = utils.check_file_has_media_rec(filename)
     if media_check is None:
+        context.log.info(f"Media dB could not be reached...")
         errors.append(f"Media dB could not be reached at this time")
         do_ingest = False
     if media_check is True:
+        context.log.info(f"Filename already matched to CID media record!")
         errors.append(f"Filename already has a CID Media record: {filename}")
         do_ingest = False
     elif "Hits exceed 1" in media_check:
+        context.log.info(f"More than one CID Media record found for file: {filename}")
         errors.append(f"Filename {filename} has more than one CID Media record. Manual attention needed.")
 
     status = bp.check_no_bp_status(filename, bucket_list)
     if status is False:
+        context.log.info(f"File has already been ingested to Black Pearl: {filename} - Buckets {bucket_list}")
         errors.append(f"Filename has already been ingested to DPI: {filename}")
         do_ingest = False
     
@@ -108,13 +136,20 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
         previous_part = check_for_multipart(filename, part, whole)
         pp_field_details = workflow_db.lookup_file_details(previous_part)
         if not pp_field_details:
+            context.log.info(f"Skipping ingest - previous part has not been ingested yet")
             errors.append("Skip object as previous part not yet ingested or queued for ingest")
             do_ingest = False
         if pp_field_details[6] == "FALSE":
+            context.log.info(f"Skipping ingest - previous part has not been ingested yet")
             errors.append("Skip object as previous part not yet ingested or queued for ingest")
             do_ingest = False
 
     returns = {}
+    returns["file_name"] = filename
+    returns["file_path"] = file_path
+    returns["file_size"] = filesize
+    returns["extension"] = filetype
+
     if existing_error in errors:
         return {}
     if do_ingest is False:
@@ -147,15 +182,6 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
     returns["cid_item_priref"] = priref
     returns["cid_ob_num"] = object_number
     returns["source"] = donor
-
-    posted = workflow_db.update_file_status(filename, returns)
-    if "File assessment complete" in str(posted):
-        print(f"Database successfully updated: {returns}")
-
-    returns["file_name"] = filename
-    returns["file_path"] = file_path
-    returns["file_size"] = filesize
-    returns["extension"] = filetype
 
     return returns
 

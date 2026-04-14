@@ -19,7 +19,6 @@ import adlib
 
 CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.json")
-
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
 
 ACCEPTED_EXT: Final = [
@@ -521,3 +520,88 @@ def check_file_has_media_rec(
         return False
     if int(hits) > 1:
         return f"Hits exceed 1: {hits}"
+
+
+def make_metadata(fpath: str, arg: str) -> str:
+    """
+    Create mediainfo files
+    Check before each run that file is still
+    in same path, otherwise search in local
+    black_pearl_ingest path for new path
+    """
+
+    if arg == "mdata_full_text":
+        data = mediainfo_create("-f", "TEXT", fpath)
+    elif arg == "mdata_text":
+        data = mediainfo_create("", "TEXT", fpath)
+    elif arg == "mdata_ebucore":
+        data = mediainfo_create("", "EBUCore", fpath)
+    elif arg == "mdata_pbcore":
+        data = mediainfo_create("", "PBCore2", fpath)
+    elif arg == "mdata_full_xml":
+        data = mediainfo_create("-f", "XML", fpath)
+    elif arg == "mdata_full_js0n":
+        data = mediainfo_create("-f", "JSON", fpath)
+
+    return data.decode("utf-8").strip()
+
+
+def mediainfo_create(arg, output_type, filepath, mediainfo_path):
+    """
+    Output mediainfo data to text files
+    """
+
+    command: list[str] = [
+        "mediainfo",
+        arg,
+        f"--Output={output_type}",
+        filepath,
+    ]
+
+    try:
+        results = subprocess.run(command, shell=False, check_output=True)
+    except Exception as err:
+        print(err)
+        return None
+
+    # Check file created has contents
+    if results.stdout:
+        return results.stdout
+    if results.stderr:
+        return results.stderr
+
+
+def get_media_input_date(filename: str) -> str:
+    """
+    Call up adlib to get input.date field
+    """
+    api = get_current_api()
+    try:
+        rec = adlib.retrieve_record(api, "media", f"reference_number='{filename}'", "1")[1]
+        input_date = adlib.retrieve_field_name(rec[0], "input.date")[0]
+        if len(input_date) == 10:
+            return "".join(input_date.split("-")[:2])
+    except Exception as err:
+        print(err)
+
+
+def get_current_api():
+    """
+    Check control json for downtime requests
+    based on passed argument
+    if not utils.check_control['arg']:
+        sys.exit(message)
+    """
+
+    try:
+        with open(CONTROL_JSON) as control:
+            j: dict[str, str] = json.load(control)
+            if j["current_api"]:
+                api_key = j["current_api"]
+                return os.environ.get(api_key)
+            else:
+                print("No API key found in control json")
+                return None
+    except FileNotFoundError:
+        print(f"Control JSON file not found: {CONTROL_JSON}")
+        return None

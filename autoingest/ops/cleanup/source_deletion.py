@@ -6,10 +6,16 @@ from dagster import op, Out
 @op(
     tags={"dagster-celery/queue": "default"},
 )
-def check_and_delete_source(context, thumbnail_result: dict, workflow_db):
+def check_and_delete_source(
+    context,
+    thumbnail_result: dict,
+    workflow_db
+):
     file_id = thumbnail_result["file_id"]
 
-    # Mark proxy as created
+    # Remove extensions from files here
+
+    # Update all proxy file paths here
     workflow_db.update_file_status(file_id, proxy_created=True)
 
     # Check if all stages are complete
@@ -34,7 +40,6 @@ def check_and_delete_source(context, thumbnail_result: dict, workflow_db):
         return
 
     source_path = Path(row[0])
-
     if source_path.exists():
         context.log.info(f"All stages complete. Deleting source: {source_path}")
         source_path.unlink()

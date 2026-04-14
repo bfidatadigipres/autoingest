@@ -1,16 +1,13 @@
-import hashlib
+"""
+Mostly completed, for review later
+- Creates blocks of metadata text and saves into file_info dB
+- Creates checksums and saves into enriched_file_info dB
+"""
+
 import json
-import subprocess
-import os
+import utils
+from datetime import datetime
 from dagster import op, Out
-
-
-def _md5_checksum(file_path: str) -> str:
-    h = hashlib.md5()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 @op(
@@ -19,30 +16,25 @@ def _md5_checksum(file_path: str) -> str:
 )
 def extract_metadata(context, file_info: dict) -> dict:
     file_path = file_info["file_path"]
-    ffprobe_path = os.environ.get("FFPROBE_PATH", "ffprobe")
+    context.log.info(f"** Extracting metadata from {file_path}")
 
-    context.log.info(f"Extracting metadata from {file_path}")
+    mdata_type = [
+        "mdata_full_text",
+        "mdata_text",
+        "mdata_ebucore",
+        "mdata_pbcore",
+        "mdata_full_xml",
+        "mdata_full_json"
+    ]
 
-    result = subprocess.run(
-        [
-            ffprobe_path,
-            "-v", "quiet",
-            "-print_format", "json",
-            "-show_format",
-            "-show_streams",
-            file_path,
-        ],
-        capture_output=True,
-        text=True,
-    )
+    for mtype in mdata_type:
+        mdata = utils.make_metadata(file_path, mtype)
+        if "json" in mdata:
+            metadata = json.dumps(mdata)
+            file_info[mtype] = metadata        
+        else:
+            file_info[mtype] = mdata
 
-    metadata = {}
-    if result.returncode == 0:
-        metadata = json.loads(result.stdout)
-    else:
-        context.log.warning(f"ffprobe failed: {result.stderr}")
-
-    file_info["metadata_json"] = json.dumps(metadata)
     return file_info
 
 
@@ -54,8 +46,12 @@ def generate_checksum(context, enriched_file_info: dict) -> dict:
     file_path = enriched_file_info["file_path"]
     context.log.info(f"Generating MD5 checksum for {file_path}")
 
-    checksum = _md5_checksum(file_path)
-    enriched_file_info["checksum_md5"] = checksum
-
-    context.log.info(f"Checksum: {checksum}")
+    md5 = utils.create_md5_65536(file_path)
+    enriched_file_info["checksum_md5"] = md5
+    xxhash = utils.create_xxhash_66536(file_type)
+    enriched_file_info["checksum_xxh"] = xxhash
+    enriched_file_info["checksum_date"] = str(datetime.now())[:19]
+            
+    context.log.info(f"Checksum MD5: {md5} / Checksum XXHash: {xxhash}")
     return enriched_file_info
+

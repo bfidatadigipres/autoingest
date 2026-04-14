@@ -54,14 +54,13 @@ class WorkflowDatabase:
                 )
                 return cur.fetchone()[0]
 
-    def update_file_status(self, filename: str, **fields):
+    def update_file_status(self, file_id: int, **fields):
         set_clause = ", ".join(f"{k} = %({k})s" for k in fields)
-        fields["file_name"] = filename
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"UPDATE file_catalogue SET {set_clause} WHERE file_name = %(filename)s",
-                    fields,
+                    f"UPDATE file_catalogue SET {set_clause} WHERE id = %(file_id,)s",
+                    file_id,
                 )
 
     def get_pending_tape_files(self, max_bytes: int):

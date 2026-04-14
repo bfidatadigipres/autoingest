@@ -10,19 +10,23 @@ def create_catalogue_record(context, checksummed_file_info: dict, workflow_db) -
         f"Creating catalogue record for {checksummed_file_info['filename']}"
     )
 
-    file_data = {
-        "filename": checksummed_file_info["filename"],
-        "filepath": checksummed_file_info["file_path"],
-        "filetype": checksummed_file_info["filetype"],
-        "filesize": checksummed_file_info["filesize"],
-        "checksum_md5": checksummed_file_info["checksum_md5"],
-        "metadata_json": checksummed_file_info.get("metadata_json", "{}"),
-        "tape_object_id": None,
-        "tape_verified": False,
-        "proxy_created": False,
-        "status": "metadata_complete",
+    basics = {
+        "file_name": checksummed_file_info.get("file_name"),
+        "file_path": checksummed_file_info.get("file_path"),
+        "extension": checksummed_file_info.get("extension"),
+        "file_size": checksummed_file_info.get("file_size"),
     }
 
-    file_id = workflow_db.create_file_record(file_data)
+    updates = checksummed_file_info
+    updates.pop("file_name", None)
+    updates.pop("file_path", None)
+    updates.pop("extension", None)
+    updates.pop("file_size", None)
+
+    file_id = workflow_db.create_file_record(basics)
     context.log.info(f"Catalogue record created with ID: {file_id}")
+
+    fields = workflow_db.update_file_status(file_id, updates)
+    context.log.info(f"Updating remaining fields to database:\n{fields}")
+
     return file_id
