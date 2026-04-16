@@ -17,7 +17,6 @@ def generate_images(
     output_dir = Path(encoding_config.proxy_output_path)
     proxy_path = proxy_result["proxy_video_path"]
     filename_stem = Path(proxy_path).stem
-    root = str(Path(proxy_path).parent)
 
     # Check file type first
     mime = proxy_result["mime_type"]

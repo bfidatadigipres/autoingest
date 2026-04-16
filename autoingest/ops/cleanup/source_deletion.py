@@ -24,7 +24,12 @@ def check_and_delete_source(
         f"<access_rendition.thumbnail>{os.path.split(proxy_thumb_path)[1]}</access_rendition.thumbnail>"
     )
     media_priref = thumbnail_result["cid_media_priref"]
-    
+    success = cid_media_append(media_priref, media_data)
+    if not success:
+        context.log.error(f"Proxy file names failed to write to Media priref {media_priref}")
+        raise RuntimeError("Proxy file names failed to write to CID digital media record")
+    context.log.info(f"Proxy filenames updated to CID Media record: {media_priref}")
+
     # Update all proxy file paths here
     workflow_db.update_file_status(file_id, proxy_created=True)
 
