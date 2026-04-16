@@ -116,6 +116,7 @@ CREATE TABLE app.file_tracking (
     reference_num       TEXT,
     ffmpeg_command      TEXT,
     proxy_video_path    TEXT,
+    proxy_size          TEXT,
     proxy_image_path    TEXT,
     proxy_thumb_path    TEXT,
     updated_to_cid      TEXT,

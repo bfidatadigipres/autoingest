@@ -12,9 +12,19 @@ def check_and_delete_source(
     workflow_db
 ):
     file_id = thumbnail_result["file_id"]
-
-    # Remove extensions from files here
-
+    
+    # Update proxy data to Media dB
+    media_data = []
+    proxy_video_path = thumbnail_result["proxy_video_path"]
+    proxy_image_path = thumbnail_result["proxy_image_path"]
+    proxy_thumb_path = thumbnail_result["proxy_thumb_path"]
+    media_data.append(
+        f"<access_rendition.mp4>{os.path.split(proxy_video_path)[1]}</access_rendition.mp4>",
+        f"<access_rendition.largeimage>{os.path.split(proxy_image_path)[1]}</access_rendition.largeimage>",
+        f"<access_rendition.thumbnail>{os.path.split(proxy_thumb_path)[1]}</access_rendition.thumbnail>"
+    )
+    media_priref = thumbnail_result["cid_media_priref"]
+    
     # Update all proxy file paths here
     workflow_db.update_file_status(file_id, proxy_created=True)
 
