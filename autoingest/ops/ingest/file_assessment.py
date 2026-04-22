@@ -19,7 +19,7 @@ Returns full dct of data
 """
 
 from .. import utils
-from .. import bp_utils as bp
+# from .. import bp_utils as bp
 from .. import adlib
 import magic
 from pathlib import Path
@@ -124,6 +124,7 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
     elif "Hits exceed 1" in media_check:
         context.log.info(f"More than one CID Media record found for file: {filename}")
         errors.append(f"Filename {filename} has more than one CID Media record. Manual attention needed.")
+        do_ingest = False
 
     status = bp.check_no_bp_status(filename, bucket_list)
     if status is False:
@@ -156,6 +157,7 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
         returns = {
             "do_ingest": "FALSE",
             "error_message": errors[0],
+            "file_status": "Failed assessment"
         }
     else:
         returns = {
@@ -171,7 +173,7 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
     else:
         returns["screencraft_arch"] = "FALSE"
 
-    returns["file_status"] = "File assessment complete"
+    returns["file_status"] = "File cleared for ingest"
     returns["part"] = part
     returns["whole"] = whole
     returns["ffprobe_exit"] = ffprobe_exit

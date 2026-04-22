@@ -20,6 +20,7 @@ import adlib
 CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.json")
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
+DPI_BUCKETS = os.environ.get("DPI_BUCKET")
 
 ACCEPTED_EXT: Final = [
     "avi",
@@ -586,3 +587,72 @@ def cid_media_append(priref: str, data: list[str]) -> Optional[bool]:
         return True
 
 
+def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[str]]:
+    """
+    Read JSON list return
+    key_value and list of others
+    """
+    bucket_list: list[str] = []
+    key_bucket: str = ""
+
+    with open(DPI_BUCKETS) as data:
+        bucket_data: dict[str, str] = json.load(data)
+    for key, value in bucket_data.items():
+        if bucket_collection.lower() == "bfi":
+            if blob_accepted:
+                if "preservationblobbing0" in str(key.lower()):
+                    if value is True:
+                        key_bucket = key
+                    bucket_list.append(key)
+            else:
+                if "preservationblobbing0" in str(key.lower()):
+                    continue
+                if "preservation0" in str(key.lower()):
+                    if value is True:
+                        key_bucket = key
+                    bucket_list.append(key)
+                elif "imagen" in str(key):
+                    bucket_list.append(key)
+        elif bucket_collection.lower() in ("netflix", "amazon"):
+            if blob_accepted:
+                if f"{bucket_collection.lower()}blobbing" in key:
+                    if value is True:
+                        key_bucket = key
+                    bucket_list.append(key)
+            else:
+                if f"{bucket_collection.strip()}blobbing" in key:
+                    continue
+                elif f"{bucket_collection.strip()}0" in key:
+                    if value is True:
+                        key_bucket = key
+                    bucket_list.append(key)
+
+    return key_bucket, bucket_list
+
+
+def get_buckets_blob(bucket_collection: str) -> str:
+    """
+    Read JSON list return
+    key_value and list of others
+    """
+    key_bucket: str = ""
+
+    with open(DPI_BUCKETS) as data:
+        bucket_data: dict[str, str] = json.load(data)
+    if bucket_collection == "netflix":
+        for key, value in bucket_data.items():
+            if "netflixblobbing" in key.lower():
+                if value is True:
+                    key_bucket = key
+    elif bucket_collection == "amazon":
+        for key, value in bucket_data.items():
+            if "amazonblobbing" in key.lower():
+                if value is True:
+                    key_bucket = key
+    elif bucket_collection == "bfi":
+        for key, value in bucket_data.items():
+            if "preservationblobbing" in key.lower():
+                if value is True:
+                    key_bucket = key
+
+    return key_bucket

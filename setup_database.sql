@@ -85,6 +85,7 @@ CREATE TABLE app.file_tracking (
     checksum_xxh        VARCHAR(32),
     checksum_md5        VARCHAR(32),
     checksum_date       TEXT,
+    ingest_folder       TEXT,
     mdata_text          TEXT,
     mdata_full_text     TEXT,
     mdata_full_xml      TEXT,

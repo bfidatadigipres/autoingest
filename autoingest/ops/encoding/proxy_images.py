@@ -14,14 +14,24 @@ def generate_images(
     encoding_config,
     workflow_db
 ) -> dict:
-    output_dir = Path(encoding_config.proxy_output_path)
     proxy_path = proxy_result["proxy_video_path"]
+    root = os.path.split(proxy_path)[0]
     filename_stem = Path(proxy_path).stem
 
     # Check file type first
     mime = proxy_result["mime_type"]
     if mime not in ["video", "image"]:
         context.log.info("MIME type is not Video/Image and cannot be converted...")
+        return {
+            "file_id": proxy_result.get("file_id"),
+            "proxy_video_path": proxy_path,
+            "proxy_image_path": "",
+            "proxy_thumb_path": "",
+        }
+    # Check and block non-BFI sources
+    source = encoding_config["source"]
+    if source.lower() in ["netflix", "amazon", "disney"]:
+        context.log.info(f"Source is {source}... No transcode required.")
         return {
             "file_id": proxy_result.get("file_id"),
             "proxy_video_path": proxy_path,
@@ -44,7 +54,7 @@ def generate_images(
     percent = ""
     if mime == "video":
         oversize = False
-    elif mime == "image":
+    else:
         oversize = False
         context.log.info("Generating large (full size copy) and thumbnail jpeg images.")
 
@@ -67,7 +77,7 @@ def generate_images(
             oversize = True
 
     context.log.info(f"Generating largeimage from proxy: {proxy_path}")
-    if not oversize:
+    if oversize is False:
         proxy_image_path = ut.make_jpg(source_image, "full", largeimage_path, None)
     else:
         proxy_image_path = ut.make_jpg(source_image, "oversize", largeimage_path, percent)

@@ -13,7 +13,7 @@ MP4_POLICY = os.environ.get("MP4_POLICY")
 )
 def encode_proxy_mp4(
     context,
-    file_info: dict,
+    file_info: dict, # Where is this coming from?
     encoding_config,
     workflow_db
 ) -> dict:
@@ -23,11 +23,23 @@ def encode_proxy_mp4(
 
     # Check file type first
     mime = file_info["mime_type"]
+    source = file_info["source"]
     if mime != "video":
         context.log.info("MIME type is not Video and cannot be transcoded...")
         return {
             "file_id": file_info.get("file_id"),
             "source_path": source_path,
+            "source": source,
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }
+    # Check and block non-BFI sources
+    if source.lower() in ["netflix", "amazon", "disney"]:
+        context.log.info(f"Source is {source}... No transcode required.")
+        return {
+            "file_id": file_info.get("file_id"),
+            "source_path": source_path,
+            "source": source,
             "proxy_video_path": "",
             "proxy_size": "",
         }
@@ -134,12 +146,14 @@ def encode_proxy_mp4(
         {
             "proxy_video_path": str(output_path),
             "proxy_size": proxy_size,
+            # All other metadata here
         }
     )
 
     return {
         "file_id": file_info.get("file_id"),
         "source_path": source_path,
+        "source": source,
         "proxy_video_path": str(output_path),
         "proxy_size": proxy_size,
     }

@@ -1,3 +1,12 @@
+"""
+Sort all ingestible files into
+batches per storage and move into
+ingest_<date> folder the initiate PUSH
+irrespective of smaller size. Limit to
+1 TB max batch - iterate multiple PUTs if needed
+>1TB used blobbed PUT for single operations
+"""
+
 from dagster import op, Out
 
 
@@ -6,7 +15,7 @@ ONE_TB = 1_099_511_627_776  # 1 TiB in bytes
 
 @op(
     out={"batch_result": Out(dict)},
-    tags={"dagster-celery/queue": "default"},
+    tags={"dagster-celery/queue": "default"}, # Remove this - must be one
 )
 def batch_transfer_to_tape(context, workflow_db, spectralogic):
     pending = workflow_db.get_pending_tape_files(max_bytes=ONE_TB)

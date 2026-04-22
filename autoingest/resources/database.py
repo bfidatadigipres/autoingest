@@ -26,13 +26,25 @@ class WorkflowDatabase:
         finally:
             conn.close()
 
+    def fetch_field_argument(self, filename, field):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT %(field,)s FROM file_catalogue
+                    WHERE file_name = %(file_name,)s
+                    """,
+                    (field, filename,),
+                )
+                return cur.fetchone()
+
     def lookup_file_details(self, filename):
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT * FROM file_fields
-                    WHERE filename LIKE %s
+                    SELECT * FROM file_catalogue
+                    WHERE file_name LIKE %s
                     """,
                     (filename,),
                 )
@@ -68,9 +80,9 @@ class WorkflowDatabase:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, filepath, filesize, checksum_md5
+                    SELECT id, file_path, file_size, checksum_md5, source
                     FROM file_catalogue
-                    WHERE status = 'metadata_complete'
+                    WHERE file_status = 'File cleared for ingest'
                     ORDER BY created_at ASC
                     """,
                 )

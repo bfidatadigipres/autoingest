@@ -15,6 +15,7 @@ def create_catalogue_record(context, checksummed_file_info: dict, workflow_db) -
         "file_path": checksummed_file_info.get("file_path"),
         "extension": checksummed_file_info.get("extension"),
         "file_size": checksummed_file_info.get("file_size"),
+        "status": "Cleared for ingest"
     }
 
     updates = checksummed_file_info
