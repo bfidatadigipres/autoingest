@@ -5,7 +5,7 @@ Mostly completed, for review later
 """
 
 import json
-import utils
+import autoingest.resources.utils as utils
 from datetime import datetime
 from dagster import op, Out
 
@@ -48,10 +48,9 @@ def generate_checksum(context, enriched_file_info: dict) -> dict:
 
     md5 = utils.create_md5_65536(file_path)
     enriched_file_info["checksum_md5"] = md5
-    xxhash = utils.create_xxhash_66536(file_type)
+    xxhash = utils.create_xxhash_66536(file_path)
     enriched_file_info["checksum_xxh"] = xxhash
     enriched_file_info["checksum_date"] = str(datetime.now())[:19]
             
     context.log.info(f"Checksum MD5: {md5} / Checksum XXHash: {xxhash}")
     return enriched_file_info
-

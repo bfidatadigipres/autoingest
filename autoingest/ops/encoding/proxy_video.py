@@ -1,7 +1,7 @@
 import os
 import time
-import utils
-import proxy_utils as ut
+import autoingest.resources.utils as utils
+import autoingest.resources.proxy_utils as ut
 from pathlib import Path
 from dagster import op, Out
 
@@ -13,7 +13,7 @@ MP4_POLICY = os.environ.get("MP4_POLICY")
 )
 def encode_proxy_mp4(
     context,
-    file_info: dict, # Where is this coming from?
+    file_info: dict,
     encoding_config,
     workflow_db
 ) -> dict:

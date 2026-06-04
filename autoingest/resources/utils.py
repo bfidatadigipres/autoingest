@@ -261,7 +261,7 @@ def sort_ext(ext):
         ],
         "image": ["png", "gif", "jpeg", "jpg", "tif", "pct", "tiff"],
         "audio": ["wav", "flac", "mp3"],
-        "document": [
+        "application": [
             "docx",
             "pdf",
             "vtt",
@@ -279,7 +279,6 @@ def sort_ext(ext):
             "ttf",
             "rtf",
             "csv",
-            "txt",
             "ttml",
         ],
     }

@@ -1,5 +1,5 @@
 import os
-import proxy_utils as ut
+import autoingest.resources.proxy_utils as ut
 from pathlib import Path
 from dagster import op, Out
 

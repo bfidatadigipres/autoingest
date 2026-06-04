@@ -9,9 +9,9 @@ Achieves following file assessment:
 - Priref and object number available
 - Filetype matches extension
 - BP Bucket extraction
-- If ingested to BP already (deprecate later in favour of dB info)
-- FFprobe read file okay
+- If ingested to BP already
 - Mime type accepted
+- FFprobe read file okay (if video/audio/image)
 - Check for Media dB record
 - Check if reel is next part for ingest
 Updates all data to new dB entry
@@ -19,7 +19,7 @@ Returns full dct of data
 """
 
 from .. import utils
-# from .. import bp_utils as bp
+from .. import bp_utils as bp
 from .. import adlib
 import magic
 from pathlib import Path
@@ -99,11 +99,12 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
         errors.append(f"MIMEtype '{mime_type}' is not permitted...")
         do_ingest = False
 
-    ffprobe_exit = utils.check_ffprobe_exit(file_path)
-    if ffprobe_exit != 0:
-        context.log.info(f"FFprobe failed to read file: {filename} / Exit code: {ffprobe_exit}")
-        errors.append(f"FFprobe failed to read file: [{ffprobe_exit}] status")
-        do_ingest = False
+    if mime_type != "application":
+        ffprobe_exit = utils.check_ffprobe_exit(file_path)
+        if ffprobe_exit != 0:
+            context.log.info(f"FFprobe failed to read file: {filename} / Exit code: {ffprobe_exit}")
+            errors.append(f"FFprobe failed to read file: [{ffprobe_exit}] status")
+            do_ingest = False
 
     if priref and object_number:
         file_type_match, ftype = ext_in_file_type(filetype, priref, object_number)
@@ -243,32 +244,11 @@ def check_mime_type(fpath: str) -> bool:
     Checks the mime type of the file
     and if stream media checks ffprobe
     """
-    if fpath.lower().endswith((".mxf", ".ts", ".mpg", ".m2ts")):
-        mime = "video"
-    elif fpath.lower().endswith(
-        (
-            ".csv",
-            ".pdf",
-            ".srt",
-            ".rtf",
-            ".scc",
-            ".xml",
-            ".itt",
-            ".stl",
-            ".cap",
-            ".dfxp",
-            ".dxfp",
-            ".vtt",
-            ".ttml",
-            ".ttf",
-            ".txt",
-        )
-    ):
-        mime = "application"
-    else:
+    mime = utils.sort_ext(fpath)
+    if not mime:
         mime = magic.from_file(fpath, mime=True)
-    if "/" in mime:
-        mime = mime.split("/")[0]
+        if "/" in mime:
+            mime = mime.split("/")[0]
 
     return mime
 

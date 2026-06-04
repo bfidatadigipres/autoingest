@@ -39,7 +39,6 @@ defs = Definitions(
     ],
     resources={
         "workflow_db": workflow_database,
-        "spectralogic": spectralogic_client,
         "encoding_config": encoding_config,
     },
     executors=[celery_executor_configured],

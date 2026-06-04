@@ -4,16 +4,16 @@ from ..resources import utils
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
-from media_pipeline.jobs.single_file_ingest import single_file_ingest_job
+# from media_pipeline.jobs.single_file_ingest import single_file_ingest_job ?
 
 
 
 @sensor(
-    job=single_file_ingest_job,
+    job=validation_file_job,
     minimum_interval_seconds=30,
     default_status=DefaultSensorStatus.RUNNING,
 )
-def watch_folder_sensor(context: SensorEvaluationContext):
+def validation_folder_sensor(context: SensorEvaluationContext):
     # WATCH_FOLDER_PATHS to provide all paths at ingest/ level
     watch_paths = os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
     watch_paths = [p.strip() for p in watch_paths if p.strip()]
@@ -31,36 +31,24 @@ def watch_folder_sensor(context: SensorEvaluationContext):
     for watch_path in watch_paths:
         watch_dir = Path(watch_path)
         if not watch_dir.exists():
-            context.log.warning(f"Watch folder does not exist: {watch_path}")
+            context.log.warning(f"Validation watch folder does not exist: {watch_path}")
             continue
-
-        for file_path in watch_dir.rglob("*"):
-            if not file_path.is_file():
-                continue
-            file_type = utils.accepted_file_type(file_path.split(".")[-1])
-            if not file_type:
-                continue
-
-            file_key = str(file_path)
-            current_files.add(file_key)
-
-            if file_key not in seen_files:
-                # Check file is not still being written
-                try:
-                    size_1 = file_path.stat().st_size
-                    import time
-                    time.sleep(2)
-                    size_2 = file_path.stat().st_size
-                    if size_1 != size_2 or size_1 == 0:
-                        continue
-                except OSError:
+        folders = [x for x in os.listdir(watch_dir) if os.path.isdir(os.path.join(watch_dir, x))]
+        for folder in folders:
+            fpath = os.path.join(watch_dir, folder)
+            for file in os.listdir(fpath):
+                file_path = os.path.join(fpath, file)
+                if not file_path.is_file():
                     continue
 
-                new_files.append(file_key)
+                file_key = str(file_path)
+                current_files.add(file_key)
+                if file_key not in seen_files:
+                    new_files.append(file_key)
 
-    run_requests = []
+    val_requests = []
     for file_key in new_files:
-        run_requests.append(
+        val_requests.append(
             RunRequest(
                 run_key=f"ingest-{file_key}",
                 run_config={
@@ -77,4 +65,4 @@ def watch_folder_sensor(context: SensorEvaluationContext):
     updated_seen = list(current_files | set(new_files))
     context.update_cursor(json.dumps(updated_seen))
 
-    return run_requests
+    return val_requests

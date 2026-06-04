@@ -4,7 +4,7 @@ import pytz
 import subprocess
 from datetime import datetime, timezone
 from typing import Optional, Union
-import utils
+import autoingest.resources.utils as utils
 
 _BLACKDETECT = "blackdetect=d=0.05:pix_th=0.10"
 

@@ -9,9 +9,9 @@ def sweep_completed_files(context, workflow_db):
                 """
                 SELECT id, filepath FROM file_catalogue
                 WHERE tape_verified = TRUE
-                  AND proxy_created = TRUE
-                  AND source_deleted IS NOT TRUE
-                  AND status != 'complete'
+                AND proxy_created = TRUE
+                AND source_deleted IS NOT TRUE
+                AND status != 'complete'
                 """
             )
             rows = cur.fetchall()
