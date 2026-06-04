@@ -4,22 +4,24 @@ from pathlib import Path
 from dagster import op, OpExecutionContext
 
 
-@op(required_resource_keys={"workflow_db"})
+@op(
+    required_resource_keys={"workflow_db", "encoding_config"},
+    tags={"dagster-celery/queue": "encoding"},    
+)
 def generate_images(
     context: OpExecutionContext,
-    proxy_result: dict,
-    encoding_config,
+    file_info: dict,
 ) -> dict:
-    proxy_path = proxy_result["proxy_video_path"]
+    proxy_path = file_info["proxy_video_path"]
     root = os.path.split(proxy_path)[0]
     filename_stem = Path(proxy_path).stem
 
     # Check file type first
-    mime = proxy_result["mime_type"]
+    mime = file_info["mime_type"]
     if mime not in ["video", "image"]:
         context.log.info("MIME type is not Video/Image and cannot be converted...")
         return {
-            "file_id": proxy_result.get("file_id"),
+            "file_id": file_info.get("file_id"),
             "proxy_video_path": proxy_path,
             "proxy_image_path": "",
             "proxy_thumb_path": "",
@@ -29,7 +31,7 @@ def generate_images(
     if source.lower() in ["netflix", "amazon", "disney"]:
         context.log.info(f"Source is {source}... No transcode required.")
         return {
-            "file_id": proxy_result.get("file_id"),
+            "file_id": file_info.get("file_id"),
             "proxy_video_path": proxy_path,
             "proxy_image_path": "",
             "proxy_thumb_path": "",
@@ -41,7 +43,7 @@ def generate_images(
             context.log.error(f"JPEG extraction of proxy file not found: {source_image}")
             raise RuntimeError("JPEG image not found to create image/thumbnail")
     elif mime == "image":
-        source_image = proxy_result["file_path"]
+        source_image = file_info["file_path"]
 
     context.log.info(f"Mime type is {mime} and source image is {source_image}")
     largeimage_path = os.path.join(root, f"{filename_stem}_largeimage.jpg")
@@ -98,7 +100,7 @@ def generate_images(
     context.log.info("Updating Proxy Image data to dB")
     db = context.resources.workflow_db
     db.update_file_status(
-        proxy_result.get("file_id"),
+        file_info.get("file_id"),
         {
             "proxy_image_path": proxy_image_path,
             "proxy_thumb_path": proxy_thumb_path,
@@ -106,7 +108,7 @@ def generate_images(
     )
 
     return {
-        "file_id": proxy_result.get("file_id"),
+        "file_id": file_info.get("file_id"),
         "proxy_video_path": proxy_path,
         "proxy_image_path": proxy_image_path,
         "proxy_thumb_path": proxy_thumb_path,

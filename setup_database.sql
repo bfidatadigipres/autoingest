@@ -71,7 +71,7 @@ CREATE TABLE app.file_tracking (
     incomplete_scan     BOOLEAN NOT NULL DEFAULT 'UNKNOWN',
     screencraft_arch    BOOLEAN NOT NULL DEFAULT 'UNKNOWN',
     part                INT,
-    whole               INT,
+    whole               INT,  # 10
     extension           VARCHAR(10),
     ffprobe_exit        INT,
     mime_type           TEXT,
@@ -81,7 +81,7 @@ CREATE TABLE app.file_tracking (
     cid_media_priref    VARCHAR(20),
     bp_bucket           TEXT,
     bucket_list         TEXT,
-    file_size           BIGINT,
+    file_size           BIGINT,  # 20
     checksum_xxh        VARCHAR(32),
     checksum_md5        VARCHAR(32),
     checksum_date       TEXT,

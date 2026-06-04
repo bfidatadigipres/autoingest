@@ -7,11 +7,14 @@ from dagster import op, OpExecutionContext
 
 MP4_POLICY = os.environ.get("MP4_POLICY")
 
-@op(required_resource_keys={"workflow_db"})
+
+@op(
+    required_resource_keys={"workflow_db", "encoding_config"},
+    tags={"dagster-celery/queue": "encoding"},
+)
 def encode_proxy_mp4(
     context: OpExecutionContext,
     file_info: dict,
-    encoding_config
 ) -> dict:
     source_path = file_info["file_path"]
     filename_stem = Path(source_path).stem
@@ -41,7 +44,8 @@ def encode_proxy_mp4(
         }
 
     # Get input date from Media dB here for path
-    output_dir = Path(encoding_config.proxy_output_path)
+    cfg = context.resources.encoding_config
+    output_dir = Path(cfg.proxy_output_path)
     input_date = utils.get_media_input_date(filename)
     if not input_date:
         context.log.info(f"Input date for {filename} Digital Media record not reachable.")
@@ -56,7 +60,7 @@ def encode_proxy_mp4(
 
     context.log.info(
         f"Encoding proxy MP4: {source_path} -> {output_path} "
-        f"(threads: {encoding_config.thread_count})"
+        f"(threads: {cfg.thread_count})"
     )
 
     # Get all required metadata for decision making

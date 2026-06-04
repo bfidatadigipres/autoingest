@@ -3,24 +3,27 @@ from pathlib import Path
 from dagster import op, OpExecutionContext
 
 
-@op(required_resource_keys={"workflow_db"})
+@op(
+    required_resource_keys={"workflow_db"},
+    tags={"dagster-celery/queue": "default"},
+)
 def check_and_delete_source(
     context: OpExecutionContext,
-    thumbnail_result: dict,
+    file_info: dict,
 ):
-    file_id = thumbnail_result["file_id"]
+    file_id = file_info["file_id"]
     
     # Update proxy data to Media dB
     media_data = []
-    proxy_video_path = thumbnail_result["proxy_video_path"]
-    proxy_image_path = thumbnail_result["proxy_image_path"]
-    proxy_thumb_path = thumbnail_result["proxy_thumb_path"]
+    proxy_video_path = file_info["proxy_video_path"]
+    proxy_image_path = file_info["proxy_image_path"]
+    proxy_thumb_path = file_info["proxy_thumb_path"]
     media_data.append(
         f"<access_rendition.mp4>{os.path.split(proxy_video_path)[1]}</access_rendition.mp4>",
         f"<access_rendition.largeimage>{os.path.split(proxy_image_path)[1]}</access_rendition.largeimage>",
         f"<access_rendition.thumbnail>{os.path.split(proxy_thumb_path)[1]}</access_rendition.thumbnail>"
     )
-    media_priref = thumbnail_result["cid_media_priref"]
+    media_priref = file_info["cid_media_priref"]
     success = cid_media_append(media_priref, media_data)
     if not success:
         context.log.error(f"Proxy file names failed to write to Media priref {media_priref}")
