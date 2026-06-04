@@ -1,11 +1,11 @@
 import os
 import json
-from ..resources import utils
+import time
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
-from media_pipeline.jobs.single_file_ingest import single_file_ingest_job
-
+from autoingest.jobs.single_file_ingest import single_file_ingest_job
+from autoingest.resources import utils
 
 
 @sensor(
@@ -14,7 +14,6 @@ from media_pipeline.jobs.single_file_ingest import single_file_ingest_job
     default_status=DefaultSensorStatus.RUNNING,
 )
 def watch_folder_sensor(context: SensorEvaluationContext):
-    # WATCH_FOLDER_PATHS to provide all paths at ingest/ level
     watch_paths = os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
     watch_paths = [p.strip() for p in watch_paths if p.strip()]
 
@@ -37,18 +36,17 @@ def watch_folder_sensor(context: SensorEvaluationContext):
         for file_path in watch_dir.rglob("*"):
             if not file_path.is_file():
                 continue
-            file_type = utils.accepted_file_type(file_path.split(".")[-1])
-            if not file_type:
+
+            ext = file_path.suffix.lstrip(".")
+            if not ext or not utils.accepted_file_type(ext):
                 continue
 
             file_key = str(file_path)
             current_files.add(file_key)
 
             if file_key not in seen_files:
-                # Check file is not still being written
                 try:
                     size_1 = file_path.stat().st_size
-                    import time
                     time.sleep(2)
                     size_2 = file_path.stat().st_size
                     if size_1 != size_2 or size_1 == 0:
@@ -73,8 +71,5 @@ def watch_folder_sensor(context: SensorEvaluationContext):
             )
         )
 
-    # Update cursor: keep current files, add new ones, prune gone files
-    updated_seen = list(current_files | set(new_files))
-    context.update_cursor(json.dumps(updated_seen))
-
+    context.update_cursor(json.dumps(list(current_files)))
     return run_requests

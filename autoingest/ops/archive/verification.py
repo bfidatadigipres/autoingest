@@ -1,51 +1,42 @@
 import os
-from dagster import op, Out
+from dagster import op, OpExecutionContext
 
 
+# ops/archive/verification.py
 @op(
-    out={"verification_results": Out(list)},
+    required_resource_keys={"workflow_db"},
+    config_schema={"file_path": str},
     tags={"dagster-celery/queue": "default"},
 )
-def verify_tape_copies(context, batch_result: dict, workflow_db, spectralogic):
-    if not batch_result["file_ids"]:
-        context.log.info("No files to verify")
-        return []
+def verify_tape_copy(context: OpExecutionContext) -> dict:
+    file_path = context.op_config["file_path"]
+    # ... verify the tape copy, write result to DB
+    return {"file_path": file_path, "file_id": ..., ...}
 
-    results = []
-    for file_id, obj in zip(batch_result["file_ids"], batch_result["objects"]):
-        context.log.info(f"Verifying tape copy for file {file_id}: {obj['name']}")
+# ops/encoding/proxy_video.py
+@op(
+    required_resource_keys={"workflow_db", "encoding_config"},
+    tags={"dagster-celery/queue": "encoding"},
+)
+def encode_proxy_mp4(context: OpExecutionContext, file_info: dict) -> dict:
+    cfg = context.resources.encoding_config
+    # ... create proxy MP4 using cfg.ffmpeg_path
+    return {**file_info, "proxy_video_path": ...}
 
-        tape_info = spectralogic.verify_object(obj["name"])
-        local_size = obj["size"]
-        tape_size = int(tape_info["size"])
+# ops/encoding/proxy_images.py
+@op(
+    required_resource_keys={"workflow_db", "encoding_config"},
+    tags={"dagster-celery/queue": "encoding"},
+)
+def generate_images(context: OpExecutionContext, file_info: dict) -> dict:
+    # ... generate proxy images
+    return {**file_info, "proxy_image_path": ...}
 
-        # Fetch local checksum from DB for comparison
-        # (already stored during metadata extraction)
-        from media_pipeline.resources.database import WorkflowDatabase
-        with workflow_db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT checksum_md5 FROM file_catalogue WHERE id = %s",
-                    (file_id,),
-                )
-                local_checksum = cur.fetchone()[0]
-
-        size_match = local_size == tape_size
-        checksum_match = local_checksum == tape_info["checksum"]
-        verified = size_match and checksum_match
-
-        if verified:
-            workflow_db.update_file_status(
-                file_id, tape_verified=True, status="tape_verified"
-            )
-            context.log.info(f"File {file_id} verified successfully")
-        else:
-            workflow_db.update_file_status(file_id, status="tape_verify_failed")
-            context.log.error(
-                f"File {file_id} verification FAILED. "
-                f"Size match: {size_match}, Checksum match: {checksum_match}"
-            )
-
-        results.append({"file_id": file_id, "verified": verified})
-
-    return results
+# ops/cleanup/source_deletion.py
+@op(
+    required_resource_keys={"workflow_db"},
+    tags={"dagster-celery/queue": "default"},
+)
+def check_and_delete_source(context: OpExecutionContext, file_info: dict):
+    db = context.resources.workflow_db
+    # ... check all stages complete, delete source file

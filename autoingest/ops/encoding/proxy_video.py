@@ -3,19 +3,15 @@ import time
 import autoingest.resources.utils as utils
 import autoingest.resources.proxy_utils as ut
 from pathlib import Path
-from dagster import op, Out
+from dagster import op, OpExecutionContext
 
 MP4_POLICY = os.environ.get("MP4_POLICY")
 
-@op(
-    out={"proxy_result": Out(dict)},
-    tags={"dagster-celery/queue": "encoding"},
-)
+@op(required_resource_keys={"workflow_db"})
 def encode_proxy_mp4(
-    context,
+    context: OpExecutionContext,
     file_info: dict,
-    encoding_config,
-    workflow_db
+    encoding_config
 ) -> dict:
     source_path = file_info["file_path"]
     filename_stem = Path(source_path).stem
@@ -141,7 +137,8 @@ def encode_proxy_mp4(
         context.log.error("Failed to make JPEG image - try again in next script")
 
     context.log.info("Updating Proxy Video data to dB")
-    workflow_db.update_file_status(
+    db = context.resources.workflow_db
+    db.update_file_status(
         file_info["file_id"],
         {
             "proxy_video_path": str(output_path),

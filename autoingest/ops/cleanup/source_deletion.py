@@ -1,15 +1,12 @@
 import os
 from pathlib import Path
-from dagster import op, Out
+from dagster import op, OpExecutionContext
 
 
-@op(
-    tags={"dagster-celery/queue": "default"},
-)
+@op(required_resource_keys={"workflow_db"})
 def check_and_delete_source(
-    context,
+    context: OpExecutionContext,
     thumbnail_result: dict,
-    workflow_db
 ):
     file_id = thumbnail_result["file_id"]
     
@@ -31,10 +28,11 @@ def check_and_delete_source(
     context.log.info(f"Proxy filenames updated to CID Media record: {media_priref}")
 
     # Update all proxy file paths here
-    workflow_db.update_file_status(file_id, proxy_created=True)
+    db = context.resources.workflow_db
+    db.update_file_status(file_id, proxy_created=True)
 
     # Check if all stages are complete
-    all_complete = workflow_db.check_all_stages_complete(file_id)
+    all_complete = db.check_all_stages_complete(file_id)
 
     if not all_complete:
         context.log.info(
@@ -43,7 +41,7 @@ def check_and_delete_source(
         return
 
     # Retrieve the source path
-    with workflow_db.get_connection() as conn:
+    with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT filepath FROM file_catalogue WHERE id = %s", (file_id,)
@@ -58,7 +56,7 @@ def check_and_delete_source(
     if source_path.exists():
         context.log.info(f"All stages complete. Deleting source: {source_path}")
         source_path.unlink()
-        workflow_db.update_file_status(file_id, status="complete", source_deleted=True)
+        db.update_file_status(file_id, status="complete", source_deleted=True)
     else:
         context.log.warning(f"Source file already gone: {source_path}")
-        workflow_db.update_file_status(file_id, status="complete", source_deleted=True)
+        db.update_file_status(file_id, status="complete", source_deleted=True)

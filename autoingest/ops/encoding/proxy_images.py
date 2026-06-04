@@ -1,18 +1,14 @@
 import os
 import autoingest.resources.proxy_utils as ut
 from pathlib import Path
-from dagster import op, Out
+from dagster import op, OpExecutionContext
 
 
-@op(
-    out={"image_result": Out(dict)},
-    tags={"dagster-celery/queue": "encoding"},
-)
+@op(required_resource_keys={"workflow_db"})
 def generate_images(
-    context,
+    context: OpExecutionContext,
     proxy_result: dict,
     encoding_config,
-    workflow_db
 ) -> dict:
     proxy_path = proxy_result["proxy_video_path"]
     root = os.path.split(proxy_path)[0]
@@ -100,7 +96,8 @@ def generate_images(
         os.remove(os.path.join(root, f"{filename_stem}.jpg"))
 
     context.log.info("Updating Proxy Image data to dB")
-    workflow_db.update_file_status(
+    db = context.resources.workflow_db
+    db.update_file_status(
         proxy_result.get("file_id"),
         {
             "proxy_image_path": proxy_image_path,

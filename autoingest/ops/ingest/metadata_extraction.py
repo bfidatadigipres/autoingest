@@ -7,14 +7,11 @@ Mostly completed, for review later
 import json
 import autoingest.resources.utils as utils
 from datetime import datetime
-from dagster import op, Out
+from dagster import op, OpExecutionContext
 
 
-@op(
-    out={"enriched_file_info": Out(dict)},
-    tags={"dagster-celery/queue": "default"},
-)
-def extract_metadata(context, file_info: dict) -> dict:
+@op
+def extract_metadata(context: OpExecutionContext, file_info: dict) -> dict:
     file_path = file_info["file_path"]
     context.log.info(f"** Extracting metadata from {file_path}")
 
@@ -38,11 +35,8 @@ def extract_metadata(context, file_info: dict) -> dict:
     return file_info
 
 
-@op(
-    out={"checksummed_file_info": Out(dict)},
-    tags={"dagster-celery/queue": "default"},
-)
-def generate_checksum(context, enriched_file_info: dict) -> dict:
+@op
+def generate_checksum(context: OpExecutionContext, enriched_file_info: dict) -> dict:
     file_path = enriched_file_info["file_path"]
     context.log.info(f"Generating MD5 checksum for {file_path}")
 

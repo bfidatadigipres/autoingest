@@ -18,30 +18,24 @@ Updates all data to new dB entry
 Returns full dct of data
 """
 
-from .. import utils
-from .. import bp_utils as bp
-from .. import adlib
+from ...resources import utils
+from ...resources import bp_utils as bp
+from ...resources import adlib
 import magic
 from pathlib import Path
 from typing import Optional
-from dagster import op, Config, Out, Output
+from dagster import op, OpExecutionContext
 
 
-class FileAssessmentConfig(Config):
-    file_path: str
-
-
-@op(
-    out={"file_info": Out(dict)},
-    tags={"dagster-celery/queue": "default"},
-)
-def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
-    file_path = Path(config.file_path)
+@op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str})
+def assess_filename(context: OpExecutionContext) -> dict:
+    file_path = context.op_config["file_path"]
     filename = file_path.name
     filetype = file_path.suffix.lower().lstrip(".")
     filesize = file_path.stat().st_size
 
-    field_details = workflow_db.lookup_file_details(filename)
+    db = context.resources.workflow_db
+    field_details = db.lookup_file_details(filename)
     existing_error = ""
     if field_details is None:
         context.log.warning(
@@ -83,14 +77,14 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
     priref = utils.fetch_item_priref(object_number)
     if not priref:
         context.log.info(f"Cannot find a record with object_number: {object_number}")
-        error.append(f"Cannot find record with <object number> ...<{object_number}>")
+        errors.append(f"Cannot find record with <object number> ...<{object_number}>")
         do_ingest = False
 
     over_tb_accepted = check_accepted_file_type(file_path)
     bucket, bucket_list = bp.get_buckets(donor, over_tb_accepted)
     if not bucket:
         context.log.info(f"Failed to match Donor {donor} to buckets")
-        error = f"Failed to match Donor {donor} to Black Pearl bucket"
+        errors.append(f"Failed to match Donor {donor} to Black Pearl bucket")
         do_ingest = False
 
     mime_type = check_mime_type(file_path)
@@ -136,7 +130,7 @@ def assess_filename(context, config: FileAssessmentConfig, workflow_db) -> dict:
     if not incomplete_scan or part != 1 or whole != 1:
         # pervious part returns without extension, dB search uses LIKE to match most of name
         previous_part = check_for_multipart(filename, part, whole)
-        pp_field_details = workflow_db.lookup_file_details(previous_part)
+        pp_field_details = db.lookup_file_details(previous_part)
         if not pp_field_details:
             context.log.info(f"Skipping ingest - previous part has not been ingested yet")
             errors.append("Skip object as previous part not yet ingested or queued for ingest")

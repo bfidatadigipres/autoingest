@@ -15,7 +15,7 @@ from typing import Final, Optional
 import ffmpeg
 
 # BFI library
-import adlib
+import autoingest.resources.adlib as adlib
 
 CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.json")
