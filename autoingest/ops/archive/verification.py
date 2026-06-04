@@ -3,7 +3,11 @@ from ...resources import bp_utils as bp
 from ...resources import adlib
 
 import os
+import json
 from dagster import op, OpExecutionContext
+
+
+JSON_PATH = os.path.join(os.environ.get("LOG_PATH"), "black_pearl/")
 
 
 @op(
@@ -20,29 +24,44 @@ def verify_tape_copy(context: OpExecutionContext) -> dict:
     db = context.resources.workflow_db
     file_info = db.lookup_file_details(file)
 
-    # Start validation checks
+    # Check the file completed ingest / autoingest path available
     status = file_info[2]
     if status != "File cleared for ingest":
         context.log.warning(f"File has not be cleared for ingest: {status}.")
         return {}
+    autoingest_path = file_info[45]
+    if not autoingest_path or not os.path.exists(autoingest_path):
+        context.log.warning(f"Autoingest path not found:\n{autoingest_path}")
+        return {}
+    json_path = retrieve_json_data(file_info[46])
+    if not json_path:
+        context.log.warning(f"Unable to locate file in JSON path:\n{json_path}")
+        return {}
 
     errors = []
     validation_pass = True
+    ingest_retry_needed = False
+
+    success = check_for_failed_file(file, json_path)
+        if success is False:
+            validation_pass = False
+            ingest_retry_needed = True
+            errors.append(f"JOB ID partially failed to ingest file {file} to DPI:\n{json_path}")
+            # Actions needed later to move file back into BP ingest path / refresh dB so sensor reselects
 
     bp_bucket = file_info[18]
     bp_checksum = bp.get_bp_md5(file, bp_bucket)
-    local_checksum = file_inf0[22]
+    local_checksum = file_info[22].strip()
     if not local_checksum.lower() == bp_checksum.lower():
         context.log.warning(f"Black Pearl version of {file} has different checksum to local:\n{bp_checksum}\n{local_checksum}")
         validation_pass = False
         errors.append("Failed fixity check: checksums do not match")
-        return {}
-
     if len(local_checksum) == 32 and len(bp_checksum) == 32:
         context.log.info(f"Checksums match:\n{bp_checksum} - Black Pearl MD5\n{local_checksum} - Local checksum")
 
 
     # JMW up to here
+    # Data at end needed to sort validation_pass False / True decision and ingest_retry_needed
 
 
 
@@ -85,4 +104,51 @@ def verify_tape_copy(context: OpExecutionContext) -> dict:
     return results
 
 
+def retrieve_json_data(job_id: str) -> str:
+    """
+    Look for matching JSON file
+    """
+    json_file = [x for x in os.listdir(JSON_PATH) if str(job_id) in str(x)]
+    if json_file:
+        return os.path.join(JSON_PATH, json_file[0])
+    else:
+        return None
 
+
+def check_for_failed_file(file, json_file):
+    """
+    Check in JSON for failed file in list
+    """
+    failed_files = json_check(json_file)
+    if not failed_files:
+        return False
+    for ffile in failed_files:
+        for key, value in ffile.items():
+            if key == "Name":
+                if value == file:
+                    return True
+    return False
+
+
+def json_check(json_pth: str) -> Optional[str]:
+    """
+    Open json and return value for ObjectsNotPersisted
+    """
+    with open(json_pth) as file:
+        dct = json.load(file)
+        
+    for k, v in dct.items():
+        if k == "Notification":
+            notifications = v
+    if isinstance(notifications, dict):
+        for ky, vl in notifications.items():
+            if ky == "Event":
+                events = vl
+    else:
+        return None
+    if isinstance(events, dict):
+        for key, val in events.items():
+            if key == "ObjectsNotPersisted":
+                return val
+    else:
+        return None
