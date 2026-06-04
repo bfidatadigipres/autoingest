@@ -11,7 +11,7 @@ import xxhash
 import hashlib
 import subprocess
 from requests import Session
-from typing import Final, Optional
+from typing import Final, Optional, Union
 import ffmpeg
 
 # BFI library
