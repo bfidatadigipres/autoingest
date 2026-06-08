@@ -1,21 +1,23 @@
+from multiprocessing import context
+from xml.parsers.expat import errors
 from ...resources import utils
 from ...resources import bp_utils as bp
 from ...resources import adlib
 
 import os
 import json
-from dagster import op, OpExecutionContext
+from dagster import op, Out
 
 
 JSON_PATH = os.path.join(os.environ.get("LOG_PATH"), "black_pearl/")
 
 
 @op(
-    required_resource_keys={"workflow_db"},
     config_schema={"file_path": str},
-    tags={"dagster-celery/queue": "default"},
+    out=Out(dict),
+    required_resource_keys={"workflow_db"},
 )
-def verify_tape_copy(context: OpExecutionContext) -> dict:
+def verify_tape_copy(context) -> dict:
     file_path = context.op_config["file_path"]
     file = os.path.basename(file_path)
     context.log.info(f"Verifying file: {file_path}")
@@ -43,14 +45,28 @@ def verify_tape_copy(context: OpExecutionContext) -> dict:
     ingest_retry_needed = False
 
     success = check_for_failed_file(file, json_path)
-        if success is False:
-            validation_pass = False
-            ingest_retry_needed = True
-            errors.append(f"JOB ID partially failed to ingest file {file} to DPI:\n{json_path}")
-            # Actions needed later to move file back into BP ingest path / refresh dB so sensor reselects
+    if success is False:
+        validation_pass = False
+        ingest_retry_needed = True
+        errors.append(f"JOB ID partially failed to ingest file {file} to DPI:\n{json_path}")
+        # Actions needed here to move file back into ingest path / Refresh dB entry for retry of PUT
+        return {} #What?
 
     bp_bucket = file_info[18]
-    bp_checksum = bp.get_bp_md5(file, bp_bucket)
+    confirmed, bp_checksum, bp_length = bp.get_confirmation_length_md5(file, bp_bucket)
+
+    if confirmed is None or confirmed == "No object list":
+        context.log.warning("Problem retrieving Black Pearl TapeList.")
+        validation_pass = False
+        ingest_retry_needed = True
+        errors.append("Problem retrieving BlackPearl TapeList.")
+    elif confirmed is False:
+        context.log.warning("Assigned to storage domain is FALSE: {file}")
+        validation_pass = False
+        errors.append("BlackPearl has not persisted file to data tape but ObjectList exists")
+    elif confirmed is True:
+        context.log.info("Assigned to storage domain confirmed as TRUE")
+
     local_checksum = file_info[22].strip()
     if not local_checksum.lower() == bp_checksum.lower():
         context.log.warning(f"Black Pearl version of {file} has different checksum to local:\n{bp_checksum}\n{local_checksum}")
@@ -59,6 +75,25 @@ def verify_tape_copy(context: OpExecutionContext) -> dict:
     if len(local_checksum) == 32 and len(bp_checksum) == 32:
         context.log.info(f"Checksums match:\n{bp_checksum} - Black Pearl MD5\n{local_checksum} - Local checksum")
 
+    if not bp_length:
+        context.log.warning("Could not extract BlackPearl object length")
+        validation_pass = False
+        errors.append("Filesize does not match BlackPearl object length")
+    if bp_length != file_info.get("file_size"):
+        context.log.warning(f"Black pearl file length {bp_length} does not match original file length {file_info.get("file_size")}")
+        validation_pass = False
+        errors.append("Filesize does not match BlackPearl object length")
+    else:
+        context.log.info("Black Pearl object length matches file size")
+
+    # Check for Media Rec
+    mcheck = utils.check_file_has_media_rec(file)
+    if mcheck is not False:
+        context.log.info(
+                f"Media record already exists for file: {file}"
+            )
+        validation_pass = False
+        errors.append(f"Filename already has a CID Media record: '<{file}>'")
 
     # JMW up to here
     # Data at end needed to sort validation_pass False / True decision and ingest_retry_needed
@@ -74,7 +109,7 @@ def verify_tape_copy(context: OpExecutionContext) -> dict:
 
         # Fetch local checksum from DB for comparison
         # (already stored during metadata extraction)
-        from media_pipeline.resources.database import WorkflowDatabase
+        from autoingest.resources.database import WorkflowDatabase
         with workflow_db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -152,3 +187,4 @@ def json_check(json_pth: str) -> Optional[str]:
                 return val
     else:
         return None
+

@@ -24,11 +24,11 @@ from ...resources import adlib
 import magic
 from pathlib import Path
 from typing import Optional
-from dagster import op, OpExecutionContext
+from dagster import op, OpExecutionContext, Out
 
 
-@op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str})
-def assess_filename(context: OpExecutionContext) -> dict:
+@op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
+def assess_filename(context) -> dict:
     file_path = context.op_config["file_path"]
     filename = file_path.name
     filetype = file_path.suffix.lower().lstrip(".")

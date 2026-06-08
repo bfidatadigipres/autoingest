@@ -7,11 +7,14 @@ Mostly completed, for review later
 import json
 import autoingest.resources.utils as utils
 from datetime import datetime
-from dagster import op, OpExecutionContext
+from dagster import op, Out
 
 
-@op
-def extract_metadata(context: OpExecutionContext, file_info: dict) -> dict:
+@op(
+    tags={"dagster-celery/queue": "encoding"},
+    out=Out(dict)
+)
+def extract_metadata(context, file_info: dict) -> dict:
     file_path = file_info["file_path"]
     context.log.info(f"** Extracting metadata from {file_path}")
 
@@ -28,15 +31,15 @@ def extract_metadata(context: OpExecutionContext, file_info: dict) -> dict:
         mdata = utils.make_metadata(file_path, mtype)
         if "json" in mdata:
             metadata = json.dumps(mdata)
-            file_info[mtype] = metadata        
+            file_info[mtype] = metadata
         else:
             file_info[mtype] = mdata
 
     return file_info
 
 
-@op
-def generate_checksum(context: OpExecutionContext, enriched_file_info: dict) -> dict:
+@op(out=Out(dict))
+def generate_checksum(context, enriched_file_info: dict) -> dict:
     file_path = enriched_file_info["file_path"]
     context.log.info(f"Generating MD5 checksum for {file_path}")
 

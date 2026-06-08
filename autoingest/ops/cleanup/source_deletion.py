@@ -3,10 +3,7 @@ from pathlib import Path
 from dagster import op, OpExecutionContext
 
 
-@op(
-    required_resource_keys={"workflow_db"},
-    tags={"dagster-celery/queue": "default"},
-)
+@op(required_resource_keys={"workflow_db"})
 def check_and_delete_source(
     context: OpExecutionContext,
     file_info: dict,

@@ -91,7 +91,7 @@ CREATE TABLE app.file_tracking (
     mdata_full_xml      TEXT,
     mdata_ebucore       TEXT,
     mdata_pbcore        TEXT,
-    mdata_full_json     JSONB DEFAULT '{}'
+    mdata_full_json     JSONB DEFAULT '{}' # 30
     file_fmt	        TEXT,
     video_codec         TEXT,
     audio_codec         TEXT,
@@ -101,16 +101,17 @@ CREATE TABLE app.file_tracking (
     audio_ch_total      TEXT,
     audio_count         INT,
     video_count         INT,
-    height              TEXT,
+    height              TEXT, # 40
     width               TEXT,
     sample_height       TEXT,
     clean_ap_width      TEXT,
     video_duration      TEXT,
+    autoingest_path     TEXT,
     bp_job_id           VARCHAR(32),
     put_completion      TEXT,
     persisted_ok        TEXT,
     bp_etag             VARCHAR(32),
-    bp_length           BIGINT,
+    bp_length           BIGINT, # 50
     bp_version_id       VARCHAR(32),
     cid_media_priref    BIGINT,
     validated           TEXT,
@@ -120,7 +121,7 @@ CREATE TABLE app.file_tracking (
     proxy_size          TEXT,
     proxy_image_path    TEXT,
     proxy_thumb_path    TEXT,
-    updated_to_cid      TEXT,
+    updated_to_cid      TEXT, # 60
     source_deletion     TEXT,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()

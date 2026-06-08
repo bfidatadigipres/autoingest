@@ -1,13 +1,15 @@
 import os
-from types import SimpleNamespace
 from dagster import resource, InitResourceContext
 
 
+class EncodingConfig:
+    def __init__(self):
+        self.ffmpeg_path = os.environ.get("FFMPEG_PATH", "/usr/bin/ffmpeg")
+        self.ffprobe_path = os.environ.get("FFPROBE_PATH", "/usr/bin/ffprobe")
+        self.thread_count = int(os.environ.get("ENCODING_THREAD_COUNT", "0"))
+        self.proxy_output_path = os.environ.get("PROXY_OUTPUT_PATH", "/mnt/proxy")
+
+
 @resource
-def encoding_config(context: InitResourceContext):
-    return SimpleNamespace(
-        ffmpeg_path=os.environ.get("FFMPEG_PATH", "/usr/bin/ffmpeg"),
-        ffprobe_path=os.environ.get("FFPROBE_PATH", "/usr/bin/ffprobe"),
-        thread_count=int(os.environ.get("ENCODING_THREAD_COUNT", "0")),
-        proxy_output_path=os.environ.get("PROXY_OUTPUT_PATH", ""),
-    )
+def encoding_config(context: InitResourceContext) -> EncodingConfig:
+    return EncodingConfig()

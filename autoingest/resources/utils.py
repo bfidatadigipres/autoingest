@@ -10,7 +10,6 @@ import json
 import xxhash
 import hashlib
 import subprocess
-from requests import Session
 from typing import Final, Optional, Union
 import ffmpeg
 
@@ -413,28 +412,6 @@ def create_xxhash_65536(fpath):
         return None
 
 
-def get_current_api():
-    """
-    Check control json for downtime requests
-    based on passed argument
-    if not utils.check_control['arg']:
-        sys.exit(message)
-    """
-
-    try:
-        with open(CONTROL_JSON) as control:
-            j: dict[str, str] = json.load(control)
-            if j["current_api"]:
-                api_key = j["current_api"]
-                return os.environ.get(api_key)
-            else:
-                print("No API key found in control json")
-                return None
-    except FileNotFoundError:
-        print(f"Control JSON file not found: {CONTROL_JSON}")
-        return None
-
-
 def fetch_item_priref(ob_num: str) -> str:
     """
     Retrieve item priref, title from CID
@@ -457,7 +434,7 @@ def fetch_item_priref(ob_num: str) -> str:
 
 
 def check_file_has_media_rec(
-    fname: str, session: Session
+    fname: str
 ) -> Optional[Union[str, bool]]:
     """
     Check if CID media record
@@ -466,7 +443,7 @@ def check_file_has_media_rec(
     search = f"imagen.media.original_filename='{fname}'"
     print(f"Search used against CID Media dB: {search}")
     try:
-        hits = adlib.retrieve_record(CID_API, "media", search, "0", session)[0]
+        hits = adlib.retrieve_record(CID_API, "media", search, "0")[0]
     except Exception as err:
         print(f"Unable to retrieve CID Media record {err}")
         return None

@@ -18,7 +18,6 @@ dependencies = [
     "tenacity",
     "xmltodict",
     "Pillow",
-    "setuptools.backends",
 ]
 
 [dependency-groups]
@@ -30,7 +29,7 @@ dev = [
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [tool.dagster]
 module_name = "autoingest.definitions"
