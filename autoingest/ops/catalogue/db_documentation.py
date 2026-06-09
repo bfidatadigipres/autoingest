@@ -1,5 +1,4 @@
-import os
-import shutil
+from ...resources import utils
 from pathlib import Path
 from dagster import op
 
@@ -13,10 +12,10 @@ def create_catalogue_record(context, file_info: dict) -> int:
 
     if file_info.get("file_status") == "File cleared for ingest":
         context.log.info(
-            f"Creating catalogue record for {file_info['filename']}"
+            f"Creating catalogue record for {file_info['file_name']}"
         )
     else:
-        context.log.warning(f"File {file_info['filename']} does not have file_status 'File cleared for ingest'")
+        context.log.warning(f"File {file_info['file_name']} does not have file_status 'File cleared for ingest'")
         return None
 
     basic_metadata = [
@@ -46,7 +45,9 @@ def create_catalogue_record(context, file_info: dict) -> int:
         "cid_file_type",
         "cid_item_priref",
         "cid_ob_num",
-        "source"
+        "source",
+        "put_type",
+        "autoingest_path"
     ]
 
     basics = {}
@@ -61,22 +62,24 @@ def create_catalogue_record(context, file_info: dict) -> int:
         record_id = db.create_file_record(basics)
         context.log.info(f"Catalogue record created with ID: {record_id}")
     except Exception as err:
-        context.log.warning(f"Failed to create record with data:\n{basics}")
+        context.log.warning(f"Failed to create record with data:\n{basics} {err}")
         return None
 
-    # Move file to PUT folder
+    # Move file to PUT folders - conditional splits
     put_base = file_info.get("autoingest_path")
     source = Path(file_info["file_path"])
-    destination = Path(put_base) / file_info["file_name"]
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    base_dir = Path(source).parent.parent.parent
+    autoingest_path = base_dir / put_base / file_info["file_name"]
+    context.log.info(f"Moving {file_info['file_name']} to PUT folder: {autoingest_path}")
+    
     db.update_file_status(record_id, file_status="File cleared for ingest")
-    try:
-        shutil.move(str(source), str(destination))
-        context.log.info(f"Moved {file_info['file_name']} to PUT folder: {destination}")
+    success, log = utils.move_file(source, autoingest_path)
+    if success is True:
+        context.log.info(log)
         db.update_file_status(record_id, file_status="File cleared for ingest")
         return record_id
-    except Exception as err:
+    else:
         context.log.warning(f"Move error for {file_info['file_name']}:\n{err}")
         db.update_file_status(record_id, file_status="Error")
-        db.update_file_status(record_id, error_message="File failed move into autoingest_path folder")
+        db.update_file_status(record_id, error_message="File failed move into autoingest processing folder")
         return None

@@ -7,10 +7,11 @@ workflow, across ops.
 import os
 import re
 import json
+import shutil
 import xxhash
 import hashlib
 import subprocess
-from typing import Final, Optional, Union
+from typing import Final, Optional, Union, List
 import ffmpeg
 
 # BFI library
@@ -632,3 +633,22 @@ def get_buckets_blob(bucket_collection: str) -> str:
                     key_bucket = key
 
     return key_bucket
+
+
+def move_file(from_path: str, to_path: str) -> List[bool, str]:
+    """
+    Shutil move function reporting of success/failure
+    """
+    if not os.path.isfile(from_path):
+        return None
+
+    try:
+        shutil.move(from_path, to_path)
+        print(f"Moved first path to second path:\n{from_path}\n{to_path}")
+    except Exception as err:
+        print(f"General error for move: {err}")
+
+    if os.path.isfile(from_path):
+        return [False, f"FAIL: File did not move to {from_path}"]
+    if os.path.isfile(to_path):
+        return [True, f"SUCCESS: File moved to new path {to_path}"]

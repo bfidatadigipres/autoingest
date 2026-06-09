@@ -106,13 +106,13 @@ CREATE TABLE app.file_tracking (
     sample_height       TEXT,
     clean_ap_width      TEXT,
     video_duration      TEXT,
-    autoingest_path     TEXT,
+    autoingest_path     TEXT,  # Eg from autoingest/ingest/autodetect or autoingest/ingest/incomplete_scans or autoingest/ingest/bfi/blob
     bp_job_id           VARCHAR(32),
-    put_completion      TEXT,
-    persisted_ok        TEXT,
-    bp_etag             VARCHAR(32),
-    bp_length           BIGINT, # 50
-    bp_version_id       VARCHAR(32),
+    put_type            TEXT,  # Eg, Blob / Group
+    persisted_ok        TEXT,  # Bool
+    bp_etag             VARCHAR(32),  # Whole file checksum
+    bp_length           BIGINT, # 50  Total file size in BP
+    bp_version_id       VARCHAR(32),  # Version ID
     cid_media_priref    BIGINT,
     validated           TEXT,
     reference_num       TEXT,

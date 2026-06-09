@@ -38,13 +38,15 @@ def assess_filename(context) -> dict:
     field_details = db.lookup_file_details(filename)
     existing_error = ""
     if field_details is None:
-        context.log.warning(
-            f"No field details found for filename '{filename}', using defaults"
+        context.log.info(
+            f"No field details found for filename '{filename}'"
         )
     else:
         if len(field_details[4]) > 0:
             print(field_details[4])
             existing_error = field_details[4]
+            context.log.warning(f"Historical error found for ingest, will not proceed until error fixed and ingest refreshed: {existing_error}")
+            return {}
 
     # Check file for errors/ingest confirmation
     errors = []
@@ -146,8 +148,6 @@ def assess_filename(context) -> dict:
     returns["file_size"] = filesize
     returns["extension"] = filetype
 
-    if existing_error in errors:
-        return {}
     if do_ingest is False:
         returns = {
             "do_ingest": "FALSE",
@@ -168,6 +168,14 @@ def assess_filename(context) -> dict:
     else:
         returns["screencraft_arch"] = "FALSE"
 
+    # Configure autoingest PUT path
+    if filesize > 1099511627776:
+        returns["put_type"] = "Blob"
+        autoingest_path = "autoingest/processing/{donor.lower()}/blob/"
+    else:
+        returns["put_type"] = "Group"
+        autoingest_path = "autoingest/processing/{donor.lower()}/"
+
     returns["file_status"] = "File cleared for ingest"
     returns["part"] = part
     returns["whole"] = whole
@@ -179,6 +187,7 @@ def assess_filename(context) -> dict:
     returns["cid_item_priref"] = priref
     returns["cid_ob_num"] = object_number
     returns["source"] = donor
+    returns["autoingest_path"] = autoingest_path
 
     return returns
 
