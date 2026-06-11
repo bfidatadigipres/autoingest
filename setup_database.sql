@@ -114,6 +114,7 @@ CREATE TABLE app.file_tracking (
     bp_etag             VARCHAR(32),  # Whole file checksum
     bp_length           BIGINT, # 50  Total file size in BP
     bp_version_id       VARCHAR(32),  # Version ID
+    cid_media_priref    BIGINT,
     validated           TEXT,
     reference_num       TEXT,
     ffmpeg_command      TEXT,
