@@ -47,10 +47,22 @@ pip install -e ".[dev]"
 Navigate terminal into your autoingest/ folder. Start the Dagster UI web server:
 
 ```bash
-dagster dev -w workflow -h 0.0.0.0 -p 3000
+dagster dev -h 0.0.0.0 -p 3000
 ```
 
 Open http://localhost:3000 in your browser to see the project. Local host and port can be adjusted as needed.
+
+### Starting Celery Workers (for distributed transcoding)
+
+On each worker server, install the project and run:
+
+```bash
+uv sync
+source .venv/bin/activate
+dagster-celery worker -A dagster_celery.app
+```
+
+Workers need the same environment variables as the control server to connect to Redis and PostgreSQL.
 
 ## Learn more
 

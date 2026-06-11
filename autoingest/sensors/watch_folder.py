@@ -1,3 +1,4 @@
+from email import utils
 import os
 import json
 import time
@@ -5,7 +6,7 @@ from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from autoingest.jobs.single_file_ingest import single_file_ingest_job
-from autoingest.resources import utils
+from autoingest.resources.utils import accepted_file_type
 
 
 @sensor(
@@ -36,9 +37,7 @@ def watch_folder_sensor(context: SensorEvaluationContext):
         for file_path in watch_dir.rglob("*"):
             if not file_path.is_file():
                 continue
-
-            ext = file_path.suffix.lstrip(".")
-            if not ext or not utils.accepted_file_type(ext):
+            if not accepted_file_type(file_path.suffix.lstrip(".")):
                 continue
 
             file_key = str(file_path)
@@ -71,5 +70,6 @@ def watch_folder_sensor(context: SensorEvaluationContext):
             )
         )
 
-    context.update_cursor(json.dumps(list(current_files)))
+    updated_seen = list(current_files | set(new_files))
+    context.update_cursor(json.dumps(list(updated_seen)))
     return run_requests

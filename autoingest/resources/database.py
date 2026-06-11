@@ -1,24 +1,29 @@
 import os
 import psycopg2
-from psycopg2 import sql
 from contextlib import contextmanager
-from types import SimpleNamespace
 from dagster import resource, InitResourceContext
 
 
-@resource
-def workflow_database(context: InitResourceContext):
-    conn_params = {
-        "host": os.environ["WORKFLOW_PG_HOST"],
-        "port": int(os.environ["WORKFLOW_PG_PORT"]),
-        "user": os.environ["WORKFLOW_PG_USERNAME"],
-        "password": os.environ["WORKFLOW_PG_PASSWORD"],
-        "dbname": os.environ["WORKFLOW_PG_DB"],
-    }
+ALLOWED_FIELDS = {
+    "id", "file_name", "file_path", "extension", "file_size",
+    "checksum_md5", "status", "file_status", "tape_verified",
+    "proxy_created", "source_deleted", "created_at", "source",
+}
+
+
+class WorkflowDatabase:
+    def __init__(self, host, port, username, password, db_name):
+        self._conn_params = {
+            "host": host,
+            "port": port,
+            "user": username,
+            "password": password,
+            "dbname": db_name,
+        }
 
     @contextmanager
-    def get_connection():
-        conn = psycopg2.connect(**conn_params)
+    def get_connection(self):
+        conn = psycopg2.connect(**self._conn_params)
         try:
             yield conn
             conn.commit()
@@ -28,8 +33,19 @@ def workflow_database(context: InitResourceContext):
         finally:
             conn.close()
 
-    def lookup_file_details(filename):
-        with get_connection() as conn:
+    def fetch_field_argument(self, filename, field):
+        if field not in ALLOWED_FIELDS:
+            raise ValueError(f"Field '{field}' is not in the allowed fields list")
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT {field} FROM file_catalogue WHERE file_name = %s",
+                    (filename,),
+                )
+                return cur.fetchone()
+
+    def lookup_file_details(self, filename):
+        with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT * FROM file_catalogue WHERE file_name LIKE %s",
@@ -37,9 +53,9 @@ def workflow_database(context: InitResourceContext):
                 )
                 return cur.fetchone()
 
-    def create_file_record(file_data):
+    def create_file_record(self, file_data: list):
         fname, fpath, ftype, fsize = file_data
-        with get_connection() as conn:
+        with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -52,26 +68,23 @@ def workflow_database(context: InitResourceContext):
                 )
                 return cur.fetchone()[0]
 
-    def update_file_status(file_id, **fields):
+    def update_file_status(self, file_id: int, **fields):
         if not fields:
             return
-        set_parts = []
-        values = []
-        for key, value in fields.items():
-            set_parts.append(
-                sql.SQL("{} = %s").format(sql.Identifier(key))
-            )
-            values.append(value)
-        values.append(file_id)
-        query = sql.SQL("UPDATE file_catalogue SET {} WHERE id = %s").format(
-            sql.SQL(", ").join(set_parts)
-        )
-        with get_connection() as conn:
+        for key in fields:
+            if key not in ALLOWED_FIELDS:
+                raise ValueError(f"Field '{key}' is not allowed for update")
+        set_clause = ", ".join(f"{k} = %s" for k in fields)
+        values = list(fields.values()) + [file_id]
+        with self.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(query, values)
+                cur.execute(
+                    f"UPDATE file_catalogue SET {set_clause} WHERE id = %s",
+                    values,
+                )
 
-    def get_pending_tape_files(max_bytes):
-        with get_connection() as conn:
+    def get_pending_tape_files(self, max_bytes: int):
+        with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -82,7 +95,8 @@ def workflow_database(context: InitResourceContext):
                     """
                 )
                 rows = cur.fetchall()
-                batch, total = [], 0
+                batch = []
+                total = 0
                 for row in rows:
                     if total + row[2] > max_bytes:
                         break
@@ -90,8 +104,8 @@ def workflow_database(context: InitResourceContext):
                     total += row[2]
                 return batch
 
-    def check_all_stages_complete(file_id):
-        with get_connection() as conn:
+    def check_all_stages_complete(self, file_id: int) -> bool:
+        with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -105,11 +119,13 @@ def workflow_database(context: InitResourceContext):
                     return False
                 return row[0] is True and row[1] is True
 
-    return SimpleNamespace(
-        get_connection=get_connection,
-        lookup_file_details=lookup_file_details,
-        create_file_record=create_file_record,
-        update_file_status=update_file_status,
-        get_pending_tape_files=get_pending_tape_files,
-        check_all_stages_complete=check_all_stages_complete,
+
+@resource
+def workflow_database(context: InitResourceContext) -> WorkflowDatabase:
+    return WorkflowDatabase(
+        host=os.environ["WORKFLOW_PG_HOST"],
+        port=int(os.environ.get("WORKFLOW_PG_PORT", "5432")),
+        username=os.environ["WORKFLOW_PG_USERNAME"],
+        password=os.environ["WORKFLOW_PG_PASSWORD"],
+        db_name=os.environ["WORKFLOW_PG_DB"],
     )

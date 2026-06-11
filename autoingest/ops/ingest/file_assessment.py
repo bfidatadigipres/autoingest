@@ -24,11 +24,14 @@ from ...resources import adlib
 import magic
 from pathlib import Path
 from typing import Optional
-from dagster import op, OpExecutionContext
+from dagster import op, OpExecutionContext, Out
+
+CID_API = utils.get_current_api()
+session = adlib.create_session()
 
 
-@op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str})
-def assess_filename(context: OpExecutionContext) -> dict:
+@op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
+def assess_filename(context) -> dict:
     file_path = context.op_config["file_path"]
     filename = file_path.name
     filetype = file_path.suffix.lower().lstrip(".")
@@ -38,13 +41,15 @@ def assess_filename(context: OpExecutionContext) -> dict:
     field_details = db.lookup_file_details(filename)
     existing_error = ""
     if field_details is None:
-        context.log.warning(
-            f"No field details found for filename '{filename}', using defaults"
+        context.log.info(
+            f"No field details found for filename '{filename}'"
         )
     else:
         if len(field_details[4]) > 0:
             print(field_details[4])
             existing_error = field_details[4]
+            context.log.warning(f"Historical error found for ingest, will not proceed until error fixed and ingest refreshed: {existing_error}")
+            return {}
 
     # Check file for errors/ingest confirmation
     errors = []
@@ -146,8 +151,6 @@ def assess_filename(context: OpExecutionContext) -> dict:
     returns["file_size"] = filesize
     returns["extension"] = filetype
 
-    if existing_error in errors:
-        return {}
     if do_ingest is False:
         returns = {
             "do_ingest": "FALSE",
@@ -168,6 +171,14 @@ def assess_filename(context: OpExecutionContext) -> dict:
     else:
         returns["screencraft_arch"] = "FALSE"
 
+    # Configure autoingest PUT path
+    if filesize > 1099511627776:
+        returns["put_type"] = "Blob"
+        autoingest_path = f"autoingest/processing/{donor.lower()}/blob/"
+    else:
+        returns["put_type"] = "Group"
+        autoingest_path = f"autoingest/processing/{donor.lower()}/"
+
     returns["file_status"] = "File cleared for ingest"
     returns["part"] = part
     returns["whole"] = whole
@@ -179,6 +190,7 @@ def assess_filename(context: OpExecutionContext) -> dict:
     returns["cid_item_priref"] = priref
     returns["cid_ob_num"] = object_number
     returns["source"] = donor
+    returns["autoingest_path"] = autoingest_path
 
     return returns
 
@@ -347,4 +359,6 @@ def check_for_multipart(filename: str, part: int, whole: int):
  
     previous = part - 2
     previous_part = filename_range[previous]
+    
+    return previous_part
     

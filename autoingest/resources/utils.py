@@ -7,11 +7,11 @@ workflow, across ops.
 import os
 import re
 import json
+import shutil
 import xxhash
 import hashlib
 import subprocess
-from requests import Session
-from typing import Final, Optional, Union
+from typing import Final, Optional, Union, List
 import ffmpeg
 
 # BFI library
@@ -332,10 +332,7 @@ def get_mediaconch(dpath, policy):
     cmd = ["mediaconch", "--force", "-p", policy, dpath]
 
     meta = subprocess.check_output(cmd).decode("utf-8")
-    if meta.startswith(f"pass! {dpath}"):
-        return True, meta
-
-    return False, meta
+    return meta.startswith(f"pass! {dpath}")
 
 
 def get_duration(filepath):
@@ -413,28 +410,6 @@ def create_xxhash_65536(fpath):
         return None
 
 
-def get_current_api():
-    """
-    Check control json for downtime requests
-    based on passed argument
-    if not utils.check_control['arg']:
-        sys.exit(message)
-    """
-
-    try:
-        with open(CONTROL_JSON) as control:
-            j: dict[str, str] = json.load(control)
-            if j["current_api"]:
-                api_key = j["current_api"]
-                return os.environ.get(api_key)
-            else:
-                print("No API key found in control json")
-                return None
-    except FileNotFoundError:
-        print(f"Control JSON file not found: {CONTROL_JSON}")
-        return None
-
-
 def fetch_item_priref(ob_num: str) -> str:
     """
     Retrieve item priref, title from CID
@@ -457,7 +432,7 @@ def fetch_item_priref(ob_num: str) -> str:
 
 
 def check_file_has_media_rec(
-    fname: str, session: Session
+    fname: str
 ) -> Optional[Union[str, bool]]:
     """
     Check if CID media record
@@ -466,7 +441,7 @@ def check_file_has_media_rec(
     search = f"imagen.media.original_filename='{fname}'"
     print(f"Search used against CID Media dB: {search}")
     try:
-        hits = adlib.retrieve_record(CID_API, "media", search, "0", session)[0]
+        hits = adlib.retrieve_record(CID_API, "media", search, "0")[0]
     except Exception as err:
         print(f"Unable to retrieve CID Media record {err}")
         return None
@@ -502,13 +477,13 @@ def make_metadata(fpath: str, arg: str) -> str:
         data = mediainfo_create("", "PBCore2", fpath)
     elif arg == "mdata_full_xml":
         data = mediainfo_create("-f", "XML", fpath)
-    elif arg == "mdata_full_js0n":
+    elif arg == "mdata_full_json":
         data = mediainfo_create("-f", "JSON", fpath)
 
     return data.decode("utf-8").strip()
 
 
-def mediainfo_create(arg, output_type, filepath, mediainfo_path):
+def mediainfo_create(arg, output_type, filepath, mediainfo_path=None):
     """
     Output mediainfo data to text files
     """
@@ -521,7 +496,7 @@ def mediainfo_create(arg, output_type, filepath, mediainfo_path):
     ]
 
     try:
-        results = subprocess.run(command, shell=False, check_output=True)
+        results = subprocess.run(command, shell=False, capture_output=True)
     except Exception as err:
         print(err)
         return None
@@ -655,3 +630,22 @@ def get_buckets_blob(bucket_collection: str) -> str:
                     key_bucket = key
 
     return key_bucket
+
+
+def move_file(from_path: str, to_path: str) -> List[bool, str]:
+    """
+    Shutil move function reporting of success/failure
+    """
+    if not os.path.isfile(from_path):
+        return None
+
+    try:
+        shutil.move(from_path, to_path)
+        print(f"Moved first path to second path:\n{from_path}\n{to_path}")
+    except Exception as err:
+        print(f"General error for move: {err}")
+
+    if os.path.isfile(from_path):
+        return [False, f"FAIL: File did not move to {from_path}"]
+    if os.path.isfile(to_path):
+        return [True, f"SUCCESS: File moved to new path {to_path}"]

@@ -532,12 +532,12 @@ def call_ffmpeg_command(ffmpeg_cmd):
         result = subprocess.run(
             ffmpeg_cmd,
             shell=False,
-            check=True,
-            universal_newlines=True,
-            stderr=subprocess.PIPE,
-        ).stderr
-    except subprocess.CalledProcessError as e:
+            capture_output=True,
+            text=True,
+        )
+    except Exception as e:
         print(e)
+        result = subprocess.CompletedProcess(args=ffmpeg_cmd, returncode=-1, stderr=str(e), stdout="")
     
     return result
 

@@ -12,11 +12,23 @@ storage:
       db_name:
         env: DAGSTER_PG_DB
 
+run_launcher:
+  module: dagster._core.launcher
+  class: DefaultRunLauncher
+
 run_coordinator:
   module: dagster._core.run_coordinator
   class: QueuedRunCoordinator
   config:
     max_concurrent_runs: 10
 
+compute_logs:
+  module: dagster._core.storage.local_compute_log_manager
+  class: LocalComputeLogManager
+  config:
+    base_dir:
+      env: DAGSTER_COMPUTE_LOG_DIR
+
 telemetry:
   enabled: false
+  
