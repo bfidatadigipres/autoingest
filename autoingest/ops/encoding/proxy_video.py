@@ -97,7 +97,7 @@ def encode_proxy_mp4(
         raise RuntimeError(f"FFmpeg command build failed for {source_path}")
 
     base = (
-        ["ffmpeg", "-i", source_path]
+        [cfg.ffmpeg_path, "-i", source_path]
         + map_video
         + ["-c:v", "libx264", "-crf", "28", "-pix_fmt", "yuv420p"]
     )
@@ -134,7 +134,7 @@ def encode_proxy_mp4(
     context.log.info(f"JPEG proxy for clean up to go here: {jpeg_location}")
 
     # Calculate seconds mark to grab screen
-    seconds = ut.adjust_seconds(duration, result)
+    seconds = ut.adjust_seconds(duration, result.stderr if result.stderr else "")
     print(f"Seconds for JPEG cut: {seconds}")
     success = ut.get_jpeg(seconds, output_path, jpeg_location)
     if not success:
@@ -144,11 +144,8 @@ def encode_proxy_mp4(
     db = context.resources.workflow_db
     db.update_file_status(
         file_info["file_id"],
-        {
-            "proxy_video_path": str(output_path),
-            "proxy_size": proxy_size,
-            # All other metadata here
-        }
+        proxy_video_path=str(output_path),
+        proxy_size=proxy_size,
     )
 
     return {

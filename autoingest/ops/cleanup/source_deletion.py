@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 from dagster import op, OpExecutionContext
+from ...resources import utils
+from ...resources import adlib
 
 
 @op(required_resource_keys={"workflow_db"})
@@ -16,12 +18,16 @@ def check_and_delete_source(
     proxy_image_path = file_info["proxy_image_path"]
     proxy_thumb_path = file_info["proxy_thumb_path"]
     media_data.append(
-        f"<access_rendition.mp4>{os.path.split(proxy_video_path)[1]}</access_rendition.mp4>",
-        f"<access_rendition.largeimage>{os.path.split(proxy_image_path)[1]}</access_rendition.largeimage>",
+        f"<access_rendition.mp4>{os.path.split(proxy_video_path)[1]}</access_rendition.mp4>"
+    )
+    media_data.append(
+        f"<access_rendition.largeimage>{os.path.split(proxy_image_path)[1]}</access_rendition.largeimage>"
+    )
+    media_data.append(
         f"<access_rendition.thumbnail>{os.path.split(proxy_thumb_path)[1]}</access_rendition.thumbnail>"
     )
     media_priref = file_info["cid_media_priref"]
-    success = cid_media_append(media_priref, media_data)
+    success = utils.cid_media_append(media_priref, media_data)
     if not success:
         context.log.error(f"Proxy file names failed to write to Media priref {media_priref}")
         raise RuntimeError("Proxy file names failed to write to CID digital media record")
@@ -44,7 +50,7 @@ def check_and_delete_source(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT filepath FROM file_catalogue WHERE id = %s", (file_id,)
+                "SELECT file_path FROM file_catalogue WHERE id = %s", (file_id,)
             )
             row = cur.fetchone()
 

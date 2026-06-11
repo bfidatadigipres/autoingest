@@ -34,7 +34,7 @@ def create_catalogue_record(context, file_info: dict) -> int:
         "mdata_ebucore",
         "mdata_pbcore",
         "mdata_full_xml",
-        "mdata_full_json"
+        "mdata_full_json",
         "whole",
         "part",
         "do_ingest",
@@ -55,14 +55,14 @@ def create_catalogue_record(context, file_info: dict) -> int:
         if file_info.get(meta):
             basics[meta] = file_info.get(meta)
         else:
-            context.log.warning(f"Missing metadata {meta} for file {file_info["file_name"]}")
+            context.log.warning(f"Missing metadata {meta} for file {file_info['file_name']}")
 
     try:
         db = context.resources.workflow_db
         record_id = db.create_file_record(basics)
         context.log.info(f"Catalogue record created with ID: {record_id}")
-    except Exception as err:
-        context.log.warning(f"Failed to create record with data:\n{basics} {err}")
+    except Exception as exc:
+        context.log.warning(f"Failed to create record with data:\n{basics} {exc}")
         return None
 
     # Move file to PUT folders - conditional splits
@@ -73,13 +73,19 @@ def create_catalogue_record(context, file_info: dict) -> int:
     context.log.info(f"Moving {file_info['file_name']} to PUT folder: {autoingest_path}")
     
     db.update_file_status(record_id, file_status="File cleared for ingest")
-    success, log = utils.move_file(source, autoingest_path)
+    try:
+        success, log = utils.move_file(source, autoingest_path)
+    except Exception as exc:
+        context.log.warning(f"Move error for {file_info['file_name']}:\n{exc}")
+        db.update_file_status(record_id, file_status="Error")
+        db.update_file_status(record_id, error_message="File failed move into autoingest processing folder")
+        return None
     if success is True:
         context.log.info(log)
         db.update_file_status(record_id, file_status="File cleared for ingest")
         return record_id
     else:
-        context.log.warning(f"Move error for {file_info['file_name']}:\n{err}")
+        context.log.warning(f"Move failed for {file_info['file_name']}: {log}")
         db.update_file_status(record_id, file_status="Error")
         db.update_file_status(record_id, error_message="File failed move into autoingest processing folder")
         return None

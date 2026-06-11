@@ -1,15 +1,11 @@
-from multiprocessing import context
-from xml.parsers.expat import errors
 from ...resources import utils
 from ...resources import bp_utils as bp
 from ...resources import adlib
 
 import os
 import json
+from datetime import datetime
 from dagster import op, Out
-
-
-JSON_PATH = os.path.join(os.environ.get("LOG_PATH"), "black_pearl/")
 
 
 @op(
@@ -18,12 +14,16 @@ JSON_PATH = os.path.join(os.environ.get("LOG_PATH"), "black_pearl/")
     required_resource_keys={"workflow_db"},
 )
 def verify_tape_copy(context) -> dict:
+    JSON_PATH = os.path.join(os.environ.get("LOG_PATH", ""), "black_pearl/")
+    CID_API = utils.get_current_api()
+
+
     file_path = context.op_config["file_path"]
     root, file = os.path.split(file_path)
-    context.log.info(f"Verifying file: {file_path}")
+    context.log.info(f"Verifying file: {file_path} in path {root}")
 
     # Access database information
-    db = context.resources.workflow_db
+    db: tuple = context.resources.workflow_db
     file_info = db.lookup_file_details(file)
 
     # Check the file completed ingest / autoingest path available
@@ -34,6 +34,10 @@ def verify_tape_copy(context) -> dict:
     autoingest_path = file_info[45]
     if not autoingest_path or not os.path.exists(autoingest_path):
         context.log.warning(f"Autoingest path not found:\n{autoingest_path}")
+        return {}
+    folder_number = os.path.basename(root)
+    if folder_number != file_info[46]:
+        context.log.error(f"Ingest folder job ID does not match that stored for file: {file_info[46]}")
         return {}
     json_path = retrieve_json_data(file_info[46])
     if not json_path:
@@ -51,7 +55,6 @@ def verify_tape_copy(context) -> dict:
         validation_pass = False
         ingest_retry_needed = True
         errors.append(f"JOB ID partially failed to ingest file {file} to DPI:\n{json_path}")
-        # Actions needed here to move file back into ingest path / Refresh dB entry for retry of PUT
 
     bp_bucket = file_info[18]
     confirmed, bp_checksum, bp_length = bp.get_confirmation_length_md5(file, bp_bucket)
@@ -70,30 +73,36 @@ def verify_tape_copy(context) -> dict:
         context.log.info("Assigned to storage domain confirmed as TRUE")
         results["persisted_ok"] = confirmed
 
-    local_checksum = file_info[22].strip()
-    if local_checksum.lower() != bp_checksum.lower():
-        context.log.warning(f"Black Pearl version of {file} has different checksum to local:\n{bp_checksum}\n{local_checksum}")
-        validation_pass = False
-        deletion_needed = True
-        ingest_retry_needed = True
-        errors.append("Failed fixity check: checksums do not match")
-    if len(local_checksum) == 32 and len(bp_checksum) == 32:
-        context.log.info(f"Checksums match:\n{bp_checksum} - Black Pearl MD5\n{local_checksum} - Local checksum")
-        results["bp_etag"] = bp_checksum
+    if file_info[47] == "Grouped":
+        local_checksum = file_info[22].strip()
+        if local_checksum.lower() != bp_checksum.lower():
+            context.log.warning(f"Black Pearl version of {file} has different checksum to local:\n{bp_checksum}\n{local_checksum}")
+            validation_pass = False
+            deletion_needed = True
+            ingest_retry_needed = True
+            errors.append("Failed fixity check: checksums do not match")
+        if len(local_checksum) == 32 and len(bp_checksum) == 32:
+            context.log.info(f"Checksums match:\n{bp_checksum} - Black Pearl MD5\n{local_checksum} - Local checksum")
+            results["bp_etag"] = bp_checksum
 
-    if not bp_length:
-        context.log.warning("Could not extract BlackPearl object length")
-        validation_pass = False
-        errors.append("Filesize does not match BlackPearl object length")
-    if bp_length != file_info[20].strip():
-        context.log.warning(f"Black pearl file length {bp_length} does not match original file length {file_info[20]}")
-        validation_pass = False
-        deletion_needed = True
-        ingest_retry_needed = True
-        errors.append("Filesize does not match BlackPearl object length")
-    else:
-        context.log.info("Black Pearl object length matches file size")
-    results["bp_length"] = bp_length
+        if not bp_length:
+            context.log.warning("Could not extract BlackPearl object length")
+            validation_pass = False
+            errors.append("Filesize does not match BlackPearl object length")
+        if bp_length != file_info[20].strip():
+            context.log.warning(f"Black pearl file length {bp_length} does not match original file length {file_info[20]}")
+            validation_pass = False
+            deletion_needed = True
+            ingest_retry_needed = True
+            errors.append("Filesize does not match BlackPearl object length")
+        else:
+            context.log.info("Black Pearl object length matches file size")
+            results["bp_length"] = bp_length
+    elif "blobbing" in file_info[18]:
+        context.log.info("Blobbed file identified. Downloading for MD5 verification")
+        download_path = os.path.join(root, f"downloads/{file}")
+        download_id = bp.download_blobbed_object(file, download_path, file_info[18])
+        # MD5 creation / length creation
 
     bp_version = bp.get_version_id(file)
     if len(bp_version) > 30:
@@ -102,7 +111,7 @@ def verify_tape_copy(context) -> dict:
     else:
         context.log.warning(f"Could not retrieve Version ID from BlackPearl for file {file}")
 
-    # Check for Media Rec
+    # Check for existing Media Rec
     mcheck = utils.check_file_has_media_rec(file)
     if mcheck is not False:
         context.log.info(
@@ -133,21 +142,34 @@ def verify_tape_copy(context) -> dict:
                 context.log.info(log)
                 results["error_message"] = "Reingest requested after failed PUT attempt"
                 results["do_ingest"] = True
+                results["validate"] = False
                 return results
             else:
                 context.log.warning(f"Move error for {file_info['file_name']}:\n{err}")
                 results["error_message"] = "Reingest requested - manual move of file to ingest path needed"
                 results["do_ingest"] = True
+                results["validate"] = False
                 return results
 
         # Capture all failures
         context.log.warning(f"Ingest verification failed: {errors[0]}")
         results["error_message"] = errors[0]
         results["do_ingest"] = False
+        results["validate"] = False
         return results
 
     # JMW up to here - validation passed, make cid record and pass data to proxy script
-    
+    context.log.info(f"Creating new CID media record for file {file}")
+    media_priref = create_media_record(file_info)
+    if len(media_priref) > 6:
+        context.log.info(f"New media record created for ingested file: {media_priref}")
+        results["cid_media_priref"] = media_priref
+        results["validated"] = True
+        return results
+    else:
+        context.log.warning(f"Failed to create media record for ingested file: {file}")
+        results["validated"] = False
+        return results
 
 
 def retrieve_json_data(job_id: str) -> str:
@@ -198,4 +220,46 @@ def json_check(json_pth: str) -> Optional[str]:
                 return val
     else:
         return None
+
+
+def create_media_record(file_info: tuple) -> Optional[str]:
+    """
+    Media record creation for BP ingested file
+    """
+    
+    record_data = [
+        {"input.name": "datadigipres"},
+        {"input.date": str(datetime.now())[:10]},
+        {"input.time": str(datetime.now())[11:19]},
+        {"input.notes": "Digital preservation ingest - automated bulk documentation."},
+        {"reference_number": file_info[1]},
+        {"imagen.media.original_filename": file_info[1]},
+        {"container.file_size.total_bytes": int(file_info[20])},
+        {"object.object_number": file_info[16]},
+        {"imagen.media.part": file_info[9]},
+        {"imagen.media.total": file_info[10]},
+        {"preservation_bucket": file_info[18]},
+    ]
+
+    media_priref = ""
+    print(record_data)
+    record_data_xml = adlib.create_record_data(
+        CID_API, "media", None, 0, record_data
+    )
+    print(f"Record data XML: {record_data_xml}")
+    try:
+        item_rec = adlib.post(CID_API, record_data_xml, "media", "insertrecord")
+        print(f"Item record: {item_rec}")
+    except Exception as error:
+        print(f"\nUnable to create CID media record for {file_info[16]}")
+        raise error
+
+    if item_rec:
+        try:
+            media_priref = adlib.retrieve_field_name(item_rec, "priref")[0]
+            print(f"** CID media record created with Priref {media_priref}")
+        except Exception as err:
+            raise err
+
+    return media_priref
 

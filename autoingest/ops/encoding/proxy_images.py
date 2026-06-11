@@ -27,7 +27,7 @@ def generate_images(
             "proxy_thumb_path": "",
         }
     # Check and block non-BFI sources
-    source = encoding_config["source"]
+    source = file_info.get("source")
     if source.lower() in ["netflix", "amazon", "disney"]:
         context.log.info(f"Source is {source}... No transcode required.")
         return {

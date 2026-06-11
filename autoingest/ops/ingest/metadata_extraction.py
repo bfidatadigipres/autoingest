@@ -11,7 +11,6 @@ from dagster import op, Out
 
 
 @op(
-    tags={"dagster-celery/queue": "encoding"},
     out=Out(dict)
 )
 def extract_metadata(context, file_info: dict) -> dict:

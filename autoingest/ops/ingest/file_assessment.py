@@ -26,6 +26,9 @@ from pathlib import Path
 from typing import Optional
 from dagster import op, OpExecutionContext, Out
 
+CID_API = utils.get_current_api()
+session = adlib.create_session()
+
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
 def assess_filename(context) -> dict:
@@ -171,10 +174,10 @@ def assess_filename(context) -> dict:
     # Configure autoingest PUT path
     if filesize > 1099511627776:
         returns["put_type"] = "Blob"
-        autoingest_path = "autoingest/processing/{donor.lower()}/blob/"
+        autoingest_path = f"autoingest/processing/{donor.lower()}/blob/"
     else:
         returns["put_type"] = "Group"
-        autoingest_path = "autoingest/processing/{donor.lower()}/"
+        autoingest_path = f"autoingest/processing/{donor.lower()}/"
 
     returns["file_status"] = "File cleared for ingest"
     returns["part"] = part
@@ -356,4 +359,6 @@ def check_for_multipart(filename: str, part: int, whole: int):
  
     previous = part - 2
     previous_part = filename_range[previous]
+    
+    return previous_part
     

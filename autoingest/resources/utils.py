@@ -332,10 +332,7 @@ def get_mediaconch(dpath, policy):
     cmd = ["mediaconch", "--force", "-p", policy, dpath]
 
     meta = subprocess.check_output(cmd).decode("utf-8")
-    if meta.startswith(f"pass! {dpath}"):
-        return True, meta
-
-    return False, meta
+    return meta.startswith(f"pass! {dpath}")
 
 
 def get_duration(filepath):
@@ -480,13 +477,13 @@ def make_metadata(fpath: str, arg: str) -> str:
         data = mediainfo_create("", "PBCore2", fpath)
     elif arg == "mdata_full_xml":
         data = mediainfo_create("-f", "XML", fpath)
-    elif arg == "mdata_full_js0n":
+    elif arg == "mdata_full_json":
         data = mediainfo_create("-f", "JSON", fpath)
 
     return data.decode("utf-8").strip()
 
 
-def mediainfo_create(arg, output_type, filepath, mediainfo_path):
+def mediainfo_create(arg, output_type, filepath, mediainfo_path=None):
     """
     Output mediainfo data to text files
     """
@@ -499,7 +496,7 @@ def mediainfo_create(arg, output_type, filepath, mediainfo_path):
     ]
 
     try:
-        results = subprocess.run(command, shell=False, check_output=True)
+        results = subprocess.run(command, shell=False, capture_output=True)
     except Exception as err:
         print(err)
         return None

@@ -2,6 +2,7 @@
 -- Run as postgres superuser: psql -U postgres -f setup_database.sql
 
 -- Create the dagster user
+-- CHANGE THIS PASSWORD before running in production
 CREATE USER dagster_user WITH PASSWORD 'I<ZHnN?sghQr/8!J;HVI';
 
 -- Create the database
@@ -61,15 +62,15 @@ CREATE INDEX idx_pe_event_type ON app.pipeline_events(event_type);
 -- metadata, checksums, status, and proxy paths
 -- ============================================================
 CREATE TABLE app.file_tracking (
-    id                  SERIAL PRIMARY KEY,
-    file_name           VARCHAR(512) NOT NULL,
+    id                  SERIAL PRIMARY KEY, # 0
+    file_name           VARCHAR(512) NOT NULL, # 1
     file_status         VARCHAR(50) NOT NULL DEFAULT 'No Status',
     file_path           TEXT,
     error_message       TEXT,
     source              TEXT,
-    do_ingest           BOOLEAN NOT NULL DEFAULT 'UNKNOWN',
-    incomplete_scan     BOOLEAN NOT NULL DEFAULT 'UNKNOWN',
-    screencraft_arch    BOOLEAN NOT NULL DEFAULT 'UNKNOWN',
+    do_ingest           VARCHAR(50) NOT NULL DEFAULT 'UNKNOWN',
+    incomplete_scan     VARCHAR(50) NOT NULL DEFAULT 'UNKNOWN',
+    screencraft_arch    VARCHAR(50) NOT NULL DEFAULT 'UNKNOWN',
     part                INT,
     whole               INT,  # 10
     extension           VARCHAR(10),
@@ -91,7 +92,7 @@ CREATE TABLE app.file_tracking (
     mdata_full_xml      TEXT,
     mdata_ebucore       TEXT,
     mdata_pbcore        TEXT,
-    mdata_full_json     JSONB DEFAULT '{}' # 30
+    mdata_full_json     JSONB DEFAULT '{}', # 30
     file_fmt	        TEXT,
     video_codec         TEXT,
     audio_codec         TEXT,
@@ -113,7 +114,6 @@ CREATE TABLE app.file_tracking (
     bp_etag             VARCHAR(32),  # Whole file checksum
     bp_length           BIGINT, # 50  Total file size in BP
     bp_version_id       VARCHAR(32),  # Version ID
-    cid_media_priref    BIGINT,
     validated           TEXT,
     reference_num       TEXT,
     ffmpeg_command      TEXT,
@@ -129,10 +129,9 @@ CREATE TABLE app.file_tracking (
 
 CREATE INDEX idx_ft_status      ON app.file_tracking(status);
 CREATE INDEX idx_ft_file_name   ON app.file_tracking(file_name);
-CREATE INDEX idx_ft_checksum    ON app.file_tracking(checksum_sha256);
-CREATE INDEX idx_ft_ingest_run  ON app.file_tracking(ingest_run_id);
-CREATE INDEX idx_ft_val_run     ON app.file_tracking(validation_run_id);
-CREATE INDEX idx_ft_file_type   ON app.file_tracking(file_type);
+CREATE INDEX idx_ft_checksum    ON app.file_tracking(checksum_md5);
+CREATE INDEX idx_ft_created_at  ON app.file_tracking(created_at);
+CREATE INDEX idx_ft_source      ON app.file_tracking(source);
 
 -- Auto-update updated_at on row modification
 CREATE OR REPLACE FUNCTION app.set_updated_at()
