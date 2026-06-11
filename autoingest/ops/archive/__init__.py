@@ -1,2 +1,1 @@
-from autoingest.ops.archive.tape_transfer import batch_transfer_to_tape
-from autoingest.ops.archive.verification import verify_tape_copies
+from autoingest.ops.archive.verification import verify_tape_copy
