@@ -180,7 +180,7 @@ def check_mod_time(fpath: str) -> bool:
     return False
 
 
-def get_width(fullpath: str) -> str:
+def get_width(fullpath: str) -> int:
     """
     Retrieve full height using mediainfo
     """
@@ -218,7 +218,7 @@ def get_width(fullpath: str) -> str:
     return int(re.sub("[^0-9]", "", width))
 
 
-def get_height(fullpath: str) -> str:
+def get_height(fullpath: str) -> int:
     """
     Retrieve video height via mediainfo.
 
@@ -505,7 +505,7 @@ def check_for_fl_fr(fpath: str) -> bool:
     return False
 
 
-def check_for_twelve_channel_audio(fullpath):
+def check_for_twelve_channel_audio(fullpath: str) -> bool:
     """
     Additional check for increase in complex audio
     """
@@ -522,7 +522,7 @@ def check_for_twelve_channel_audio(fullpath):
     return twelve_chnl
 
 
-def call_ffmpeg_command(ffmpeg_cmd):
+def call_ffmpeg_command(ffmpeg_cmd: list[str]) -> subprocess.CompletedProcess:
     """
     Call up subprocess
     with FFmpeg command

@@ -1,10 +1,11 @@
+from typing import Optional
 from ...resources import utils
 from pathlib import Path
 from dagster import op
 
 
 @op(required_resource_keys={"workflow_db"})
-def create_catalogue_record(context, file_info: dict) -> int:
+def create_catalogue_record(context, file_info: dict) -> Optional[int]:
     """
     Verify ingest of file accepted and write all metadata
     to new database record. Move file to PUT folder path. 

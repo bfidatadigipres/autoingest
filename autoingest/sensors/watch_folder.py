@@ -1,4 +1,3 @@
-from email import utils
 import os
 import json
 import time
@@ -14,7 +13,7 @@ from autoingest.resources.utils import accepted_file_type
     minimum_interval_seconds=30,
     default_status=DefaultSensorStatus.RUNNING,
 )
-def watch_folder_sensor(context: SensorEvaluationContext):
+def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     watch_paths = os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
     watch_paths = [p.strip() for p in watch_paths if p.strip()]
 

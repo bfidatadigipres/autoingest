@@ -4,11 +4,11 @@ Unsure if this one is needed, as validation job triggers deletion
 
 import os
 from pathlib import Path
-from dagster import job, op
+from dagster import job, op, OpExecutionContext
 
 
 @op(required_resource_keys={"workflow_db"})
-def sweep_completed_files(context):
+def sweep_completed_files(context: OpExecutionContext):
     db = context.resources.workflow_db
     with db.get_connection() as conn:
         with conn.cursor() as cur:

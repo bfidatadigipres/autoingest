@@ -23,11 +23,10 @@ from ...resources import bp_utils as bp
 from ...resources import adlib
 import magic
 from pathlib import Path
-from typing import Optional
-from dagster import op, OpExecutionContext, Out
+from typing import Optional, Tuple, Union
+from dagster import op, Out
 
 CID_API = utils.get_current_api()
-session = adlib.create_session()
 
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
@@ -195,7 +194,7 @@ def assess_filename(context) -> dict:
     return returns
 
 
-def get_data_from_path(fpath):
+def get_data_from_path(fpath: str) -> Tuple[str, bool, bool]:
     """
     Get the source ingest path
     """
@@ -245,7 +244,7 @@ def check_accepted_file_type(fpath: str) -> bool:
     return False
 
 
-def check_mime_type(fpath: str) -> bool:
+def check_mime_type(fpath: str) -> str:
     """
     Checks the mime type of the file
     and if stream media checks ffprobe
@@ -296,7 +295,7 @@ def process_image_archive(
 
 def ext_in_file_type(
     ext: str, priref: str, ob_num: str
-) -> Optional[bool]:
+) -> Tuple[bool, Optional[str]]:
     """
     Check if ext matches file_type
     """
@@ -314,7 +313,7 @@ def ext_in_file_type(
 
     search = f"priref={priref}"
     record = adlib.retrieve_record(
-        CID_API, "collect", search, "1", session, retrieved_fields
+        CID_API, "collect", search, "1", retrieved_fields
     )[1]
     if record is None:
         return False, None
@@ -340,7 +339,7 @@ def ext_in_file_type(
         return False, file_type
 
 
-def check_for_multipart(filename: str, part: int, whole: int):
+def check_for_multipart(filename: str, part: int, whole: int) -> Union[bool, str]:
     """
     Get previous part and check if already in dB
     """

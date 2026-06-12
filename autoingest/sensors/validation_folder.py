@@ -11,7 +11,7 @@ from autoingest.jobs.validation_job import validation_job
     minimum_interval_seconds=30,
     default_status=DefaultSensorStatus.RUNNING,
 )
-def validation_folder_sensor(context: SensorEvaluationContext):
+def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     validate_paths = os.environ.get("VALIDATION_FOLDER_PATHS", "").split(",")
     validate_paths = [p.strip() for p in validate_paths if p.strip()]
 

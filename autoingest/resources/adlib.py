@@ -8,9 +8,8 @@ Python interface for Adlib API v3.7.17094.1+
 
 import datetime
 import json
-import re
 from time import sleep
-from typing import Any, Dict, Final, Iterable, Optional, List, Dict
+from typing import Any, Dict, List, Optional, Union
 
 import xmltodict
 from requests import exceptions, request
@@ -80,7 +79,7 @@ def retrieve_record(
 
 
 @retry(stop=stop_after_attempt(10))
-def get(api, query):
+def get(api: str, query: dict) -> Optional[Dict[Any, Any]]:
     """
     Send a GET request
     """
@@ -108,7 +107,7 @@ def get(api, query):
 
 
 @retry(stop=stop_after_attempt(3))
-def post(api, payload, database, method):
+def post(api: str, payload: str, database: str, method: str) -> Optional[Dict[str, Any]]:
     """
     Send a POST request
     """
@@ -184,7 +183,7 @@ def post(api, payload, database, method):
     return None
 
 
-def retrieve_field_name(record, fieldname):
+def retrieve_field_name(record: dict, fieldname: str) -> list[str]:
     """
     Retrieve record, check for language data
     Alter retrieval method. record ==
@@ -208,7 +207,7 @@ def retrieve_field_name(record, fieldname):
     return field_list
 
 
-def retrieve_facet_list(record, fname):
+def retrieve_facet_list(record: dict, fname: str) -> list[str]:
     """
     Retrieve list of facets
     """
@@ -219,7 +218,7 @@ def retrieve_facet_list(record, fname):
     return facets
 
 
-def group_check(record, fname):
+def group_check(record: dict, fname: str) -> Optional[list[str]]:
     """
     Get group that contains field key
     """
@@ -270,7 +269,7 @@ def group_check(record, fname):
         return None
 
 
-def get_grouped_items(api, database):
+def get_grouped_items(api: str, database: str) -> tuple[Optional[dict], None]:
     """
     Check dB for groupings and ensure
     these are added to XML configuration
@@ -297,7 +296,7 @@ def get_grouped_items(api, database):
     return grouped
 
 
-def create_record_data(api, database, priref, data=None):
+def create_record_data(api: str, database: str, priref: int, data: Optional[List[Dict[str, str]]] = None) -> str:
     if data is None:
         data = []
     if not isinstance(data, list):
@@ -385,7 +384,7 @@ def escape_xml(s: str) -> str:
     )
 
 
-def create_grouped_data(priref, grouping, field_pairs):
+def create_grouped_data(priref: str, grouping: str, field_pairs: Union[List[Dict[str, str]], dict]) -> Optional[str]:
     """
     Handle repeated groups of fields pairs, suppied as list of dcts per group
     along with grouping known in advance and priref for append
@@ -417,7 +416,7 @@ def create_grouped_data(priref, grouping, field_pairs):
         return payload_mid
 
 
-def add_quality_comments(api, priref, comments):
+def add_quality_comments(api: str, priref: str, comments: str) -> bool:
     """
     Receive comments string
     convert to XML quality comments
@@ -451,7 +450,7 @@ def add_quality_comments(api, priref, comments):
         return True
 
 
-def check_response(rec, api):
+def check_response(rec: str, api: str) -> Optional[bool]:
     """
     Collate list of received API failures
     and check for these reponses from post
@@ -468,7 +467,7 @@ def check_response(rec, api):
             return True
 
 
-def recycle_api(api):
+def recycle_api(api: str) -> None:
     """
     Adds a search call to API which
     triggers Powershell recycle

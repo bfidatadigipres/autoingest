@@ -358,7 +358,7 @@ def get_buckets_blob(bucket_collection: str) -> str:
     return key_bucket
 
 
-def put_single_file(fpath: str, ref_num, bucket_name, check=False) -> Optional[str]:
+def put_single_file(fpath: str, ref_num: str, bucket_name: str, check: bool = False) -> Optional[str]:
     """
     Add the file to black pearl using helper
     Fine for < or > 1TB
@@ -464,7 +464,7 @@ def set_latest_flag_true(fname: str, bucket: str, version_id: str) -> bool:
     return False
 
 
-def get_object_details(fname: str, bucket: str) -> List[Dict[str, Any]]:
+def get_object_details(fname: str, bucket: str) -> Optional[List[Dict[str, Any]]]:
     """
     Less taxing way to check for multiple
     objects with one fname, bucket needed
