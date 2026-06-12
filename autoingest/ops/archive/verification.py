@@ -100,20 +100,37 @@ def verify_tape_copy(context) -> dict:
         else:
             context.log.info("Black Pearl object length matches file size")
             results["bp_length"] = bp_length
+
     elif "blobbing" in file_info[18]:
         context.log.info("Blobbed file identified. Downloading for MD5 verification")
         download_path = os.path.join(root, f"downloads/{file}")
         download_id = bp.download_blobbed_object(file, download_path, file_info[18])
         context.log.info(f"Confirmed download: {download_id}")
+
         # MD5 creation / length creation
-        download_hash = utils.create_xxhash_66536(file_path)
-        if download_hash.lower() == file_info[21].lower():
-            context.log.info(f"Checksums match between source file and downloaded:\n{download_hash} - Downloaded XXHash\n{file_info[21]} - Source file XXHash")
+        filesize = file_path.stat().st_size
+        if filesize == file_info[20]:
+            context.log.info(f"Downloaded file size matches source file length: {filesize}")
+            results["bp_length"] = filesize
         else:
-            context.log.warning(f"Checksum mismatch for downloaded file {file}:\n{download_hash} - Downloaded XXHash\n{file_info[21]} - Source file XXHash")
+            context.log.warning(f"File length mismatch for downloaded file {file}:\n{filesize} - Downloaded length\n{file_info[20]} - Source length")
             validation_pass = False
             ingest_retry_needed = True
             deletion_needed = True
+
+        download_hash = utils.create_md5_65536(file_path)
+        if download_hash.lower() == file_info[21].lower():
+            context.log.info(f"Checksums match between source file and downloaded:\n{download_hash} - Downloaded\n{file_info[22]} - Source file")
+            results["bp_etag"] = download_hash
+        else:
+            context.log.warning(f"Checksum mismatch for downloaded file {file}:\n{download_hash} - Downloaded\n{file_info[22]} - Source file")
+            validation_pass = False
+            ingest_retry_needed = True
+            deletion_needed = True
+
+        # Clean up downloaded file
+        context.log.info(f"Checks complete. Deleting download file: {download_path}")
+        os.remove(download_path)
 
     bp_version = bp.get_version_id(file)
     if len(bp_version) > 30:
