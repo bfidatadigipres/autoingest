@@ -344,21 +344,27 @@ def check_for_multipart(filename: str, part: int, whole: int):
     """
     Get previous part and check if already in dB
     """
+
+    file_split = filename.split("_")
+    if len(file_split) == 4:
+        file = "_".join(file_split[:3])
+    else:
+        file = "_".join(file_split[:2])
+
     if whole == 1:
         return True
     elif part == 1:
         return True
 
-    str_part, str_whole = filename.split("_")[-1].split(".")[0].split("of")
+    str_part = filename.split("_")[-1].split(".")[0].split("of")[0]
     fill_num = len(str_part)
 
     filename_range = []
     range_whole = whole + 1
     for num in range(1, range_whole):
-        filename_range.append(f"{filename}_{str(num).zfill(fill_num)}of{str(whole).zfill(fill_num)}")
- 
+        filename_range.append(f"{file}_{str(num).zfill(fill_num)}of{str(whole).zfill(fill_num)}")
+
     previous = part - 2
     previous_part = filename_range[previous]
-    
+
     return previous_part
-    

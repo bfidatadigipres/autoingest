@@ -8,11 +8,12 @@ Python interface for Adlib API v3.7.17094.1+
 
 import datetime
 import json
+import re
 from time import sleep
 from typing import Any, Dict, Final, Iterable, Optional, List, Dict
 
 import xmltodict
-from requests import Session, exceptions, request
+from requests import exceptions, request
 from tenacity import retry, stop_after_attempt
 
 HEADERS = {"Content-Type": "text/xml"}
@@ -29,19 +30,10 @@ def check(api: str) -> Optional[Dict[Any, Any]]:
     return get(api, query)
 
 
-def create_session() -> Session:
-    """
-    Start a requests session and return
-    """
-    session = Session()
-    return session
-
-
 def retrieve_record(
     api: str,
     database: str,
     search: str, limit: str | int,
-    session: Session=None,
     fields=None
 ) -> tuple[Optional[int], Optional[list[Dict[Any, Any]]]]:
     """
@@ -70,7 +62,7 @@ def retrieve_record(
         field_str = ", ".join(fields)
         query["fields"] = field_str
 
-    record = get(api, query, session)
+    record = get(api, query)
     if not record:
         return None, None
     if record["adlibJSON"]["diagnostic"]["hits"] == 0:
@@ -88,14 +80,12 @@ def retrieve_record(
 
 
 @retry(stop=stop_after_attempt(10))
-def get(api, query, session):
+def get(api, query):
     """
     Send a GET request
     """
-    if not session:
-        session = create_session()
     try:
-        req = session.get(api, headers=HEADERS, params=query, timeout=TIMEOUT)
+        req = request("GET", api, headers=HEADERS, params=query, timeout=TIMEOUT)
         if req.status_code != 200:
             raise Exception
         dct = json.loads(req.text)
@@ -118,7 +108,7 @@ def get(api, query, session):
 
 
 @retry(stop=stop_after_attempt(3))
-def post(api, payload, database, method, session):
+def post(api, payload, database, method):
     """
     Send a POST request
     """
@@ -130,13 +120,10 @@ def post(api, payload, database, method, session):
     }
     payload = payload.encode("utf-8")
 
-    if not session:
-        session = create_session()
-
     if method == "insertrecord":
         try:
-            response = session.post(
-                api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
+            response = requests(
+                "POST", api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
             )
             if response.status_code != 200:
                 raise Exception
@@ -155,8 +142,8 @@ def post(api, payload, database, method, session):
 
     if method == "updaterecord":
         try:
-            response = session.post(
-                api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
+            response = requests(
+                "POST", api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
             )
             if response.status_code != 200:
                 raise Exception
@@ -283,15 +270,13 @@ def group_check(record, fname):
         return None
 
 
-def get_grouped_items(api, database, session):
+def get_grouped_items(api, database):
     """
     Check dB for groupings and ensure
     these are added to XML configuration
     """
     query = {"command": "getmetadata", "database": database, "limit": 0}
-    if not session:
-        session = create_session()
-    result = session.get(api, headers=HEADERS, params=query, timeout=TIMEOUT)
+    result = request("GET", api, headers=HEADERS, params=query, timeout=TIMEOUT)
     metadata = xmltodict.parse(result.text)
     if not isinstance(metadata, dict):
         return None, None
@@ -312,13 +297,13 @@ def get_grouped_items(api, database, session):
     return grouped
 
 
-def create_record_data(api, database, sess, priref, data=None):
+def create_record_data(api, database, priref, data=None):
     if data is None:
         data = []
     if not isinstance(data, list):
         data = [data]
 
-    grouped = get_grouped_items(api, database, sess)
+    grouped = get_grouped_items(api, database)
     new_grouping: Dict[str, List[Dict[str, str]]] = {}
     non_grouped_items: List[Dict[str, str]] = []
 
@@ -432,7 +417,7 @@ def create_grouped_data(priref, grouping, field_pairs):
         return payload_mid
 
 
-def add_quality_comments(api, priref, comments, session):
+def add_quality_comments(api, priref, comments):
     """
     Receive comments string
     convert to XML quality comments
@@ -447,10 +432,8 @@ def add_quality_comments(api, priref, comments, session):
     p_end = "</quality_comments></record></recordList></adlibXML>"
     payload = p_start + p_comm + p_date + p_writer + p_end
 
-    if not session:
-        session = create_session()
-
-    response = session.post(
+    response = request(
+        "POST",
         api,
         headers={"Content-Type": "text/xml"},
         params={
