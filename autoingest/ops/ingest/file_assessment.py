@@ -21,6 +21,7 @@ Returns full dct of data
 from ...resources import utils
 from ...resources import bp_utils as bp
 from ...resources import adlib
+
 import magic
 from pathlib import Path
 from typing import Optional, Tuple, Union
@@ -31,7 +32,10 @@ CID_API = utils.get_current_api()
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
 def assess_filename(context) -> dict:
-    file_path = context.op_config["file_path"]
+    file_path = Path(context.op_config["file_path"])
+    if not file_path:
+        context.log.info("No files found at this time.")
+        return {}
     filename = file_path.name
     filetype = file_path.suffix.lower().lstrip(".")
     filesize = file_path.stat().st_size
@@ -348,7 +352,7 @@ def check_for_multipart(filename: str, part: int, whole: int) -> Union[bool, str
     if len(file_split) == 4:
         file = "_".join(file_split[:3])
     else:
-        file = "_".join(file_split[:2])
+        file = "_".join(file_split[:-1])
 
     if whole == 1:
         return True
