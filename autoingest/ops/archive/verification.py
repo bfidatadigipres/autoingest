@@ -8,6 +8,9 @@ from datetime import datetime
 from typing import Optional
 from dagster import op, Out
 
+JSON_PATH = os.path.join(os.environ.get("LOG_PATH", ""), "black_pearl/")
+CID_API = utils.get_current_api()
+
 
 @op(
     config_schema={"file_path": str},
@@ -15,8 +18,6 @@ from dagster import op, Out
     required_resource_keys={"workflow_db"},
 )
 def verify_tape_copy(context) -> dict:
-    JSON_PATH = os.path.join(os.environ.get("LOG_PATH", ""), "black_pearl/")
-    CID_API = utils.get_current_api()
 
 
     file_path = context.op_config["file_path"]
@@ -103,7 +104,16 @@ def verify_tape_copy(context) -> dict:
         context.log.info("Blobbed file identified. Downloading for MD5 verification")
         download_path = os.path.join(root, f"downloads/{file}")
         download_id = bp.download_blobbed_object(file, download_path, file_info[18])
+        context.log.info(f"Confirmed download: {download_id}")
         # MD5 creation / length creation
+        download_hash = utils.create_xxhash_66536(file_path)
+        if download_hash.lower() == file_info[21].lower():
+            context.log.info(f"Checksums match between source file and downloaded:\n{download_hash} - Downloaded XXHash\n{file_info[21]} - Source file XXHash")
+        else:
+            context.log.warning(f"Checksum mismatch for downloaded file {file}:\n{download_hash} - Downloaded XXHash\n{file_info[21]} - Source file XXHash")
+            validation_pass = False
+            ingest_retry_needed = True
+            deletion_needed = True
 
     bp_version = bp.get_version_id(file)
     if len(bp_version) > 30:
@@ -206,21 +216,22 @@ def json_check(json_pth: str) -> Optional[str]:
     with open(json_pth) as file:
         dct = json.load(file)
         
+    notifications = None
     for k, v in dct.items():
         if k == "Notification":
             notifications = v
-    if isinstance(notifications, dict):
-        for ky, vl in notifications.items():
-            if ky == "Event":
-                events = vl
-    else:
+    if not isinstance(notifications, dict):
         return None
-    if isinstance(events, dict):
-        for key, val in events.items():
-            if key == "ObjectsNotPersisted":
-                return val
-    else:
+    events = None
+    for ky, vl in notifications.items():
+        if ky == "Event":
+            events = vl
+    if not isinstance(events, dict):
         return None
+    for key, val in events.items():
+        if key == "ObjectsNotPersisted":
+            return val
+    return None
 
 
 def create_media_record(file_info: tuple) -> Optional[str]:
@@ -263,4 +274,3 @@ def create_media_record(file_info: tuple) -> Optional[str]:
             raise err
 
     return media_priref
-

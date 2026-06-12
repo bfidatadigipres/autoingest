@@ -352,7 +352,7 @@ def check_for_multipart(filename: str, part: int, whole: int) -> Union[bool, str
     if len(file_split) == 4:
         file = "_".join(file_split[:3])
     else:
-        file = "_".join(file_split[:2])
+        file = "_".join(file_split[:-1])
 
     if whole == 1:
         return True

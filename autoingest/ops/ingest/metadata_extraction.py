@@ -38,7 +38,7 @@ def extract_metadata(context, file_info: dict) -> dict:
 
 
 @op(
-    tags={dagster-celery/queue": "encoding},
+    tags={"dagster-celery/queue": "encoding"},
     out=Out(dict)
 )
 def generate_checksum(context, enriched_file_info: dict) -> dict:
