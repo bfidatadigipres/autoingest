@@ -9,10 +9,10 @@ Python interface for Adlib API v3.7.17094.1+
 import datetime
 import json
 from time import sleep
-from typing import Any, Dict, Final, Iterable, Optional, List, Dict
+from typing import Any, Dict, List, Optional, Union
 
 import xmltodict
-from requests import Session, exceptions, request
+from requests import exceptions, request
 from tenacity import retry, stop_after_attempt
 
 HEADERS = {"Content-Type": "text/xml"}
@@ -29,19 +29,10 @@ def check(api: str) -> Optional[Dict[Any, Any]]:
     return get(api, query)
 
 
-def create_session() -> Session:
-    """
-    Start a requests session and return
-    """
-    session = Session()
-    return session
-
-
 def retrieve_record(
     api: str,
     database: str,
     search: str, limit: str | int,
-    session: Session=None,
     fields=None
 ) -> tuple[Optional[int], Optional[list[Dict[Any, Any]]]]:
     """
@@ -70,7 +61,7 @@ def retrieve_record(
         field_str = ", ".join(fields)
         query["fields"] = field_str
 
-    record = get(api, query, session)
+    record = get(api, query)
     if not record:
         return None, None
     if record["adlibJSON"]["diagnostic"]["hits"] == 0:
@@ -88,14 +79,12 @@ def retrieve_record(
 
 
 @retry(stop=stop_after_attempt(10))
-def get(api, query, session):
+def get(api: str, query: dict) -> Optional[Dict[Any, Any]]:
     """
     Send a GET request
     """
-    if not session:
-        session = create_session()
     try:
-        req = session.get(api, headers=HEADERS, params=query, timeout=TIMEOUT)
+        req = request("GET", api, headers=HEADERS, params=query, timeout=TIMEOUT)
         if req.status_code != 200:
             raise Exception
         dct = json.loads(req.text)
@@ -118,7 +107,7 @@ def get(api, query, session):
 
 
 @retry(stop=stop_after_attempt(3))
-def post(api, payload, database, method, session):
+def post(api: str, payload: str, database: str, method: str) -> Optional[Dict[str, Any]]:
     """
     Send a POST request
     """
@@ -130,13 +119,10 @@ def post(api, payload, database, method, session):
     }
     payload = payload.encode("utf-8")
 
-    if not session:
-        session = create_session()
-
     if method == "insertrecord":
         try:
-            response = session.post(
-                api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
+            response = requests(
+                "POST", api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
             )
             if response.status_code != 200:
                 raise Exception
@@ -155,8 +141,8 @@ def post(api, payload, database, method, session):
 
     if method == "updaterecord":
         try:
-            response = session.post(
-                api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
+            response = requests(
+                "POST", api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
             )
             if response.status_code != 200:
                 raise Exception
@@ -197,7 +183,7 @@ def post(api, payload, database, method, session):
     return None
 
 
-def retrieve_field_name(record, fieldname):
+def retrieve_field_name(record: dict, fieldname: str) -> list[str]:
     """
     Retrieve record, check for language data
     Alter retrieval method. record ==
@@ -221,7 +207,7 @@ def retrieve_field_name(record, fieldname):
     return field_list
 
 
-def retrieve_facet_list(record, fname):
+def retrieve_facet_list(record: dict, fname: str) -> list[str]:
     """
     Retrieve list of facets
     """
@@ -232,7 +218,7 @@ def retrieve_facet_list(record, fname):
     return facets
 
 
-def group_check(record, fname):
+def group_check(record: dict, fname: str) -> Optional[list[str]]:
     """
     Get group that contains field key
     """
@@ -283,15 +269,13 @@ def group_check(record, fname):
         return None
 
 
-def get_grouped_items(api, database, session):
+def get_grouped_items(api: str, database: str) -> tuple[Optional[dict], None]:
     """
     Check dB for groupings and ensure
     these are added to XML configuration
     """
     query = {"command": "getmetadata", "database": database, "limit": 0}
-    if not session:
-        session = create_session()
-    result = session.get(api, headers=HEADERS, params=query, timeout=TIMEOUT)
+    result = request("GET", api, headers=HEADERS, params=query, timeout=TIMEOUT)
     metadata = xmltodict.parse(result.text)
     if not isinstance(metadata, dict):
         return None, None
@@ -312,13 +296,13 @@ def get_grouped_items(api, database, session):
     return grouped
 
 
-def create_record_data(api, database, sess, priref, data=None):
+def create_record_data(api: str, database: str, priref: int, data: Optional[List[Dict[str, str]]] = None) -> str:
     if data is None:
         data = []
     if not isinstance(data, list):
         data = [data]
 
-    grouped = get_grouped_items(api, database, sess)
+    grouped = get_grouped_items(api, database)
     new_grouping: Dict[str, List[Dict[str, str]]] = {}
     non_grouped_items: List[Dict[str, str]] = []
 
@@ -400,7 +384,7 @@ def escape_xml(s: str) -> str:
     )
 
 
-def create_grouped_data(priref, grouping, field_pairs):
+def create_grouped_data(priref: str, grouping: str, field_pairs: Union[List[Dict[str, str]], dict]) -> Optional[str]:
     """
     Handle repeated groups of fields pairs, suppied as list of dcts per group
     along with grouping known in advance and priref for append
@@ -432,7 +416,7 @@ def create_grouped_data(priref, grouping, field_pairs):
         return payload_mid
 
 
-def add_quality_comments(api, priref, comments, session):
+def add_quality_comments(api: str, priref: str, comments: str) -> bool:
     """
     Receive comments string
     convert to XML quality comments
@@ -447,10 +431,8 @@ def add_quality_comments(api, priref, comments, session):
     p_end = "</quality_comments></record></recordList></adlibXML>"
     payload = p_start + p_comm + p_date + p_writer + p_end
 
-    if not session:
-        session = create_session()
-
-    response = session.post(
+    response = request(
+        "POST",
         api,
         headers={"Content-Type": "text/xml"},
         params={
@@ -468,7 +450,7 @@ def add_quality_comments(api, priref, comments, session):
         return True
 
 
-def check_response(rec, api):
+def check_response(rec: str, api: str) -> Optional[bool]:
     """
     Collate list of received API failures
     and check for these reponses from post
@@ -485,7 +467,7 @@ def check_response(rec, api):
             return True
 
 
-def recycle_api(api):
+def recycle_api(api: str) -> None:
     """
     Adds a search call to API which
     triggers Powershell recycle

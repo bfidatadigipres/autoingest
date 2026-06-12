@@ -11,7 +11,7 @@ import shutil
 import xxhash
 import hashlib
 import subprocess
-from typing import Final, Optional, Union, List
+from typing import Final, Optional, Union, List, Tuple
 import ffmpeg
 
 # BFI library
@@ -59,7 +59,7 @@ ACCEPTED_EXT: Final = [
 ]
 
 
-def accepted_file_type(ext):
+def accepted_file_type(ext: str) -> Optional[str]:
     """
     Receive extension and returnc
     matching accepted file_type
@@ -107,7 +107,7 @@ def accepted_file_type(ext):
     return None
 
 
-def check_storage(filepath):
+def check_storage(filepath: str) -> Union[bool, str]:
     """
     check if storage is avaliable for use
     Returns bool, or string
@@ -125,7 +125,7 @@ def check_storage(filepath):
     return "Storage not found"
 
 
-def cid_check(cid_api):
+def cid_check(cid_api: Optional[str]) -> Optional[bool]:
     """
     Tests if CID API operational before
     all other operations commence
@@ -143,7 +143,7 @@ def cid_check(cid_api):
         return False
 
 
-def check_filename(fname, screencraft):
+def check_filename(fname: str, screencraft: bool) -> bool:
     """
     Run series of checks against BFI filenames
     check accepted prefixes, and extensions
@@ -170,7 +170,7 @@ def check_filename(fname, screencraft):
     return True
 
 
-def get_metadata(stream, arg, dpath):
+def get_metadata(stream: str, arg: str, dpath: str) -> str:
     """
     Retrieve metadata with subprocess
     for supplied stream/field arg
@@ -188,7 +188,7 @@ def get_metadata(stream, arg, dpath):
     return meta.decode("utf-8").strip()
 
 
-def probe_metadata(arg, stream, fpath):
+def probe_metadata(arg: str, stream: str, fpath: str) -> Optional[str]:
     """
     Use FFmpeg module to extract
     ffprobe data from file
@@ -209,7 +209,7 @@ def probe_metadata(arg, stream, fpath):
         return None
 
 
-def check_part_whole(fname):
+def check_part_whole(fname: str) -> Tuple[Optional[int], Optional[int]]:
     """
     Check part whole well formed
     """
@@ -228,7 +228,7 @@ def check_part_whole(fname):
     return part, whole
 
 
-def get_object_number(fname):
+def get_object_number(fname: str) -> Optional[str]:
     """
     Extract object number from name formatted
     with partWhole, eg GUR_123456_01of01.ext
@@ -242,7 +242,7 @@ def get_object_number(fname):
     return object_number
 
 
-def sort_ext(ext):
+def sort_ext(ext: str) -> Optional[str]:
     """
     Decide on file type
     """
@@ -289,7 +289,7 @@ def sort_ext(ext):
             return key
 
 
-def exif_data(dpath):
+def exif_data(dpath: str) -> Optional[list[str]]:
     """
     Retrieve exiftool data
     return match to field if available
@@ -309,7 +309,7 @@ def exif_data(dpath):
     return exif_metadata
 
 
-def check_ffprobe_exit(fpath):
+def check_ffprobe_exit(fpath: str) -> Union[int, bool]:
     """
     Get return code for read attempt
     """
@@ -323,7 +323,7 @@ def check_ffprobe_exit(fpath):
     return False
 
 
-def get_mediaconch(dpath, policy):
+def get_mediaconch(dpath: str, policy: str) -> bool:
     """
     Check for 'pass! {path}' in mediaconch reponse
     for supplied file path and policy
@@ -335,7 +335,7 @@ def get_mediaconch(dpath, policy):
     return meta.startswith(f"pass! {dpath}")
 
 
-def get_duration(filepath):
+def get_duration(filepath: str) -> Optional[str]:
     """
     Retrieve duration field if possible
     """
@@ -376,7 +376,7 @@ def get_duration(filepath):
     return None
 
 
-def create_md5_65536(fpath):
+def create_md5_65536(fpath: str) -> Optional[str]:
     """
     Hashlib md5 generation, return as 32 character hexdigest
     """
@@ -393,7 +393,7 @@ def create_md5_65536(fpath):
         return None
 
 
-def create_xxhash_65536(fpath):
+def create_xxhash_65536(fpath: str) -> Optional[str]:
     """
     Get XXHash checksum for use later
     """
@@ -483,7 +483,7 @@ def make_metadata(fpath: str, arg: str) -> str:
     return data.decode("utf-8").strip()
 
 
-def mediainfo_create(arg, output_type, filepath, mediainfo_path=None):
+def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: Optional[str] = None) -> Optional[bytes]:
     """
     Output mediainfo data to text files
     """
@@ -508,7 +508,7 @@ def mediainfo_create(arg, output_type, filepath, mediainfo_path=None):
         return results.stderr
 
 
-def get_media_input_date(filename: str) -> str:
+def get_media_input_date(filename: str) -> Optional[str]:
     """
     Call up adlib to get input.date field
     """
@@ -522,7 +522,7 @@ def get_media_input_date(filename: str) -> str:
         print(err)
 
 
-def get_current_api():
+def get_current_api() -> Optional[str]:
     """
     Check control json for downtime requests
     based on passed argument
@@ -632,7 +632,7 @@ def get_buckets_blob(bucket_collection: str) -> str:
     return key_bucket
 
 
-def move_file(from_path: str, to_path: str) -> List[bool, str]:
+def move_file(from_path: str, to_path: str) -> Optional[List[Union[bool, str]]]:
     """
     Shutil move function reporting of success/failure
     """

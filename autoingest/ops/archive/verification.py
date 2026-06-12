@@ -5,6 +5,7 @@ from ...resources import adlib
 import os
 import json
 from datetime import datetime
+from typing import Optional
 from dagster import op, Out
 
 
@@ -23,7 +24,7 @@ def verify_tape_copy(context) -> dict:
     context.log.info(f"Verifying file: {file_path} in path {root}")
 
     # Access database information
-    db: tuple = context.resources.workflow_db
+    db = context.resources.workflow_db
     file_info = db.lookup_file_details(file)
 
     # Check the file completed ingest / autoingest path available
@@ -172,7 +173,7 @@ def verify_tape_copy(context) -> dict:
         return results
 
 
-def retrieve_json_data(job_id: str) -> str:
+def retrieve_json_data(job_id: str) -> Optional[str]:
     """
     Look for matching JSON file
     """
@@ -183,7 +184,7 @@ def retrieve_json_data(job_id: str) -> str:
         return None
 
 
-def check_for_failed_file(file, json_file):
+def check_for_failed_file(file: str, json_file: str) -> bool:
     """
     Check in JSON for failed file in list
     """
