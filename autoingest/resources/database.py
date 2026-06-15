@@ -1,4 +1,5 @@
 import os
+import json
 import psycopg2
 from contextlib import contextmanager
 from dagster import resource, InitResourceContext
@@ -6,8 +7,12 @@ from dagster import resource, InitResourceContext
 
 ALLOWED_FIELDS = {
     "id", "file_name", "file_path", "extension", "file_size",
-    "checksum_md5", "status", "file_status", "tape_verified",
-    "proxy_created", "source_deleted", "created_at", "source",
+    "checksum_md5", "file_status", "tape_verified",
+    "proxy_created", "source_deletion", "created_at", "source",
+    "error_message", "proxy_video_path", "proxy_size",
+    "proxy_image_path", "proxy_thumb_path",
+    "checksum_time_sec", "encode_time_sec", "image_time_sec",
+    "verify_time_sec", "total_ingest_time_sec",
 }
 
 
@@ -118,6 +123,70 @@ class WorkflowDatabase:
                 if row is None:
                     return False
                 return row[0] is True and row[1] is True
+
+    def record_pipeline_event(
+        self,
+        run_id: str,
+        job_name: str,
+        op_name: str,
+        event_type: str,
+        status: str,
+        metadata: dict | None = None,
+        message: str | None = None,
+    ):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO app.pipeline_events
+                        (run_id, job_name, op_name, event_type,
+                         status, message, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        run_id,
+                        job_name,
+                        op_name,
+                        event_type,
+                        status,
+                        message,
+                        json.dumps(metadata) if metadata else None,
+                    ),
+                )
+
+    def get_aggregate_metrics(
+        self,
+        op_name: str | None = None,
+        event_type: str | None = None,
+        days: int = 30,
+    ) -> list[dict]:
+        query = """
+            SELECT
+                op_name,
+                event_type,
+                COUNT(*) AS event_count,
+                COUNT(*) FILTER (WHERE status = 'success') AS success_count,
+                COUNT(*) FILTER (WHERE status = 'failure') AS failure_count,
+                AVG((metadata->>'duration_sec')::float) AS avg_duration_sec,
+                MIN((metadata->>'duration_sec')::float) AS min_duration_sec,
+                MAX((metadata->>'duration_sec')::float) AS max_duration_sec,
+                AVG((metadata->>'file_size')::bigint) AS avg_file_size
+            FROM app.pipeline_events
+            WHERE created_at >= NOW() - INTERVAL %s
+        """
+        params: list = [f"{days} days"]
+        if op_name:
+            query += " AND op_name = %s"
+            params.append(op_name)
+        if event_type:
+            query += " AND event_type = %s"
+            params.append(event_type)
+        query += " GROUP BY op_name, event_type ORDER BY op_name, event_type"
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                columns = [desc[0] for desc in cur.description]
+                return [dict(zip(columns, row)) for row in cur.fetchall()]
 
 
 @resource

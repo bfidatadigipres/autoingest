@@ -3,7 +3,7 @@ import time
 import autoingest.resources.utils as utils
 import autoingest.resources.proxy_utils as ut
 from pathlib import Path
-from dagster import op, OpExecutionContext
+from dagster import op, OpExecutionContext, Output
 
 MP4_POLICY = os.environ.get("MP4_POLICY")
 
@@ -15,7 +15,8 @@ MP4_POLICY = os.environ.get("MP4_POLICY")
 def encode_proxy_mp4(
     context: OpExecutionContext,
     file_info: dict,
-) -> dict:
+) -> Output:
+    tic = time.perf_counter()
     source_path = file_info["file_path"]
     filename_stem = Path(source_path).stem
     filename = Path(source_path).name
@@ -25,23 +26,25 @@ def encode_proxy_mp4(
     source = file_info["source"]
     if mime != "video":
         context.log.info("MIME type is not Video and cannot be transcoded...")
-        return {
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output({
             "file_id": file_info.get("file_id"),
             "source_path": source_path,
             "source": source,
             "proxy_video_path": "",
             "proxy_size": "",
-        }
+        }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (non-video): {filename}"})
     # Check and block non-BFI sources
     if source.lower() in ["netflix", "amazon", "disney"]:
         context.log.info(f"Source is {source}... No transcode required.")
-        return {
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output({
             "file_id": file_info.get("file_id"),
             "source_path": source_path,
             "source": source,
             "proxy_video_path": "",
             "proxy_size": "",
-        }
+        }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (non-BFI): {filename}"})
 
     # Get input date from Media dB here for path
     cfg = context.resources.encoding_config
@@ -110,10 +113,11 @@ def encode_proxy_mp4(
 
     ffmpeg_call_neat = " ".join(ffmpeg_cmd)
     context.log.info(f"FFmpeg command: {ffmpeg_call_neat}")
-    tic = time.perf_counter()
+    ffmpeg_tic = time.perf_counter()
     result = ut.call_ffmpeg_command(ffmpeg_cmd)
-    toc = time.perf_counter()
-    transcode_mins = (toc - tic) // 60
+    ffmpeg_toc = time.perf_counter()
+    ffmpeg_time = round(ffmpeg_toc - ffmpeg_tic, 3)
+    transcode_mins = ffmpeg_time // 60
     context.log.info(f"FFmpeg encoding completed in: {transcode_mins} minutes")
 
     if result.returncode != 0 or not os.path.isfile(output_path):
@@ -123,6 +127,8 @@ def encode_proxy_mp4(
     policy_check = utils.get_mediaconch(output_path, MP4_POLICY)
     if policy_check is True:
         proxy_size = output_path.stat().st_size
+        source_size = os.path.getsize(source_path)
+        compression_ratio = round(source_size / proxy_size, 2) if proxy_size > 0 else 0
         context.log.info(f"Proxy created: {output_path} ({proxy_size} bytes)")
     else:
         os.remove(output_path)
@@ -148,10 +154,52 @@ def encode_proxy_mp4(
         proxy_size=proxy_size,
     )
 
-    return {
+    toc = time.perf_counter()
+    total_duration_sec = round(toc - tic, 3)
+
+    metadata = {
+        "duration_sec": total_duration_sec,
+        "file_name": filename,
+        "ffmpeg_time_sec": ffmpeg_time,
+        "source_size": source_size,
+        "proxy_size": proxy_size,
+        "compression_ratio": compression_ratio,
+        "height": height,
+        "width": width,
+        "dar": dar,
+        "par": par,
+        "aspect": aspect,
+        "duration": duration,
+        "audio": audio,
+        "stream_count": stream_count,
+        "preview": f"{filename} encoded in {transcode_mins}min ({source_size}→{proxy_size}B, {compression_ratio}x)",
+    }
+
+    try:
+        db.record_pipeline_event(
+            run_id=context.run_id,
+            job_name=context.job_name,
+            op_name="encode_proxy_mp4",
+            event_type="op_completed",
+            status="success",
+            metadata=metadata,
+        )
+    except Exception:
+        pass
+
+    return Output({
         "file_id": file_info.get("file_id"),
         "source_path": source_path,
         "source": source,
         "proxy_video_path": str(output_path),
         "proxy_size": proxy_size,
-    }
+    }, metadata={
+        "duration_sec": total_duration_sec,
+        "ffmpeg_time_sec": ffmpeg_time,
+        "proxy_size": proxy_size,
+        "source_size": source_size,
+        "compression_ratio": compression_ratio,
+        "height": height,
+        "width": width,
+        "preview": f"{filename} encoded {transcode_mins}min, {source_size}→{proxy_size}B",
+    })

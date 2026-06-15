@@ -22,20 +22,23 @@ from ...resources import utils
 from ...resources import bp_utils as bp
 from ...resources import adlib
 
+import time
 import magic
 from pathlib import Path
 from typing import Optional, Tuple, Union
-from dagster import op, Out
+from dagster import op, Out, Output
 
 CID_API = utils.get_current_api()
 
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
-def assess_filename(context) -> dict:
+def assess_filename(context) -> Output:
+    tic = time.perf_counter()
+
     file_path = Path(context.op_config["file_path"])
     if not file_path:
         context.log.info("No files found at this time.")
-        return {}
+        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     filename = file_path.name
     filetype = file_path.suffix.lower().lstrip(".")
     filesize = file_path.stat().st_size
@@ -52,7 +55,20 @@ def assess_filename(context) -> dict:
             print(field_details[4])
             existing_error = field_details[4]
             context.log.warning(f"Historical error found for ingest, will not proceed until error fixed and ingest refreshed: {existing_error}")
-            return {}
+            duration_sec = round(time.perf_counter() - tic, 3)
+            try:
+                db.record_pipeline_event(
+                    run_id=context.run_id,
+                    job_name=context.job_name,
+                    op_name="assess_filename",
+                    event_type="op_completed",
+                    status="failure",
+                    metadata={"duration_sec": duration_sec, "file_name": filename, "preview": f"Historical error: {existing_error}"},
+                    message=existing_error,
+                )
+            except Exception:
+                pass
+            return Output({}, metadata={"duration_sec": duration_sec, "file_name": filename})
 
     # Check file for errors/ingest confirmation
     errors = []
@@ -101,6 +117,7 @@ def assess_filename(context) -> dict:
         errors.append(f"MIMEtype '{mime_type}' is not permitted...")
         do_ingest = False
 
+    ffprobe_exit = None
     if mime_type != "application":
         ffprobe_exit = utils.check_ffprobe_exit(file_path)
         if ffprobe_exit != 0:
@@ -108,6 +125,7 @@ def assess_filename(context) -> dict:
             errors.append(f"FFprobe failed to read file: [{ffprobe_exit}] status")
             do_ingest = False
 
+    ftype = None
     if priref and object_number:
         file_type_match, ftype = ext_in_file_type(filetype, priref, object_number)
         if not file_type_match:
@@ -195,7 +213,34 @@ def assess_filename(context) -> dict:
     returns["source"] = donor
     returns["autoingest_path"] = autoingest_path
 
-    return returns
+    toc = time.perf_counter()
+    duration_sec = round(toc - tic, 3)
+    status_outcome = "success" if do_ingest else "failure"
+
+    metadata = {
+        "duration_sec": duration_sec,
+        "file_name": filename,
+        "file_size": filesize,
+        "mime_type": mime_type,
+        "source": donor,
+        "do_ingest": "TRUE" if do_ingest else "FALSE",
+        "preview": f"{filename} ({filesize} bytes, {mime_type}, {donor}) assessed in {duration_sec}s",
+    }
+
+    try:
+        db.record_pipeline_event(
+            run_id=context.run_id,
+            job_name=context.job_name,
+            op_name="assess_filename",
+            event_type="op_completed",
+            status=status_outcome,
+            metadata=metadata,
+            message=errors[0] if errors else None,
+        )
+    except Exception:
+        pass
+
+    return Output(returns, metadata=metadata)
 
 
 def get_data_from_path(fpath: str) -> Tuple[str, bool, bool]:
