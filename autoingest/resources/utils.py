@@ -434,7 +434,7 @@ def fetch_item_priref(ob_num: str) -> str:
 
 def check_file_has_media_rec(
     fname: str
-) -> Optional[Union[str, bool]]:
+) -> bool:
     """
     Check if CID media record
     already created for filename
@@ -452,12 +452,11 @@ def check_file_has_media_rec(
         raise Exception(f"CID API was unreachable for Media search: {search}")
 
     print(f"check_media_record(): AdlibV3 record for hits: {hits}")
-    if int(hits) == 1:
+    if int(hits) >= 1:
         return True
-    elif int(hits) == 0:
+    else:
         return False
-    if int(hits) > 1:
-        return f"Hits exceed 1: {hits}"
+
 
 
 def make_metadata(fpath: str, arg: str) -> str:

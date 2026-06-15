@@ -142,10 +142,7 @@ def assess_filename(context) -> Output:
         context.log.info(f"Filename already matched to CID media record!")
         errors.append(f"Filename already has a CID Media record: {filename}")
         do_ingest = False
-    elif "Hits exceed 1" in media_check:
-        context.log.info(f"More than one CID Media record found for file: {filename}")
-        errors.append(f"Filename {filename} has more than one CID Media record. Manual attention needed.")
-        do_ingest = False
+    context.log.info(f"No CID Media record found for file: {filename}")
 
     status = bp.check_no_bp_status(filename, bucket_list)
     if status is False:
