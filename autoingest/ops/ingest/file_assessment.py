@@ -173,16 +173,16 @@ def assess_filename(context) -> Output:
     returns["extension"] = filetype
 
     if do_ingest is False:
-        returns = {
+        returns.update({
             "do_ingest": "FALSE",
             "error_message": errors[0],
             "file_status": "Failed assessment"
-        }
+        })
     else:
-        returns = {
+        returns.update({
             "do_ingest": "TRUE",
             "error_message": "",
-        }
+        })
     if incomplete_scan is True:
         returns["incomplete_scan"] = "TRUE"
     else:
@@ -200,7 +200,8 @@ def assess_filename(context) -> Output:
         returns["put_type"] = "Group"
         autoingest_path = f"autoingest/processing/{donor.lower()}/"
 
-    returns["file_status"] = "File cleared for ingest"
+    if do_ingest:
+        returns["file_status"] = "File cleared for ingest"
     returns["part"] = part
     returns["whole"] = whole
     returns["ffprobe_exit"] = ffprobe_exit
