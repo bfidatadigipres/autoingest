@@ -192,7 +192,7 @@ def api_stats():
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT file_status, COUNT(*) FROM file_catalogue "
+                "SELECT file_status, COUNT(*) FROM app.file_catalogue "
                 "GROUP BY file_status ORDER BY COUNT(*) DESC"
             )
             rows = cur.fetchall()
