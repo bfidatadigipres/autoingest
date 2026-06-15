@@ -22,14 +22,14 @@ from ...resources import utils
 from ...resources import bp_utils as bp
 from ...resources import adlib
 
+import os
 import time
 import magic
 from pathlib import Path
 from typing import Optional, Tuple, Union
 from dagster import op, Out, Output
 
-CID_API = utils.get_current_api()
-
+CID_API = os.environ.get("CID_API4")
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
 def assess_filename(context) -> Output:

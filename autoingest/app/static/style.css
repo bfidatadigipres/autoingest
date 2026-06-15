@@ -87,9 +87,22 @@ tr:hover td { background: #f8f8ff; }
     font-size: 14px;
     padding: 2px 6px;
     color: #666;
+    margin-right: 4px;
 }
 .btn-retry:hover { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
 .btn-retry:disabled { opacity: 0.4; cursor: default; }
+
+.btn-delete {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    color: #999;
+}
+.btn-delete:hover { background: #c0392b; color: #fff; border-color: #c0392b; }
+.btn-delete:disabled { opacity: 0.4; cursor: default; }
 
 .footer {
     margin-top: 10px;
