@@ -44,7 +44,7 @@ class WorkflowDatabase:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"SELECT {field} FROM file_catalogue WHERE file_name = %s",
+                    f"SELECT {field} FROM app.file_catalogue WHERE file_name = %s",
                     (filename,),
                 )
                 return cur.fetchone()
@@ -53,7 +53,7 @@ class WorkflowDatabase:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM file_catalogue WHERE file_name LIKE %s",
+                    "SELECT * FROM app.file_catalogue WHERE file_name LIKE %s",
                     (filename,),
                 )
                 return cur.fetchone()
@@ -64,7 +64,7 @@ class WorkflowDatabase:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO file_catalogue
+                    INSERT INTO app.file_catalogue
                         (file_name, file_path, extension, file_size)
                     VALUES (%s, %s, %s, %s)
                     RETURNING id
@@ -84,7 +84,7 @@ class WorkflowDatabase:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"UPDATE file_catalogue SET {set_clause} WHERE id = %s",
+                    f"UPDATE app.file_catalogue SET {set_clause} WHERE id = %s",
                     values,
                 )
 
@@ -94,7 +94,7 @@ class WorkflowDatabase:
                 cur.execute(
                     """
                     SELECT id, file_path, file_size, checksum_md5, source
-                    FROM file_catalogue
+                    FROM app.file_catalogue
                     WHERE file_status = 'File cleared for ingest'
                     ORDER BY created_at ASC
                     """
@@ -115,7 +115,7 @@ class WorkflowDatabase:
                 cur.execute(
                     """
                     SELECT tape_verified, proxy_created
-                    FROM file_catalogue WHERE id = %s
+                    FROM app.file_catalogue WHERE id = %s
                     """,
                     (file_id,),
                 )

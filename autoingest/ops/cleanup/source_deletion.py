@@ -56,7 +56,7 @@ def check_and_delete_source(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT file_path FROM file_catalogue WHERE id = %s", (file_id,)
+                "SELECT file_path FROM app.file_catalogue WHERE id = %s", (file_id,)
             )
             row = cur.fetchone()
 
