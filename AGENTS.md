@@ -80,14 +80,27 @@ Nearly all config via env vars (prefixed `WORKFLOW_PG_`, `DAGSTER_PG_`, `CELERY_
 `database_old.py` and `celery_client_old.py` kept for reference. Use the non-old versions.
 
 ## Running
+
+**Development** (single process, all in one):
 ```bash
-uv sync                    # Install deps
-source .venv/bin/activate  # Activate venv
 dagster dev -w workflow -h 0.0.0.0 -p 3000
 ```
 
+**Production** (two services, persistent):
+```bash
+# Terminal 1: daemon (sensors + schedules + run queue)
+DAGSTER_HOME=/opt/dagster/home dagster-daemon run
+
+# Terminal 2: webserver (Dagit UI)
+DAGSTER_HOME=/opt/dagster/home dagster-webserver -h 0.0.0.0 -p 3000
+```
+
+Or as systemd services — see `dagster-daemon.service` / `dagster-webserver.service` examples above.
+
 ## Testing
-`pytest` listed as dev dependency but no tests exist yet.
+```bash
+pytest tests/ -v
+```
 
 ## License
 MIT — BFI National Archive, 2026.
