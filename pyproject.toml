@@ -24,6 +24,7 @@ dependencies = [
 dev = [
     "dagster-webserver",
     "pytest",
+    "flask",
 ]
 
 [build-system]
