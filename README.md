@@ -118,10 +118,38 @@ On each worker server, install the project and run:
 ```bash
 pip install -e ".[dev]"
 source .venv/bin/activate
-dagster-celery worker -A dagster_celery.app
+export CELERY_BROKER_URL=redis://:password@redis-server:6379/0
+export CELERY_RESULT_BACKEND=redis://:password@redis-server:6379/1
+dagster-celery worker start -A dagster_celery.app -q encoding
 ```
 
-Workers need the same environment variables as the control server to connect to Redis and PostgreSQL.
+Workers need the same Redis credentials as the control server. If your Redis password contains special characters, URL-encode it first:
+
+```bash
+python3 -c "import urllib.parse; print(urllib.parse.quote_plus('password'))"
+```
+
+Redis must be bound to `0.0.0.0` and firewalls must allow TCP 6379 from both the control server and all workers.
+
+### Pipeline viewer
+
+The project includes a Flask-based file viewer at `autoingest/app/` that shows the `file_catalogue` table with auto-refresh, status badges, and a "Refresh Request" button to re-queue files for ingest.
+
+```bash
+pip install flask
+source .venv/bin/activate
+export WORKFLOW_PG_HOST=...
+export WORKFLOW_PG_USERNAME=...
+export WORKFLOW_PG_PASSWORD=...
+export WORKFLOW_PG_DB=...
+export CONFLUENCE_URL=https://your-confluence.example.com   # optional
+export SERVICE_DESK_URL=https://your-servicedesk.example.com  # optional
+python -m autoingest.app
+```
+
+Opens on `http://localhost:5000`. Pages auto-refresh every 30 seconds. The Info and Service Desk buttons are hidden if their URLs are unset.
+
+For production, run as a systemd service (see the Daemon / Webserver examples above — same pattern, different `ExecStart`).
 
 ### Running tests
 
