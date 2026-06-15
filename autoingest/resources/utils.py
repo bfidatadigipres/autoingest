@@ -21,6 +21,7 @@ CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.j
 STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.json")
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
 DPI_BUCKETS = os.environ.get("DPI_BUCKET")
+CID_API = os.environ.get("CID_API4")
 
 ACCEPTED_EXT: Final = [
     "avi",
