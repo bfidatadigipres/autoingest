@@ -153,15 +153,18 @@ def assess_filename(context) -> Output:
     if not incomplete_scan or part != 1 or whole != 1:
         # pervious part returns without extension, dB search uses LIKE to match most of name
         previous_part = check_for_multipart(filename, part, whole)
-        pp_field_details = db.lookup_file_details(previous_part)
-        if not pp_field_details:
-            context.log.info(f"Skipping ingest - previous part has not been ingested yet")
-            errors.append("Skip object as previous part not yet ingested or queued for ingest")
-            do_ingest = False
-        if pp_field_details[6] == "FALSE":
-            context.log.info(f"Skipping ingest - previous part has not been ingested yet")
-            errors.append("Skip object as previous part not yet ingested or queued for ingest")
-            do_ingest = False
+        if previous_part is True:
+            pass
+        elif previous_part:
+            pp_field_details = db.lookup_file_details(previous_part)
+            if not pp_field_details:
+                context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                errors.append("Skip object as previous part not yet ingested or queued for ingest")
+                do_ingest = False
+            if pp_field_details[6] == "FALSE":
+                context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                errors.append("Skip object as previous part not yet ingested or queued for ingest")
+                do_ingest = False
 
     returns = {}
     returns["file_name"] = filename
