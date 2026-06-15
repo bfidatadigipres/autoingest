@@ -4,25 +4,6 @@
 
 ### Installing dependencies
 
-**Option 1: uv**
-
-Ensure [`uv`](https://docs.astral.sh/uv/) is installed following their [official documentation](https://docs.astral.sh/uv/getting-started/installation/).
-
-Create a virtual environment, and install the required dependencies using _sync_:
-
-```bash
-uv sync
-```
-
-Then, activate the virtual environment:
-
-| OS | Command |
-| --- | --- |
-| MacOS | ```source .venv/bin/activate``` |
-| Windows | ```.venv\Scripts\activate``` |
-
-**Option 2: pip**
-
 Install the python dependencies with [pip](https://pypi.org/project/pip/):
 
 ```bash
@@ -44,20 +25,97 @@ pip install -e ".[dev]"
 
 ### Running Dagster
 
-Navigate terminal into your autoingest/ folder. Start the Dagster UI web server:
+You can run Dagster in two modes: **development** (single command, ideal for local work and testing) or **production** (persistent daemon + webserver, survivable across reboots).
+
+#### Development mode
+
+One terminal, one process. Sensors, schedules, and the Dagit UI all run together:
 
 ```bash
 dagster dev -h 0.0.0.0 -p 3000
 ```
 
-Open http://localhost:3000 in your browser to see the project. Local host and port can be adjusted as needed.
+Stopping the process stops everything. Not suitable for production — sensors will not run when the terminal closes.
+
+#### Production mode (recommended for live deployment)
+
+Two long-running processes, typically managed as systemd services so they survive reboots and can be monitored independently.
+
+**Process 1 — Daemon:** Runs sensors (`watch_folder`, `validation_folder`), schedules, and the run queue. Must be running continuously.
+
+```bash
+DAGSTER_HOME=/opt/dagster/home dagster-daemon run
+```
+
+**Process 2 — Webserver:** Serves the Dagit UI.
+
+```bash
+DAGSTER_HOME=/opt/dagster/home dagster-webserver -h 0.0.0.0 -p 3000
+```
+
+**As systemd services** (survive reboots, start on boot):
+
+Create `/etc/systemd/system/dagster-daemon.service`:
+
+```ini
+[Unit]
+Description=Dagster Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+WorkingDirectory=/home/your-username/autoingest
+Environment=DAGSTER_HOME=/opt/dagster/home
+Environment=PATH=/home/your-username/autoingest/.venv/bin:/usr/bin
+ExecStart=/home/your-username/autoingest/.venv/bin/dagster-daemon run
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+And `/etc/systemd/system/dagster-webserver.service`:
+
+```ini
+[Unit]
+Description=Dagster Webserver
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+WorkingDirectory=/home/your-username/autoingest
+Environment=DAGSTER_HOME=/opt/dagster/home
+Environment=PATH=/home/your-username/autoingest/.venv/bin:/usr/bin
+ExecStart=/home/your-username/autoingest/.venv/bin/dagster-webserver -h 0.0.0.0 -p 3000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable and start both:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now dagster-daemon dagster-webserver
+```
+
+Check status with `systemctl status dagster-daemon dagster-webserver`.
+
+> **Note:** The daemon and webserver read configuration from `DAGSTER_HOME` (e.g. `/opt/dagster/home/dagster.yaml` and `workspace.yaml`). Copy your config files there before starting:
+> ```bash
+> sudo mkdir -p /opt/dagster/home
+> sudo cp dagster.yaml workspace.yaml /opt/dagster/home/
+> ```
 
 ### Starting Celery Workers (for distributed transcoding)
 
 On each worker server, install the project and run:
 
 ```bash
-uv sync
+pip install -e ".[dev]"
 source .venv/bin/activate
 dagster-celery worker -A dagster_celery.app
 ```
