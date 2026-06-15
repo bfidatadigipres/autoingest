@@ -109,6 +109,7 @@ Check status with `systemctl status dagster-daemon dagster-webserver`.
 > sudo mkdir -p /opt/dagster/home
 > sudo cp dagster.yaml workspace.yaml /opt/dagster/home/
 > ```
+> Once running in production, you can safely remove `dagster.yaml` from the project folder — having it in both locations produces a warning that the copy in the project folder is being ignored. The same applies to `workspace.yaml`.
 
 ### Starting Celery Workers (for distributed transcoding)
 
