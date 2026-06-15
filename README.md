@@ -181,6 +181,11 @@ The pipeline expects these services to be reachable at startup. Without them, Da
 | **PostgreSQL** (Dagster instance) | Dagster run history, event log, schedules | `DAGSTER_PG_HOST`, `DAGSTER_PG_PORT`, `DAGSTER_PG_USERNAME`, `DAGSTER_PG_PASSWORD`, `DAGSTER_PG_DB` | `dagster.yaml` |
 | **Redis** | Celery task queue broker and result backend | `CELERY_BROKER_URL` (default `redis://localhost:6379/0`), `CELERY_RESULT_BACKEND` (default `redis://localhost:6379/1`) | `celery_config.py` |
 
+> **Network note:** If PostgreSQL or Redis run on a separate server, you must:
+> 1. Bind them to all interfaces — Redis: `bind 0.0.0.0` in `redis.conf`; PostgreSQL: `listen_addresses = '*'` in `postgresql.conf`
+> 2. Allow the client subnet in authentication — Redis: `requirepass`; PostgreSQL: add `host all all <subnet> md5` to `pg_hba.conf`
+> 3. Open TCP 6379 (Redis) and TCP 5432 (PostgreSQL) through any firewalls
+
 ### System binaries (must be installed on the control server and every worker)
 
 These are called directly via `subprocess`. Python pip packages alone will **not** suffice.

@@ -43,7 +43,7 @@ def api_files():
                     SELECT id, file_name, file_status, source, file_size,
                            mime_type, error_message, tape_verified, proxy_created,
                            created_at, updated_at
-                    FROM file_catalogue
+                    FROM app.file_catalogue
                     WHERE file_status != 'complete'
                     ORDER BY created_at DESC
                     LIMIT 200
@@ -53,7 +53,7 @@ def api_files():
                     SELECT id, file_name, file_status, source, file_size,
                            mime_type, error_message, tape_verified, proxy_created,
                            created_at, updated_at
-                    FROM file_catalogue
+                    FROM app.file_catalogue
                     ORDER BY created_at DESC
                     LIMIT 200
                 """)
@@ -79,7 +79,7 @@ def api_refresh(file_id):
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT file_name, file_path, autoingest_path, proxy_video_path "
-                "FROM file_catalogue WHERE id = %s",
+                "FROM app.file_catalogue WHERE id = %s",
                 (file_id,),
             )
             row = cur.fetchone()
@@ -127,7 +127,7 @@ def api_refresh(file_id):
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                UPDATE file_catalogue
+                UPDATE app.file_catalogue
                 SET file_status = 'No Status',
                     do_ingest = 'UNKNOWN',
                     error_message = NULL,

@@ -14,7 +14,7 @@ def sweep_completed_files(context: OpExecutionContext):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, file_path FROM file_catalogue
+                SELECT id, file_path FROM app.file_catalogue
                 WHERE tape_verified = TRUE
                   AND proxy_created = TRUE
                   AND (source_deletion IS NULL)
