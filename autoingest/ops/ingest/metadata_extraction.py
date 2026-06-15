@@ -18,6 +18,11 @@ from dagster import op, Out, Output
 )
 def extract_metadata(context, file_info: dict) -> Output:
     tic = time.perf_counter()
+
+    if file_info.get("do_ingest") != "TRUE":
+        context.log.info("Skipping metadata extraction — file not cleared for ingest.")
+        return Output(file_info, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+
     file_path = file_info["file_path"]
     file_name = file_info.get("file_name", Path(file_path).name)
     context.log.info(f"** Extracting metadata from {file_path}")
@@ -79,6 +84,11 @@ def extract_metadata(context, file_info: dict) -> Output:
 )
 def generate_checksum(context, enriched_file_info: dict) -> Output:
     tic = time.perf_counter()
+
+    if enriched_file_info.get("do_ingest") != "TRUE":
+        context.log.info("Skipping checksum generation — file not cleared for ingest.")
+        return Output(enriched_file_info, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+
     file_path = enriched_file_info["file_path"]
     file_name = enriched_file_info.get("file_name", Path(file_path).name)
     file_size = enriched_file_info.get("file_size", 0)
