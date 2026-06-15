@@ -19,9 +19,54 @@ def create_catalogue_record(context, file_info: dict) -> Output:
             f"Creating catalogue record for {file_name}"
         )
     else:
-        context.log.warning(f"File {file_name} does not have file_status 'File cleared for ingest'")
+        context.log.warning(f"File {file_name} has status '{file_info.get('file_status')}' — writing failure record.")
+        db = context.resources.workflow_db
+        try:
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO app.file_catalogue
+                            (file_name, file_path, extension, file_size,
+                             file_status, do_ingest, source, mime_type,
+                             error_message)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        file_name,
+                        str(file_info.get("file_path", "")),
+                        file_info.get("extension", ""),
+                        file_info.get("file_size", 0),
+                        file_info.get("file_status", "Failed assessment"),
+                        file_info.get("do_ingest", "FALSE"),
+                        file_info.get("source", ""),
+                        file_info.get("mime_type", ""),
+                        file_info.get("error_message", ""),
+                    ))
+                    record_id = cur.fetchone()[0]
+        except Exception as exc:
+            context.log.error(f"Failed to write failure record: {exc}")
+            duration_sec = round(time.perf_counter() - tic, 3)
+            return Output(None, metadata={"duration_sec": duration_sec, "preview": f"Failed: {file_name}"})
+
         duration_sec = round(time.perf_counter() - tic, 3)
-        return Output(None, metadata={"duration_sec": duration_sec, "preview": f"Skipped: {file_name}"})
+        try:
+            db.record_pipeline_event(
+                run_id=context.run_id,
+                job_name=context.job_name,
+                op_name="create_catalogue_record",
+                event_type="op_completed",
+                status="failure",
+                metadata={
+                    "duration_sec": duration_sec,
+                    "file_name": file_name,
+                    "record_id": record_id,
+                    "file_status": file_info.get("file_status"),
+                    "preview": f"{file_name} — assessment failed",
+                },
+            )
+        except Exception:
+            pass
+        return Output(record_id, metadata={"duration_sec": duration_sec, "record_id": record_id, "preview": f"Failed assessment recorded: {file_name}"})
 
     basic_metadata = [
         "file_name",
