@@ -74,7 +74,7 @@ def assess_filename(context) -> Output:
     errors = []
     do_ingest = True
     context.log.info(f"** Assessing file: {filename} ({filetype}, {filesize} bytes)")
-    donor, incomplete_scan, screencraft = get_data_from_path(file_path)
+    donor, incomplete_scan, screencraft = get_data_from_path(str(file_path))
 
     filename_check = utils.check_filename(filename, screencraft)
     if not filename_check:
@@ -104,14 +104,14 @@ def assess_filename(context) -> Output:
         errors.append(f"Cannot find record with <object number> ...<{object_number}>")
         do_ingest = False
 
-    over_tb_accepted = check_accepted_file_type(file_path)
+    over_tb_accepted = check_accepted_file_type(str(file_path))
     bucket, bucket_list = bp.get_buckets(donor, over_tb_accepted)
     if not bucket:
         context.log.info(f"Failed to match Donor {donor} to buckets")
         errors.append(f"Failed to match Donor {donor} to Black Pearl bucket")
         do_ingest = False
 
-    mime_type = check_mime_type(file_path)
+    mime_type = check_mime_type(str(file_path))
     if mime_type not in ["application", "audio", "image", "video"]:
         context.log.info(f"Mime type does not confirm to accepted type: {mime_type}")
         errors.append(f"MIMEtype '{mime_type}' is not permitted...")
@@ -119,7 +119,7 @@ def assess_filename(context) -> Output:
 
     ffprobe_exit = None
     if mime_type != "application":
-        ffprobe_exit = utils.check_ffprobe_exit(file_path)
+        ffprobe_exit = utils.check_ffprobe_exit(str(file_path))
         if ffprobe_exit != 0:
             context.log.info(f"FFprobe failed to read file: {filename} / Exit code: {ffprobe_exit}")
             errors.append(f"FFprobe failed to read file: [{ffprobe_exit}] status")
@@ -168,7 +168,7 @@ def assess_filename(context) -> Output:
 
     returns = {}
     returns["file_name"] = filename
-    returns["file_path"] = file_path
+    returns["file_path"] = str(file_path)
     returns["file_size"] = filesize
     returns["extension"] = filetype
 
