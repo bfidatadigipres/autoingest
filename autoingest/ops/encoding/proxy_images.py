@@ -1,7 +1,8 @@
 import os
+import time
 import autoingest.resources.proxy_utils as ut
 from pathlib import Path
-from dagster import op, OpExecutionContext
+from dagster import op, OpExecutionContext, Output
 
 
 @op(
@@ -11,7 +12,8 @@ from dagster import op, OpExecutionContext
 def generate_images(
     context: OpExecutionContext,
     file_info: dict,
-) -> dict:
+) -> Output:
+    tic = time.perf_counter()
     proxy_path = file_info["proxy_video_path"]
     root = os.path.split(proxy_path)[0]
     filename_stem = Path(proxy_path).stem
@@ -20,22 +22,24 @@ def generate_images(
     mime = file_info["mime_type"]
     if mime not in ["video", "image"]:
         context.log.info("MIME type is not Video/Image and cannot be converted...")
-        return {
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output({
             "file_id": file_info.get("file_id"),
             "proxy_video_path": proxy_path,
             "proxy_image_path": "",
             "proxy_thumb_path": "",
-        }
+        }, metadata={"duration_sec": duration_sec, "preview": "Skipped (non-media)"})
     # Check and block non-BFI sources
     source = file_info.get("source")
     if source.lower() in ["netflix", "amazon", "disney"]:
         context.log.info(f"Source is {source}... No transcode required.")
-        return {
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output({
             "file_id": file_info.get("file_id"),
             "proxy_video_path": proxy_path,
             "proxy_image_path": "",
             "proxy_thumb_path": "",
-        }
+        }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (non-BFI): {source}"})
 
     if mime == "video":
         source_image = os.path.join(root, f"{filename_stem}.jpg")
@@ -50,10 +54,10 @@ def generate_images(
     thumbnail_path = os.path.join(root, f"{filename_stem}_thumbnail.jpg")
 
     percent = ""
+    oversize = False
     if mime == "video":
         oversize = False
     else:
-        oversize = False
         context.log.info("Generating large (full size copy) and thumbnail jpeg images.")
 
         size = os.path.getsize(source_image)
@@ -75,12 +79,15 @@ def generate_images(
             oversize = True
 
     context.log.info(f"Generating largeimage from proxy: {proxy_path}")
+    img_tic = time.perf_counter()
     if oversize is False:
         proxy_image_path = ut.make_jpg(source_image, "full", largeimage_path, None)
     else:
         proxy_image_path = ut.make_jpg(source_image, "oversize", largeimage_path, percent)
     context.log.info(f"Generating thumbnail from proxy: {proxy_path}")
     proxy_thumb_path = ut.make_jpg(source_image, "thumb", thumbnail_path, None)
+    img_toc = time.perf_counter()
+    image_time = round(img_toc - img_tic, 3)
 
     if proxy_thumb_path is None:
         proxy_thumb_path = ""
@@ -101,15 +108,46 @@ def generate_images(
     db = context.resources.workflow_db
     db.update_file_status(
         file_info.get("file_id"),
-        {
-            "proxy_image_path": proxy_image_path,
-            "proxy_thumb_path": proxy_thumb_path,
-        }
+        proxy_image_path=proxy_image_path,
+        proxy_thumb_path=proxy_thumb_path,
     )
 
-    return {
+    toc = time.perf_counter()
+    duration_sec = round(toc - tic, 3)
+
+    large_size = os.path.getsize(proxy_image_path) if os.path.isfile(proxy_image_path) else 0
+    thumb_size = os.path.getsize(proxy_thumb_path) if os.path.isfile(proxy_thumb_path) else 0
+
+    metadata = {
+        "duration_sec": duration_sec,
+        "file_name": filename_stem,
+        "image_time_sec": image_time,
+        "large_image_size": large_size,
+        "thumb_size": thumb_size,
+        "oversize": oversize,
+        "preview": f"{filename_stem} images in {image_time}s (large: {large_size}B, thumb: {thumb_size}B)",
+    }
+
+    try:
+        db.record_pipeline_event(
+            run_id=context.run_id,
+            job_name=context.job_name,
+            op_name="generate_images",
+            event_type="op_completed",
+            status="success",
+            metadata=metadata,
+        )
+    except Exception:
+        pass
+
+    return Output({
         "file_id": file_info.get("file_id"),
         "proxy_video_path": proxy_path,
         "proxy_image_path": proxy_image_path,
         "proxy_thumb_path": proxy_thumb_path,
-    }
+    }, metadata={
+        "duration_sec": duration_sec,
+        "image_time_sec": image_time,
+        "large_image_size": large_size,
+        "preview": f"{filename_stem} images in {image_time}s",
+    })

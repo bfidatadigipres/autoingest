@@ -57,11 +57,11 @@ CREATE INDEX idx_pe_created_at ON app.pipeline_events(created_at);
 CREATE INDEX idx_pe_event_type ON app.pipeline_events(event_type);
 
 -- ============================================================
--- TABLE 2: file_tracking
+-- TABLE 2: file_catalogue
 -- Tracks every file moving through the pipeline with its
 -- metadata, checksums, status, and proxy paths
 -- ============================================================
-CREATE TABLE app.file_tracking (
+CREATE TABLE app.file_catalogue (
     id                  SERIAL PRIMARY KEY, # 0
     file_name           VARCHAR(512) NOT NULL, # 1
     file_status         VARCHAR(50) NOT NULL DEFAULT 'No Status',
@@ -114,7 +114,6 @@ CREATE TABLE app.file_tracking (
     bp_etag             VARCHAR(32),  # Whole file checksum
     bp_length           BIGINT, # 50  Total file size in BP
     bp_version_id       VARCHAR(32),  # Version ID
-    cid_media_priref    BIGINT,
     validated           TEXT,
     reference_num       TEXT,
     ffmpeg_command      TEXT,
@@ -122,17 +121,24 @@ CREATE TABLE app.file_tracking (
     proxy_size          TEXT,
     proxy_image_path    TEXT,
     proxy_thumb_path    TEXT,
-    updated_to_cid      TEXT, # 60
-    source_deletion     TEXT,
+    updated_to_cid      TEXT,
+    source_deletion     TEXT, # 60
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    tape_verified       BOOLEAN,
+    proxy_created       BOOLEAN,
+    checksum_time_sec   DOUBLE PRECISION,
+    encode_time_sec     DOUBLE PRECISION,
+    image_time_sec      DOUBLE PRECISION,
+    verify_time_sec     DOUBLE PRECISION,
+    total_ingest_time_sec DOUBLE PRECISION # 69
 );
 
-CREATE INDEX idx_ft_status      ON app.file_tracking(status);
-CREATE INDEX idx_ft_file_name   ON app.file_tracking(file_name);
-CREATE INDEX idx_ft_checksum    ON app.file_tracking(checksum_md5);
-CREATE INDEX idx_ft_created_at  ON app.file_tracking(created_at);
-CREATE INDEX idx_ft_source      ON app.file_tracking(source);
+CREATE INDEX idx_ft_status      ON app.file_catalogue(file_status);
+CREATE INDEX idx_ft_file_name   ON app.file_catalogue(file_name);
+CREATE INDEX idx_ft_checksum    ON app.file_catalogue(checksum_md5);
+CREATE INDEX idx_ft_created_at  ON app.file_catalogue(created_at);
+CREATE INDEX idx_ft_source      ON app.file_catalogue(source);
 
 -- Auto-update updated_at on row modification
 CREATE OR REPLACE FUNCTION app.set_updated_at()
@@ -144,7 +150,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_file_tracking_updated_at
-    BEFORE UPDATE ON app.file_tracking
+    BEFORE UPDATE ON app.file_catalogue
     FOR EACH ROW
     EXECUTE FUNCTION app.set_updated_at();
 
