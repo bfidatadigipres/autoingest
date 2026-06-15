@@ -51,7 +51,7 @@ def assess_filename(context) -> Output:
             f"No field details found for filename '{filename}'"
         )
     else:
-        if len(field_details[4]) > 0:
+        if field_details[4] and len(field_details[4]) > 0:
             print(field_details[4])
             existing_error = field_details[4]
             context.log.warning(f"Historical error found for ingest, will not proceed until error fixed and ingest refreshed: {existing_error}")
