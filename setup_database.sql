@@ -37,7 +37,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA app
 -- Tracks success/failure events from your pipeline runs
 -- at a granularity you control (per-op, per-job, custom)
 -- ============================================================
-CREATE TABLE app.pipeline_events (
+CREATE TABLE IF NOT EXISTS app.pipeline_events (
     id              SERIAL PRIMARY KEY,
     run_id          VARCHAR(255),
     job_name        VARCHAR(255),
@@ -61,9 +61,9 @@ CREATE INDEX idx_pe_event_type ON app.pipeline_events(event_type);
 -- Tracks every file moving through the pipeline with its
 -- metadata, checksums, status, and proxy paths
 -- ============================================================
-CREATE TABLE app.file_catalogue (
-    id                  SERIAL PRIMARY KEY, # 0
-    file_name           VARCHAR(512) NOT NULL, # 1
+CREATE TABLE IF NOT EXISTS app.file_catalogue (
+    id                  SERIAL PRIMARY KEY, -- 0
+    file_name           VARCHAR(512) NOT NULL, -- 1
     file_status         VARCHAR(50) NOT NULL DEFAULT 'No Status',
     file_path           TEXT,
     error_message       TEXT,
@@ -72,7 +72,7 @@ CREATE TABLE app.file_catalogue (
     incomplete_scan     VARCHAR(50) NOT NULL DEFAULT 'UNKNOWN',
     screencraft_arch    VARCHAR(50) NOT NULL DEFAULT 'UNKNOWN',
     part                INT,
-    whole               INT,  # 10
+    whole               INT,  -- 10
     extension           VARCHAR(10),
     ffprobe_exit        INT,
     mime_type           TEXT,
@@ -82,7 +82,7 @@ CREATE TABLE app.file_catalogue (
     cid_media_priref    VARCHAR(20),
     bp_bucket           TEXT,
     bucket_list         TEXT,
-    file_size           BIGINT,  # 20
+    file_size           BIGINT,  -- 20
     checksum_xxh        VARCHAR(32),
     checksum_md5        VARCHAR(32),
     checksum_date       TEXT,
@@ -92,7 +92,7 @@ CREATE TABLE app.file_catalogue (
     mdata_full_xml      TEXT,
     mdata_ebucore       TEXT,
     mdata_pbcore        TEXT,
-    mdata_full_json     JSONB DEFAULT '{}', # 30
+    mdata_full_json     JSONB DEFAULT '{}', -- 30
     file_fmt	        TEXT,
     video_codec         TEXT,
     audio_codec         TEXT,
@@ -102,18 +102,18 @@ CREATE TABLE app.file_catalogue (
     audio_ch_total      TEXT,
     audio_count         INT,
     video_count         INT,
-    height              TEXT, # 40
+    height              TEXT, -- 40
     width               TEXT,
     sample_height       TEXT,
     clean_ap_width      TEXT,
     video_duration      TEXT,
-    autoingest_path     TEXT,  # Eg from autoingest/ingest/autodetect or autoingest/ingest/incomplete_scans or autoingest/ingest/bfi/blob
+    autoingest_path     TEXT,  -- Eg from autoingest/ingest/autodetect or autoingest/ingest/incomplete_scans or autoingest/ingest/bfi/blob
     bp_job_id           VARCHAR(32),
-    put_type            TEXT,  # Eg, Blob / Group
-    persisted_ok        TEXT,  # Bool
-    bp_etag             VARCHAR(32),  # Whole file checksum
-    bp_length           BIGINT, # 50  Total file size in BP
-    bp_version_id       VARCHAR(32),  # Version ID
+    put_type            TEXT,  -- Eg, Blob / Group
+    persisted_ok        TEXT,  -- Bool
+    bp_etag             VARCHAR(32),  -- Whole file checksum
+    bp_length           BIGINT, -- 50  Total file size in BP
+    bp_version_id       VARCHAR(32),  -- Version ID
     validated           TEXT,
     reference_num       TEXT,
     ffmpeg_command      TEXT,
@@ -122,7 +122,7 @@ CREATE TABLE app.file_catalogue (
     proxy_image_path    TEXT,
     proxy_thumb_path    TEXT,
     updated_to_cid      TEXT,
-    source_deletion     TEXT, # 60
+    source_deletion     TEXT, -- 60
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     tape_verified       BOOLEAN,
@@ -131,7 +131,7 @@ CREATE TABLE app.file_catalogue (
     encode_time_sec     DOUBLE PRECISION,
     image_time_sec      DOUBLE PRECISION,
     verify_time_sec     DOUBLE PRECISION,
-    total_ingest_time_sec DOUBLE PRECISION # 69
+    total_ingest_time_sec DOUBLE PRECISION
 );
 
 CREATE INDEX idx_ft_status      ON app.file_catalogue(file_status);
@@ -149,6 +149,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_file_tracking_updated_at ON app.file_catalogue;
 CREATE TRIGGER trg_file_tracking_updated_at
     BEFORE UPDATE ON app.file_catalogue
     FOR EACH ROW
