@@ -16,10 +16,10 @@ def create_catalogue_record(context, file_info: dict) -> Output:
 
     if file_info.get("file_status") == "File cleared for ingest":
         context.log.info(
-            f"Creating catalogue record for {file_info['file_name']}"
+            f"Creating catalogue record for {file_name}"
         )
     else:
-        context.log.warning(f"File {file_info['file_name']} does not have file_status 'File cleared for ingest'")
+        context.log.warning(f"File {file_name} does not have file_status 'File cleared for ingest'")
         duration_sec = round(time.perf_counter() - tic, 3)
         return Output(None, metadata={"duration_sec": duration_sec, "preview": f"Skipped: {file_name}"})
 
@@ -78,7 +78,7 @@ def create_catalogue_record(context, file_info: dict) -> Output:
     put_base = file_info.get("autoingest_path")
     source = Path(file_info["file_path"])
     base_dir = Path(source).parent.parent.parent
-    autoingest_path = base_dir / put_base / file_info["file_name"]
+    autoingest_path = base_dir / put_base / file_name
     context.log.info(f"Moving {file_info['file_name']} to PUT folder: {autoingest_path}")
     
     db.update_file_status(record_id, file_status="File cleared for ingest")
