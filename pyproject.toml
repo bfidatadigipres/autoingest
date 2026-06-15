@@ -4,7 +4,7 @@ requires-python = "==3.13.*"
 version = "0.1.0"
 dependencies = [
     "dagster",
-    "dagster-dg-cli",
+    "dagster-dg",
     "dagster-postgres",
     "dagster-webserver",
     "dagster-celery[redis]",
@@ -17,13 +17,14 @@ dependencies = [
     "requests",
     "tenacity",
     "xmltodict",
-    "Pillow",
+    "pillow",
+    "xxhash",
 ]
 
 [dependency-groups]
 dev = [
     "dagster-webserver",
-    "dagster-dg-cli",
+    "dagster-dg",
     "pytest",
 ]
 

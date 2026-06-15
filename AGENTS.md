@@ -8,7 +8,7 @@
 - **Adlib API v3.7** — CID collections management system
 - **SpectraLogic Black Pearl** — tape archival via `ds3` SDK
 - **FFmpeg/ffprobe, MediaInfo, MediaConch, GraphicsMagick, ExifTool** — media processing
-- **uv** — dependency management (lockfile: `uv.lock`)
+- **pip** — dependency management (pyproject.toml for manifest)
 
 ## Project Structure
 ```
