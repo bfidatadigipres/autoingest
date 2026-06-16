@@ -111,7 +111,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     for file_key in new_files:
         run_requests.append(
             RunRequest(
-                run_key=f"ingest-{file_key}",
+                run_key=f"ingest-{Path(file_key).name}-{int(time.time())}",
                 run_config={
                     "ops": {
                         "assess_filename": {
