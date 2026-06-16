@@ -84,6 +84,7 @@ def assess_filename(context) -> Output:
         errors.append("Cannot parse <object_number> from filename")
         do_ingest = False
 
+    context.log.info(f"Attempting to fetch CID item priref for: {object_number}")
     priref = utils.fetch_item_priref(object_number)
     if not priref:
         context.log.info(f"Cannot find a record with object_number: {object_number}")
