@@ -18,10 +18,10 @@ from autoingest.jobs.cleanup_job import cleanup_job
 from autoingest.sensors.watch_folder import watch_folder_sensor
 from autoingest.sensors.validation_folder import validation_folder_sensor
 from autoingest.sensors.chain_sensors import (
-    on_ingest_local_success,
-    on_ingest_celery_success,
-    on_verify_local_success,
-    on_encoding_celery_success,
+    ingest_chain_sensor,
+    catalogue_chain_sensor,
+    encoding_chain_sensor,
+    cleanup_chain_sensor,
 )
 
 
@@ -42,11 +42,11 @@ defs = Definitions(
         # Folder scanners
         watch_folder_sensor,
         validation_folder_sensor,
-        # Pipeline chainers
-        on_ingest_local_success,
-        on_ingest_celery_success,
-        on_verify_local_success,
-        on_encoding_celery_success,
+        # Pipeline chainers (DB status-driven)
+        ingest_chain_sensor,
+        catalogue_chain_sensor,
+        encoding_chain_sensor,
+        cleanup_chain_sensor,
     ],
     resources={
         "workflow_db": workflow_database,
