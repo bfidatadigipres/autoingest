@@ -42,9 +42,14 @@ def assess_filename(context) -> Output:
     filename = file_path.name
     filetype = file_path.suffix.lower().lstrip(".")
     filesize = file_path.stat().st_size
-    context.log.info(CID_API)
 
     db = context.resources.workflow_db
+    claimed_id = db.try_claim_file(filename, str(file_path))
+    if claimed_id is None:
+        context.log.info(f"File {filename} is already being processed. Skipping.")
+        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"Already processing: {filename}"})
+
+    context.log.info(CID_API)
     field_details = db.lookup_file_details(filename)
     existing_error = ""
     if field_details is None:
@@ -214,6 +219,28 @@ def assess_filename(context) -> Output:
     returns["cid_ob_num"] = object_number
     returns["source"] = donor
     returns["autoingest_path"] = autoingest_path
+
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE app.file_catalogue
+                SET file_status = %s,
+                    do_ingest = %s,
+                    error_message = %s,
+                    file_size = %s,
+                    mime_type = %s,
+                    source = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (
+                returns.get("file_status", "Failed assessment"),
+                returns.get("do_ingest", "FALSE"),
+                returns.get("error_message", ""),
+                returns.get("file_size", 0),
+                returns.get("mime_type", ""),
+                returns.get("source", ""),
+                claimed_id,
+            ))
 
     toc = time.perf_counter()
     duration_sec = round(toc - tic, 3)

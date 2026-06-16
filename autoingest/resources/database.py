@@ -125,6 +125,33 @@ class WorkflowDatabase:
                     return False
                 return row[0] is True and row[1] is True
 
+    def try_claim_file(self, file_name: str, file_path: str) -> int | None:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, file_status FROM app.file_catalogue "
+                    "WHERE file_name = %s FOR UPDATE",
+                    (file_name,),
+                )
+                existing = cur.fetchone()
+                if existing is None:
+                    cur.execute(
+                        "INSERT INTO app.file_catalogue "
+                        "(file_name, file_path, file_status) "
+                        "VALUES (%s, %s, 'processing') RETURNING id",
+                        (file_name, file_path),
+                    )
+                    return cur.fetchone()[0]
+                if existing[1] == "No Status":
+                    cur.execute(
+                        "UPDATE app.file_catalogue "
+                        "SET file_status = 'processing', updated_at = NOW() "
+                        "WHERE id = %s",
+                        (existing[0],),
+                    )
+                    return existing[0]
+                return None
+
     def upsert_file_record(self, file_data: dict) -> tuple[int, str]:
         file_name = file_data.get("file_name")
         with self.get_connection() as conn:
@@ -146,7 +173,7 @@ class WorkflowDatabase:
             return record_id, "insert"
 
         existing_id, existing_status = existing
-        if existing_status in ("No Status", "Failed assessment"):
+        if existing_status in ("No Status", "Failed assessment", "File cleared for ingest"):
             self._update_retry_record(existing_id, file_data)
             return existing_id, "update"
 
