@@ -5,15 +5,46 @@ to one utility module
 2024
 """
 
+from __future__ import annotations
+
 import json
 import os
 from typing import Optional, Union, List, Dict, Any
-from ds3 import ds3, ds3Helpers
 
-CLIENT = ds3.createClientFromEnv()
-HELPER = ds3Helpers.Helper(client=CLIENT)
 DPI_BUCKETS = os.environ["DPI_BUCKET"]
 JSON_END = os.environ["JSON_END_POINT"]
+
+_CLIENT = None
+_HELPER = None
+
+
+def _get_client():
+    global _CLIENT
+    if _CLIENT is None:
+        import ds3
+        _CLIENT = ds3.createClientFromEnv()
+    return _CLIENT
+
+
+def _get_helper():
+    global _HELPER
+    if _HELPER is None:
+        import ds3 as _ds3
+        from ds3 import ds3Helpers
+        _HELPER = ds3Helpers.Helper(client=_get_client())
+    return _HELPER
+
+
+def __getattr__(name: str):
+    if name == 'ds3':
+        import ds3 as _ds3
+        globals()['ds3'] = _ds3
+        return _ds3
+    if name == 'ds3Helpers':
+        from ds3 import ds3Helpers as _dh
+        globals()['ds3Helpers'] = _dh
+        return _dh
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[str]]:
@@ -68,7 +99,7 @@ def check_no_bp_status(fname: str, bucket_list: list[str]) -> bool:
     for bucket in bucket_list:
         try:
             query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
-            result: ds3.HeadObjectResponse = CLIENT.head_object(query)
+            result: ds3.HeadObjectResponse = _get_client().head_object(query)
             # Only return false if DOESNTEXIST is missing, eg file found
             if "DOESNTEXIST" in str(result.result):
                 print(f"File {fname} NOT found in Black Pearl bucket {bucket}")
@@ -94,7 +125,7 @@ def get_job_status(job_id: str) -> tuple[str, str]:
     """
     cached = status = ""
 
-    job_status: ds3.GetJobSpectraS3Request = CLIENT.get_job_spectra_s3(
+    job_status: ds3.GetJobSpectraS3Request = _get_client().get_job_spectra_s3(
         ds3.GetJobSpectraS3Request(job_id.strip())
     )
 
@@ -115,7 +146,7 @@ def get_bp_md5(fname: str, bucket: str) -> Optional[str]:
     """
     md5: str = ""
     query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
-    result: ds3.HeadObjectResponse = CLIENT.head_object(query)
+    result: ds3.HeadObjectResponse = _get_client().head_object(query)
     try:
         md5: str = result.response.msg["ETag"]
     except Exception as err:
@@ -132,7 +163,7 @@ def get_bp_length(fname: str, bucket: str) -> Optional[str]:
     """
     size: str = ""
     query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
-    result: ds3.HeadObjectResponse = CLIENT.head_object(query)
+    result: ds3.HeadObjectResponse = _get_client().head_object(query)
     try:
         size = result.response.msg["Content-Length"]
     except Exception as err:
@@ -155,7 +186,7 @@ def get_confirmation_length_md5(
             [ds3.Ds3GetObject(name=fname) for fname in flist]
         )
         res = ds3.GetPhysicalPlacementForObjectsSpectraS3Request(bucket, object_flist)
-        result = CLIENT.get_physical_placement_for_objects_spectra_s3(res)
+        result = _get_client().get_physical_placement_for_objects_spectra_s3(res)
         data = result.result
     except Exception as err:
         print(err)
@@ -168,7 +199,7 @@ def get_confirmation_length_md5(
                 res = ds3.GetPhysicalPlacementForObjectsSpectraS3Request(
                     buck, object_flist
                 )
-                result = CLIENT.get_physical_placement_for_objects_spectra_s3(res)
+                result = _get_client().get_physical_placement_for_objects_spectra_s3(res)
                 print(result.result)
                 if len(result.result["TapeList"]) > 0:
                     data = result.result
@@ -203,7 +234,7 @@ def get_object_list(
         name=f"{fname}", include_physical_placement=True
     )
     try:
-        result = CLIENT.get_objects_with_full_details_spectra_s3(request)
+        result = _get_client().get_objects_with_full_details_spectra_s3(request)
         data = result.result
     except Exception as err:
         print(err)
@@ -236,7 +267,7 @@ def get_object_list_items(fname: str) -> Optional[List[Dict[str, Any]]]:
         name=f"{fname}", include_physical_placement=True
     )
     try:
-        result = CLIENT.get_objects_with_full_details_spectra_s3(request)
+        result = _get_client().get_objects_with_full_details_spectra_s3(request)
         data = result.result
     except Exception as err:
         print(err)
@@ -257,7 +288,7 @@ def put_directory(directory_pth: str, bucket: str) -> Optional[list[str]]:
     Retrieve job number and launch json notification
     """
     try:
-        put_job_ids: list[str] = HELPER.put_all_objects_in_directory(
+        put_job_ids: list[str] = _get_helper().put_all_objects_in_directory(
             source_dir=directory_pth,
             bucket=bucket,
             objects_per_bp_job=5000,
@@ -278,7 +309,7 @@ def put_notification(job_id: str) -> str:
     Ensure job notification is sent to Isilon/ BP NAS
     """
     job_completed_registration = (
-        CLIENT.put_job_completed_notification_registration_spectra_s3(
+        _get_client().put_job_completed_notification_registration_spectra_s3(
             ds3.PutJobCompletedNotificationRegistrationSpectraS3Request(
                 notification_end_point=JSON_END, format="JSON", job_id=job_id
             )
@@ -301,7 +332,7 @@ def download_bp_object(fname: str, outpath: str, bucket: str) -> str:
         ds3Helpers.HelperGetObject(fname, file_path)
     ]
     try:
-        get_job_id: str = HELPER.get_objects(get_objects, bucket)
+        get_job_id: str = _get_helper().get_objects(get_objects, bucket)
         print(f"BP get job ID: {get_job_id}")
     except Exception as err:
         raise Exception(f"Unable to retrieve file {fname} from Black Pearl: {err}")
@@ -322,7 +353,7 @@ def download_blobbed_object(fname: str, outpath: str, bucket: str) -> str:
         ds3Helpers.HelperGetObject(fname, file_path)
     ]
     try:
-        get_job_id: str = HELPER.get_objects(get_objects, bucket, max_threads=1)
+        get_job_id: str = _get_helper().get_objects(get_objects, bucket, max_threads=1)
         print(f"BP get job ID: {get_job_id}")
     except Exception as err:
         raise Exception(f"Unable to retrieve file {fname} from Black Pearl: {err}")
@@ -368,7 +399,7 @@ def put_single_file(fpath: str, ref_num: str, bucket_name: str, check: bool = Fa
         ds3Helpers.HelperPutObject(object_name=ref_num, file_path=fpath, size=file_size)
     ]
     try:
-        put_job_id: str = HELPER.put_objects(
+        put_job_id: str = _get_helper().put_objects(
             put_objects=put_obj,
             bucket=bucket_name,
             max_threads=1,
@@ -390,7 +421,7 @@ def delete_black_pearl_object(
     """
     try:
         request = ds3.DeleteObjectRequest(bucket, ref_num, version_id=version)
-        job_deletion: str = CLIENT.delete_object(request)
+        job_deletion: str = _get_client().delete_object(request)
         return job_deletion
     except Exception as exc:
         print(exc)
@@ -402,7 +433,7 @@ def etag_deletion_confirmation(ref_num: str, bucket: str) -> Optional[str]:
     Get confirmation of deletion
     """
     resp = ds3.HeadObjectRequest(bucket, ref_num)
-    result: ds3.HeadObjectResponse = CLIENT.head_object(resp)
+    result: ds3.HeadObjectResponse = _get_client().head_object(resp)
     etag = result.response.msg["ETag"]
     if etag is None:
         return "Deleted"
@@ -420,7 +451,7 @@ def get_version_id(ref_num: str) -> Optional[str]:
             name=ref_num, include_physical_placement=True
         )
     )
-    result = CLIENT.get_objects_with_full_details_spectra_s3(resp)
+    result = _get_client().get_objects_with_full_details_spectra_s3(resp)
     obj = result.result
 
     if not obj:
@@ -453,7 +484,7 @@ def set_latest_flag_true(fname: str, bucket: str, version_id: str) -> bool:
     r = ds3.UndeleteObjectSpectraS3Request(
         bucket_id=bucket, name=fname, version_id=version_id
     )
-    result = CLIENT.undelete_object_spectra_s3(r)
+    result = _get_client().undelete_object_spectra_s3(r)
 
     confirmation = result.result
     if not confirmation:
@@ -478,7 +509,7 @@ def get_object_details(fname: str, bucket: str) -> Optional[List[Dict[str, Any]]
     """
 
     r = ds3.GetObjectsDetailsSpectraS3Request(name=fname, bucket_id=bucket)
-    result = CLIENT.get_objects_details_spectra_s3(r)
+    result = _get_client().get_objects_details_spectra_s3(r)
     obj_list = result.result.get("S3ObjectList", [])
     print(f"Length of object list found for {fname} is {len(obj_list)}")
 
