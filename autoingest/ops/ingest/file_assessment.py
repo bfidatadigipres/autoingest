@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Union
 from dagster import op, Out, Output
 
-CID_API = os.environ.get("CID_API4")
+CID_API = os.environ.get("CID_API3")
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
 def assess_filename(context) -> Output:
@@ -42,6 +42,7 @@ def assess_filename(context) -> Output:
     filename = file_path.name
     filetype = file_path.suffix.lower().lstrip(".")
     filesize = file_path.stat().st_size
+    context.log.info(CID_API)
 
     db = context.resources.workflow_db
     field_details = db.lookup_file_details(filename)
@@ -272,6 +273,7 @@ def check_accepted_file_type(fpath: str) -> bool:
     """
     Retrieve codec and ensure file is accepted type
     TAR accepted from DMS / ProRes all other paths
+    when > 1TB
     """
     formt: str = utils.get_metadata("Video", "Format", fpath)
 
