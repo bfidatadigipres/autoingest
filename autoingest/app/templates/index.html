@@ -104,6 +104,7 @@ function renderTable(files) {
             '<td>' + esc(f.updated_at) + '</td>' +
             '<td>' +
                 '<button class="btn-retry" onclick="refreshFile(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Reset for re-ingest">↻</button>' +
+                '<button class="btn-delete" onclick="deleteFile(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Delete from database">✕</button>' +
             '</td>' +
             '</tr>';
     }
@@ -135,6 +136,26 @@ async function refreshFile(id, name) {
     }
     btn.disabled = false;
     btn.textContent = "↻";
+}
+
+async function deleteFile(id, name) {
+    if (!confirm('Permanently delete "' + name + '" from the database?\n\nThis removes the row. The file on disk is not affected.')) return;
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+        var resp = await fetch("/api/delete/" + id, { method: "DELETE" });
+        var result = await resp.json();
+        if (result.success) {
+            loadFiles();
+        } else {
+            alert("Error: " + result.error);
+        }
+    } catch (e) {
+        alert("Request failed");
+    }
+    btn.disabled = false;
+    btn.textContent = "✕";
 }
 
 async function loadStats() {

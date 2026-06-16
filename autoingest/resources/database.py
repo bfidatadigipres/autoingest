@@ -124,6 +124,73 @@ class WorkflowDatabase:
                     return False
                 return row[0] is True and row[1] is True
 
+    def upsert_file_record(self, file_data: dict) -> tuple[int, str]:
+        file_name = file_data.get("file_name")
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, file_status FROM app.file_catalogue "
+                    "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
+                    (file_name,),
+                )
+                existing = cur.fetchone()
+
+        if existing is None:
+            record_id = self.create_file_record([
+                file_name,
+                str(file_data.get("file_path", "")),
+                file_data.get("extension", ""),
+                file_data.get("file_size", 0),
+            ])
+            return record_id, "insert"
+
+        existing_id, existing_status = existing
+        if existing_status in ("No Status", "Failed assessment"):
+            self._update_retry_record(existing_id, file_data)
+            return existing_id, "update"
+
+        return existing_id, "skip"
+
+    def _update_retry_record(self, record_id: int, file_data: dict):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE app.file_catalogue
+                    SET file_path = %s,
+                        extension = %s,
+                        file_size = %s,
+                        file_status = 'No Status',
+                        error_message = NULL,
+                        do_ingest = 'UNKNOWN',
+                        incomplete_scan = %s,
+                        screencraft_arch = %s,
+                        mime_type = %s,
+                        source = %s,
+                        tape_verified = NULL,
+                        proxy_created = NULL,
+                        source_deletion = NULL,
+                        validated = NULL,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (
+                    str(file_data.get("file_path", "")),
+                    file_data.get("extension", ""),
+                    file_data.get("file_size", 0),
+                    file_data.get("incomplete_scan", "UNKNOWN"),
+                    file_data.get("screencraft_arch", "UNKNOWN"),
+                    file_data.get("mime_type", ""),
+                    file_data.get("source", ""),
+                    record_id,
+                ))
+
+    def delete_file_record(self, file_id: int):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM app.file_catalogue WHERE id = %s",
+                    (file_id,),
+                )
+
     def record_pipeline_event(
         self,
         run_id: str,
