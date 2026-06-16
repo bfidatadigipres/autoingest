@@ -147,7 +147,7 @@ def create_catalogue_record(context, file_info: dict) -> Output:
     # Move file to PUT folders - conditional splits
     put_base = file_info.get("autoingest_path")
     source = Path(file_info["file_path"])
-    base_dir = Path(source).parent.parent.parent
+    base_dir = Path(source).parent.parent.parent.parent
     autoingest_path = base_dir / put_base / file_name
     context.log.info(f"Moving {file_name} to PUT folder: {autoingest_path}")
 
