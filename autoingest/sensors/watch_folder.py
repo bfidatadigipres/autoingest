@@ -17,6 +17,10 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     watch_paths = os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
     watch_paths = [p.strip() for p in watch_paths if p.strip()]
 
+    if not watch_paths:
+        context.log.warning("WATCH_FOLDER_PATHS is empty — no folders to watch.")
+        return []
+
     seen_files = set()
     if context.cursor:
         try:
@@ -24,8 +28,17 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         except (json.JSONDecodeError, TypeError):
             seen_files = set()
 
+    context.log.info(
+        f"Sensor tick — {len(watch_paths)} watch folder(s), "
+        f"{len(seen_files)} files in cursor"
+    )
+
     new_files = []
     current_files = set()
+    total_scanned = 0
+    skipped_extension = 0
+    skipped_not_file = 0
+    skipped_size = 0
 
     for watch_path in watch_paths:
         watch_dir = Path(watch_path)
@@ -34,25 +47,44 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             continue
 
         for file_path in watch_dir.rglob("*"):
+            total_scanned += 1
+
             if not file_path.is_file():
+                skipped_not_file += 1
                 continue
             if not accepted_file_type(file_path.suffix.lstrip(".")):
+                skipped_extension += 1
                 continue
 
             file_key = str(file_path)
             current_files.add(file_key)
 
-            if file_key not in seen_files:
-                try:
-                    size_1 = file_path.stat().st_size
-                    time.sleep(2)
-                    size_2 = file_path.stat().st_size
-                    if size_1 != size_2 or size_1 == 0:
-                        continue
-                except OSError:
-                    continue
+            if file_key in seen_files:
+                continue
 
-                new_files.append(file_key)
+            try:
+                size_1 = file_path.stat().st_size
+                time.sleep(2)
+                size_2 = file_path.stat().st_size
+                if size_1 != size_2 or size_1 == 0:
+                    skipped_size += 1
+                    context.log.info(
+                        f"Skipping in-flight file: {file_path.name} "
+                        f"(size changed {size_1}→{size_2})"
+                    )
+                    continue
+            except OSError as exc:
+                context.log.warning(f"OS error checking {file_path.name}: {exc}")
+                continue
+
+            context.log.info(f"New file detected: {file_path.name} ({size_1} bytes)")
+            new_files.append(file_key)
+
+    context.log.info(
+        f"Scan complete — scanned {total_scanned}, "
+        f"skipped: not-file={skipped_not_file} ext={skipped_extension} "
+        f"size-unstable={skipped_size}, new={len(new_files)}"
+    )
 
     run_requests = []
     for file_key in new_files:
@@ -69,6 +101,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             )
         )
 
-    updated_seen = list(current_files | set(new_files))
-    context.update_cursor(json.dumps(list(updated_seen)))
+    updated_seen = list(current_files)
+    context.update_cursor(json.dumps(updated_seen))
+    context.log.info(f"Cursor updated: {len(updated_seen)} files tracked")
     return run_requests
