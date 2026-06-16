@@ -25,26 +25,48 @@ def verify_tape_copy(context) -> Output:
     root, file = os.path.split(file_path_str)
     context.log.info(f"Verifying file: {file_path_str} in path {root}")
 
-    # Access database information
     db = context.resources.workflow_db
-    file_info = db.lookup_file_details(file)
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM app.file_catalogue WHERE file_name = %s FOR UPDATE",
+                (file,),
+            )
+            file_info = cur.fetchone()
 
-    # Check the file completed ingest / autoingest path available
-    status = file_info[2]
-    if status != "File cleared for ingest":
-        context.log.warning(f"File has not be cleared for ingest: {status}.")
+    if not file_info:
+        context.log.warning(f"No database record found for {file}.")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+
+    status = file_info[2]
+    if status == "validating":
+        context.log.info(f"File {file} is already being validated. Skipping.")
+        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"Already validating: {file}"})
+
+    if status != "File cleared for ingest":
+        context.log.warning(f"File {file} has status '{status}' — expected 'File cleared for ingest'.")
+        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app.file_catalogue SET file_status = 'validating', updated_at = NOW() WHERE id = %s",
+                (file_info[0],),
+            )
     autoingest_path = file_info[45]
     if not autoingest_path or not os.path.exists(autoingest_path):
         context.log.warning(f"Autoingest path not found:\n{autoingest_path}")
+        _set_validation_status(db, file_info[0], "File cleared for ingest")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     folder_number = os.path.basename(root)
     if folder_number != file_info[46]:
         context.log.error(f"Ingest folder job ID does not match that stored for file: {file_info[46]}")
+        _set_validation_status(db, file_info[0], "File cleared for ingest")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     json_path = retrieve_json_data(file_info[46])
     if not json_path:
         context.log.warning(f"Unable to locate file in JSON path:\n{json_path}")
+        _set_validation_status(db, file_info[0], "File cleared for ingest")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     errors = []
@@ -184,6 +206,7 @@ def verify_tape_copy(context) -> Output:
                 results["do_ingest"] = True
                 results["validate"] = False
             _record_verify_event(context, db, file, duration_sec, "reingest", results)
+            _set_validation_status(db, file_info[0], "No Status")
             return Output(results, metadata={"duration_sec": duration_sec, "file_name": file, "preview": f"Reingest: {file}"})
 
         # Capture all failures
@@ -193,6 +216,7 @@ def verify_tape_copy(context) -> Output:
         results["validate"] = False
         duration_sec = round(time.perf_counter() - tic, 3)
         _record_verify_event(context, db, file, duration_sec, "failure", results)
+        _set_validation_status(db, file_info[0], "Failed validation")
         return Output(results, metadata={"duration_sec": duration_sec, "file_name": file, "preview": f"Verification failed: {file}"})
 
     # JMW up to here - validation passed, make cid record and pass data to proxy script
@@ -215,6 +239,8 @@ def verify_tape_copy(context) -> Output:
     _record_verify_event(context, db, file, duration_sec, "success", results,
                          bp_check_time=bp_check_time, cid_time=cid_time)
 
+    _set_validation_status(db, file_info[0], "File cleared for ingest")
+
     return Output(results, metadata={
         "duration_sec": duration_sec,
         "file_name": file,
@@ -223,6 +249,15 @@ def verify_tape_copy(context) -> Output:
         "validated": results.get("validated", False),
         "preview": f"{file} verified in {duration_sec}s",
     })
+
+
+def _set_validation_status(db, file_id, status):
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app.file_catalogue SET file_status = %s, updated_at = NOW() WHERE id = %s",
+                (status, file_id),
+            )
 
 
 def _record_verify_event(context, db, file, duration_sec, status, results, **extra):
