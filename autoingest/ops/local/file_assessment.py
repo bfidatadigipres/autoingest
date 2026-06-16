@@ -143,7 +143,7 @@ def assess_filename(context) -> Output:
     context.log.info(f"No CID Media record found for file: {filename}")
 
     status = bp.check_no_bp_status(filename, bucket_list)
-    context.log.info(status, filename, bucket_list)
+    context.log.info(status)
     if status is False:
         context.log.info(f"File has already been ingested to Black Pearl: {filename} - Buckets {bucket_list}")
         errors.append(f"Filename has already been ingested to DPI: {filename}")
