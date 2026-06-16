@@ -13,7 +13,12 @@ from typing import Any, Dict, List, Optional, Union
 
 import xmltodict
 from requests import exceptions, request
-from tenacity import retry, stop_after_attempt
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 HEADERS = {"Content-Type": "text/xml"}
 TIMEOUT = 100
@@ -78,38 +83,34 @@ def retrieve_record(
     return hits, record["adlibJSON"]["recordList"]["record"]
 
 
-@retry(stop=stop_after_attempt(10))
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    retry=retry_if_exception_type((exceptions.Timeout, exceptions.ConnectionError)),
+    reraise=True,
+)
 def get(api: str, query: dict) -> Optional[Dict[Any, Any]]:
     """
-    Send a GET request
+    Send a GET request with exponential backoff retries on transient errors.
+    Retries up to 5 times: waits 4s, 8s, 16s, 32s, 60s between attempts.
     """
-    try:
-        req = request("GET", api, headers=HEADERS, params=query, timeout=TIMEOUT)
-        if req.status_code != 200:
-            raise Exception
-        dct = json.loads(req.text)
-        return dct
-    except exceptions.HTTPError as err:
-        print(f"HTTP error: {err}")
-        raise Exception from err
-    except exceptions.ConnectionError as err:
-        print(f"Connection error: {err}")
-        raise Exception from err
-    except exceptions.Timeout as err:
-        print(f"Timeout error: {err}")
-        raise Exception from err
-    except exceptions.RequestException as err:
-        print(f"Request exception: {err}")
-        raise Exception from err
-    except Exception as err:
-        print(err)
-        raise Exception from err
+    req = request("GET", api, headers=HEADERS, params=query, timeout=TIMEOUT)
+    if req.status_code != 200:
+        raise exceptions.HTTPError(f"Unexpected status code: {req.status_code}", response=req)
+    dct = json.loads(req.text)
+    return dct
 
 
-@retry(stop=stop_after_attempt(3))
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=2, min=4, max=30),
+    retry=retry_if_exception_type((exceptions.Timeout, exceptions.ConnectionError)),
+    reraise=True,
+)
 def post(api: str, payload: str, database: str, method: str) -> Optional[Dict[str, Any]]:
     """
-    Send a POST request
+    Send a POST request with exponential backoff retries on transient errors.
+    Retries up to 3 times: waits 4s, 8s, 30s between attempts.
     """
     params = {
         "command": method,
@@ -119,45 +120,9 @@ def post(api: str, payload: str, database: str, method: str) -> Optional[Dict[st
     }
     payload = payload.encode("utf-8")
 
-    if method == "insertrecord":
-        try:
-            response = requests(
-                "POST", api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
-            )
-            if response.status_code != 200:
-                raise Exception
-        except exceptions.Timeout as err:
-            print(err)
-            raise Exception from err
-        except exceptions.ConnectionError as err:
-            print(err)
-            raise Exception from err
-        except exceptions.HTTPError as err:
-            print(err)
-            raise Exception from err
-        except Exception as err:
-            print(err)
-            raise Exception from err
-
-    if method == "updaterecord":
-        try:
-            response = requests(
-                "POST", api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT
-            )
-            if response.status_code != 200:
-                raise Exception
-        except exceptions.Timeout as err:
-            print(err)
-            raise Exception from err
-        except exceptions.ConnectionError as err:
-            print(err)
-            raise Exception from err
-        except exceptions.HTTPError as err:
-            print(err)
-            raise Exception from err
-        except Exception as err:
-            print(err)
-            raise Exception from err
+    response = request("POST", api, headers=HEADERS, params=params, data=payload, timeout=TIMEOUT)
+    if response.status_code != 200:
+        raise exceptions.HTTPError(f"Unexpected status code: {response.status_code}", response=response)
 
     print("-------------------------------------")
     print(f"adlib_v3.POST(): {response.text}")
@@ -269,13 +234,21 @@ def group_check(record: dict, fname: str) -> Optional[list[str]]:
         return None
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((exceptions.Timeout, exceptions.ConnectionError)),
+    reraise=True,
+)
 def get_grouped_items(api: str, database: str) -> tuple[Optional[dict], None]:
     """
     Check dB for groupings and ensure
-    these are added to XML configuration
+    these are added to XML configuration.
+    Retries up to 3 times with backoff on transient errors.
     """
     query = {"command": "getmetadata", "database": database, "limit": 0}
     result = request("GET", api, headers=HEADERS, params=query, timeout=TIMEOUT)
+    result.raise_for_status()
     metadata = xmltodict.parse(result.text)
     if not isinstance(metadata, dict):
         return None, None
@@ -416,11 +389,17 @@ def create_grouped_data(priref: str, grouping: str, field_pairs: Union[List[Dict
         return payload_mid
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((exceptions.Timeout, exceptions.ConnectionError)),
+    reraise=True,
+)
 def add_quality_comments(api: str, priref: str, comments: str) -> bool:
     """
-    Receive comments string
-    convert to XML quality comments
-    and updaterecord with data
+    Receive comments string, convert to XML quality
+    comments and updaterecord with data.
+    Retries up to 3 times with backoff on transient errors.
     """
 
     p_start = f"<adlibXML><recordList><record priref='{priref}'><quality_comments>"
