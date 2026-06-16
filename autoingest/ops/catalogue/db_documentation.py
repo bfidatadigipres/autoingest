@@ -151,14 +151,18 @@ def create_catalogue_record(context, file_info: dict) -> Output:
     autoingest_path = base_dir / put_base / file_name
     context.log.info(f"Moving {file_name} to PUT folder: {autoingest_path}")
 
-    db.update_file_status(record_id, file_status="File cleared for ingest")
     move_tic = time.perf_counter()
     try:
         success, log = utils.move_file(source, autoingest_path)
     except Exception as exc:
         context.log.warning(f"Move error for {file_name}:\n{exc}")
-        db.update_file_status(record_id, file_status="Error")
-        db.update_file_status(record_id, error_message="File failed move into autoingest processing folder")
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue SET file_status = 'Error', "
+                    "error_message = %s, updated_at = NOW() WHERE id = %s",
+                    ("File failed move into autoingest processing folder", record_id),
+                )
         duration_sec = round(time.perf_counter() - tic, 3)
         return Output(None, metadata={"duration_sec": duration_sec, "preview": f"Move failed: {file_name}"})
     move_toc = time.perf_counter()
@@ -170,11 +174,69 @@ def create_catalogue_record(context, file_info: dict) -> Output:
     record_id_out = record_id if success is True else None
     if success is True:
         context.log.info(log)
-        db.update_file_status(record_id, file_status="File cleared for ingest")
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE app.file_catalogue
+                    SET file_status = 'File cleared for ingest',
+                        do_ingest = %s,
+                        error_message = %s,
+                        file_path = %s,
+                        extension = %s,
+                        file_size = %s,
+                        incomplete_scan = %s,
+                        screencraft_arch = %s,
+                        checksum_md5 = %s,
+                        checksum_xxh = %s,
+                        checksum_date = %s,
+                        part = %s,
+                        whole = %s,
+                        ffprobe_exit = %s,
+                        mime_type = %s,
+                        bp_bucket = %s,
+                        bucket_list = %s,
+                        cid_file_type = %s,
+                        cid_item_priref = %s,
+                        cid_ob_num = %s,
+                        source = %s,
+                        put_type = %s,
+                        autoingest_path = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (
+                    basics.get("do_ingest", ""),
+                    basics.get("error_message", ""),
+                    str(basics.get("file_path", "")),
+                    basics.get("extension", ""),
+                    basics.get("file_size", 0),
+                    basics.get("incomplete_scan", ""),
+                    basics.get("screencraft_arch", ""),
+                    basics.get("checksum_md5", ""),
+                    basics.get("checksum_xxh", ""),
+                    basics.get("checksum_date", ""),
+                    basics.get("part"),
+                    basics.get("whole"),
+                    basics.get("ffprobe_exit"),
+                    basics.get("mime_type", ""),
+                    basics.get("bp_bucket", ""),
+                    str(basics.get("bucket_list", "")),
+                    basics.get("cid_file_type", ""),
+                    basics.get("cid_item_priref", ""),
+                    basics.get("cid_ob_num", ""),
+                    basics.get("source", ""),
+                    basics.get("put_type", ""),
+                    basics.get("autoingest_path", ""),
+                    record_id,
+                ))
     else:
         context.log.warning(f"Move failed for {file_name}: {log}")
-        db.update_file_status(record_id, file_status="Error")
-        db.update_file_status(record_id, error_message="File failed move into autoingest processing folder")
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue SET file_status = 'Error', "
+                    "error_message = %s, updated_at = NOW() WHERE id = %s",
+                    ("File failed move into autoingest processing folder", record_id),
+                )
 
     metadata = {
         "duration_sec": duration_sec,
