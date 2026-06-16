@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 import psycopg2
 from contextlib import contextmanager
 from dagster import resource, InitResourceContext
@@ -190,6 +191,22 @@ class WorkflowDatabase:
                     "DELETE FROM app.file_catalogue WHERE id = %s",
                     (file_id,),
                 )
+
+    def get_non_retryable_cursor_files(self, file_paths: set[str]) -> set[str]:
+        filenames = [Path(p).name for p in file_paths]
+        if not filenames:
+            return set()
+        placeholders = ", ".join(["%s"] * len(filenames))
+        query = (
+            f"SELECT file_name FROM app.file_catalogue "
+            f"WHERE file_name IN ({placeholders}) "
+            f"AND file_status != 'No Status'"
+        )
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, filenames)
+                done = {r[0] for r in cur.fetchall()}
+        return {p for p in file_paths if Path(p).name in done}
 
     def record_pipeline_event(
         self,
