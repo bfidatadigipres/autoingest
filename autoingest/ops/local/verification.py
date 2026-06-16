@@ -214,9 +214,27 @@ def verify_tape_copy(context) -> Output:
         _set_validation_status(db, file_info[0], "Failed validation")
         return Output(results, metadata={"duration_sec": duration_sec, "file_name": file, "preview": f"Verification failed: {file}"})
 
+    if not utils.cid_check(CID_API):
+        context.log.info("CID API is not responsive for media record creation")
+        results["error_message"] = "CID API unreachable — will retry verification"
+        results["do_ingest"] = False
+        results["validate"] = False
+        duration_sec = round(time.perf_counter() - tic, 3)
+        _record_verify_event(context, db, file, duration_sec, "failure", results)
+        _set_validation_status(db, file_info[0], "File cleared for ingest")
+        return Output(results, metadata={
+            "duration_sec": duration_sec,
+            "file_name": file,
+            "preview": f"CID API down for {file}, will retry",
+        })
+
     context.log.info(f"Creating new CID media record for file {file}")
     cid_tic = time.perf_counter()
-    media_priref = create_media_record(file_info)
+    try:
+        media_priref = create_media_record(file_info)
+    except Exception as err:
+        context.log.warning(f"Failed to create CID media record for {file}: {err}")
+        media_priref = ""
     cid_toc = time.perf_counter()
     cid_time = round(cid_toc - cid_tic, 3)
 
