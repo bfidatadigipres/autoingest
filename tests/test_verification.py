@@ -19,8 +19,8 @@ with open(_control, "w") as f:
 with open(os.environ["DPI_BUCKET"], "w") as f:
     json.dump({"bfi0": True}, f)
 
-import autoingest.ops.archive.verification as vmod
-from autoingest.ops.archive.verification import (
+import autoingest.ops.local.verification as vmod
+from autoingest.ops.local.verification import (
     retrieve_json_data,
     check_for_failed_file,
     json_check,
