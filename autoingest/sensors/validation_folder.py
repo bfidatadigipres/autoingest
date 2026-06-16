@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
@@ -80,7 +81,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
     for file_key in new_files:
         val_requests.append(
             RunRequest(
-                run_key=f"validate-{file_key}",
+                run_key=f"validate-{file_key.name}-{int(time.time())}",
                 run_config={
                     "ops": {
                         "verify_tape_copy": {
