@@ -1,1 +1,0 @@
-from autoingest.ops.catalogue.db_documentation import create_catalogue_record

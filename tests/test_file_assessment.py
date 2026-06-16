@@ -19,7 +19,7 @@ with open(_control, "w") as f:
 with open(os.environ["DPI_BUCKET"], "w") as f:
     json.dump({"bfi0": True}, f)
 
-from autoingest.ops.ingest.file_assessment import (
+from autoingest.ops.local.file_assessment import (
     get_data_from_path,
     process_image_archive,
     check_for_multipart,
