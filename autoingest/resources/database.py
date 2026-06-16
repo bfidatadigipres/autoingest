@@ -14,6 +14,7 @@ ALLOWED_FIELDS = {
     "proxy_image_path", "proxy_thumb_path",
     "checksum_time_sec", "encode_time_sec", "image_time_sec",
     "verify_time_sec", "total_ingest_time_sec",
+    "cid_media_priref",
 }
 
 

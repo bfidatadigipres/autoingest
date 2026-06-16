@@ -1,0 +1,35 @@
+from dagster_celery import celery_executor
+
+from autoingest.graphs.validation_graphs import (
+    verify_local_graph,
+    encoding_celery_graph,
+    cleanup_graph,
+)
+
+celery_exec = celery_executor.configured(
+    {
+        "broker": {"env": "CELERY_BROKER_URL"},
+        "backend": {"env": "CELERY_RESULT_BACKEND"},
+        "config_source": {"task_always_eager": False},
+    },
+    name="celery_redis",
+)
+
+verify_local_job = verify_local_graph.to_job(
+    name="verify_local_job",
+    description="Runs verify_tape_copy locally on DATA15. "
+                "Sets file_status = 'verified' on success.",
+)
+
+encoding_celery_job = encoding_celery_graph.to_job(
+    name="encoding_celery_job",
+    executor_def=celery_exec,
+    description="Runs encode_proxy_mp4 + generate_images on Celery encoding workers. "
+                "Sets file_status = 'encoded' on success.",
+)
+
+cleanup_local_job = cleanup_graph.to_job(
+    name="cleanup_local_job",
+    description="Runs check_and_delete_source locally on DATA15. "
+                "Sets file_status = 'complete' on success.",
+)

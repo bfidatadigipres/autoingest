@@ -4,13 +4,14 @@ import time
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
-from autoingest.jobs.validation_job import validation_job
+from autoingest.jobs.validation_jobs import verify_local_job
 
 
 @sensor(
-    job=validation_job,
+    job=verify_local_job,
     minimum_interval_seconds=30,
     default_status=DefaultSensorStatus.RUNNING,
+    required_resource_keys={"workflow_db"},
 )
 def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     validate_paths = os.environ.get("VALIDATION_FOLDER_PATHS", "").split(",")
@@ -32,12 +33,15 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         f"{len(seen_files)} files in cursor"
     )
 
+    db = context.resources.workflow_db
+
     new_files = []
     current_files = set()
     total_subdirs = 0
     skipped_ingest = 0
     skipped_not_dir = 0
     skipped_not_file = 0
+    skipped_not_ready = 0
 
     for validate_path in validate_paths:
         validate_dir = Path(validate_path)
@@ -65,6 +69,21 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
                 current_files.add(file_key)
 
                 if file_key not in seen_files:
+                    try:
+                        status_row = db.fetch_field_argument(file_path.name, "file_status")
+                        if not status_row or status_row[0] != "File cleared for ingest":
+                            skipped_not_ready += 1
+                            context.log.info(
+                                f"Skipping {file_path.name} — status is "
+                                f"'{status_row[0] if status_row else 'None'}', "
+                                f"expected 'File cleared for ingest'"
+                            )
+                            continue
+                    except Exception as exc:
+                        context.log.warning(
+                            f"DB check failed for {file_path.name}: {exc}. Adding anyway."
+                        )
+
                     context.log.info(
                         f"New file detected in {subfolder.name}: "
                         f"{file_path.name}"
@@ -73,7 +92,8 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
 
     context.log.info(
         f"Scan complete — subdirs scanned={total_subdirs}, "
-        f"skipped: not-dir={skipped_not_dir} ingest={skipped_ingest} not-file={skipped_not_file}, "
+        f"skipped: not-dir={skipped_not_dir} ingest={skipped_ingest} "
+        f"not-file={skipped_not_file} not-ready={skipped_not_ready}, "
         f"files found={len(current_files)}, new={len(new_files)}"
     )
 
@@ -81,7 +101,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
     for file_key in new_files:
         val_requests.append(
             RunRequest(
-                run_key=f"validate-{file_key.name}-{int(time.time())}",
+                run_key=f"validate-{Path(file_key).name}-{int(time.time())}",
                 run_config={
                     "ops": {
                         "verify_tape_copy": {

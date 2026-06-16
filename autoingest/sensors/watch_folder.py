@@ -4,12 +4,12 @@ import time
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
-from autoingest.jobs.single_file_ingest import single_file_ingest_job
+from autoingest.jobs.ingest_jobs import ingest_local_job
 from autoingest.resources.utils import accepted_file_type
 
 
 @sensor(
-    job=single_file_ingest_job,
+    job=ingest_local_job,
     minimum_interval_seconds=30,
     default_status=DefaultSensorStatus.RUNNING,
     required_resource_keys={"workflow_db"},
