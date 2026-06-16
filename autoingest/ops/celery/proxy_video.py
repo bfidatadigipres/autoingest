@@ -68,7 +68,15 @@ def encode_proxy_mp4(
     input_date = utils.get_media_input_date(filename)
     if not input_date:
         context.log.info(f"Input date for {filename} Digital Media record not reachable.")
-        raise RuntimeError(f"Input date could not be found in Digital Media record - {filename}")
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output({
+            "file_id": file_id,
+            "file_path": file_path,
+            "source": source,
+            "mime_type": mime_type,
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (CID unreachable): {filename}"})
 
     output_path = output_dir / f"{input_date}" / f"{filename_stem}.mp4"
     output_dir.mkdir(parents=True, exist_ok=True)

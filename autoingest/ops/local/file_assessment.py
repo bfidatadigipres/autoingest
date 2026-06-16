@@ -84,7 +84,11 @@ def assess_filename(context) -> Output:
         errors.append("Cannot parse <object_number> from filename")
         do_ingest = False
 
-    context.log.info(f"Attempting to fetch CID item priref for: {object_number}")
+    if do_ingest and not utils.cid_check(CID_API):
+        context.log.info(f"CID API is not responsive — deferring {filename}")
+        errors.append("CID API unreachable — will retry on next ingest attempt")
+        do_ingest = False
+
     priref = utils.fetch_item_priref(object_number)
     if not priref:
         context.log.info(f"Cannot find a record with object_number: {object_number}")
@@ -114,7 +118,14 @@ def assess_filename(context) -> Output:
 
     ftype = None
     if priref and object_number:
-        file_type_match, ftype = ext_in_file_type(filetype, priref, object_number)
+        try:
+            file_type_match, ftype = ext_in_file_type(filetype, priref, object_number)
+        except Exception as err:
+            context.log.warning(f"CID API error during file_type check: {err}")
+            file_type_match = False
+            ftype = None
+            errors.append(f"CID API unreachable during file_type check")
+            do_ingest = False
         if not file_type_match:
             context.log.info(f"File exension {filetype} does not match CID Item file_type: {ftype}")
             errors.append(f"Extension '{filetype}' does not match <{ftype}> in record")

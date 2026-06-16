@@ -128,19 +128,19 @@ def check_storage(filepath: str) -> Union[bool, str]:
 
 def cid_check(cid_api: Optional[str]) -> Optional[bool]:
     """
-    Tests if CID API operational before
-    all other operations commence
-    if not utils.cid_check[API]:
-        sys.exit(message)
+    Tests if CID API is operational before
+    any other adlib-dependent operations run.
+    Returns False if unreachable, True if healthy.
     """
     if cid_api is None:
         return False
     try:
         dct = adlib.check(cid_api)
-        print(dct)
         if isinstance(dct, dict):
             return True
-    except KeyError:
+        return False
+    except Exception as err:
+        print(f"CID API health check failed: {err}")
         return False
 
 
@@ -418,7 +418,11 @@ def fetch_item_priref(ob_num: str) -> str:
     ob_num = ob_num.strip()
     search = f"object_number='{ob_num}'"
     print(f"Search used against CID Collect dB: {search}")
-    record = adlib.retrieve_record(CID_API, "collect", search, "1")[1]
+    try:
+        record = adlib.retrieve_record(CID_API, "collect", search, "1")[1]
+    except Exception as err:
+        print(f"fetch_item_priref(): CID API unreachable — {err}")
+        return ""
     print(f"get_item_priref(): AdlibV3 record for priref:\n{record}")
 
     if record is None:
@@ -449,7 +453,7 @@ def check_file_has_media_rec(
 
     if hits is None:
         print(f"CID API was unreachable for Media search: {search}")
-        raise Exception(f"CID API was unreachable for Media search: {search}")
+        return None
 
     print(f"check_media_record(): AdlibV3 record for hits: {hits}")
     if int(hits) >= 1:
@@ -553,7 +557,11 @@ def cid_media_append(priref: str, data: list[str]) -> Optional[bool]:
     payload_end = f"</record></recordList></adlibXML>"
     payload = payload_head + payload_mid + payload_end
 
-    rec = adlib.post(CID_API, payload, "media", "updaterecord")
+    try:
+        rec = adlib.post(CID_API, payload, "media", "updaterecord")
+    except Exception as err:
+        print(f"cid_media_append(): CID API unreachable — {err}")
+        return False
     if rec is None:
         return False
 
