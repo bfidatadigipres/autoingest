@@ -5,9 +5,10 @@ from ...resources import adlib
 import os
 import time
 import json
+from pathlib import Path
 from datetime import datetime
-from typing import Optional
-from dagster import op, Out, Output
+from typing import Any, Optional
+from dagster import op, Out, Output, OpExecutionContext
 
 JSON_PATH = os.path.join(os.environ.get("LOG_PATH", ""), "black_pearl/")
 CID_API = os.environ.get("CID_API3")
@@ -18,7 +19,7 @@ CID_API = os.environ.get("CID_API3")
     out=Out(dict),
     required_resource_keys={"workflow_db"},
 )
-def verify_tape_copy(context) -> Output:
+def verify_tape_copy(context: OpExecutionContext) -> Output:
     tic = time.perf_counter()
 
     file_path_str = context.op_config["file_path"]
@@ -53,7 +54,9 @@ def verify_tape_copy(context) -> Output:
                 "UPDATE app.file_catalogue SET file_status = 'validating', updated_at = NOW() WHERE id = %s",
                 (file_info[0],),
             )
-    autoingest_path = file_info[45]
+    path_to_autoingest = file_info[45]
+    fp = Path(file_path_str)
+    autoingest_path = str(fp.parent.parent.parent.parent / Path(path_to_autoingest))
     if not autoingest_path or not os.path.exists(autoingest_path):
         context.log.warning(f"Autoingest path not found:\n{autoingest_path}")
         _set_validation_status(db, file_info[0], "File cleared for ingest")
@@ -135,7 +138,7 @@ def verify_tape_copy(context) -> Output:
         dl_toc = time.perf_counter()
         context.log.info(f"Confirmed download: {download_id} ({round(dl_toc - dl_tic, 1)}s)")
 
-        filesize = file_path_stat = os.stat(file_path_str).st_size
+        filesize = os.stat(file_path_str).st_size
         if filesize == file_info[20]:
             context.log.info(f"Downloaded file size matches source file length: {filesize}")
             results["bp_length"] = filesize
@@ -249,16 +252,27 @@ def verify_tape_copy(context) -> Output:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE app.file_catalogue SET cid_media_priref = %s, updated_at = NOW() WHERE id = %s",
-                (media_priref, file_info[0]),
+                "UPDATE app.file_catalogue "
+                "SET cid_media_priref = %s, tape_verified = TRUE, "
+                "file_status = 'verified', "
+                "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
+                "bp_version_id = %s, validated = %s, reference_num = %s, "
+                "updated_at = NOW() "
+                "WHERE id = %s",
+                (media_priref,
+                 str(results.get("persisted_ok", "")),
+                 results.get("bp_etag", ""),
+                 results.get("bp_length", ""),
+                 results.get("bp_version_id", ""),
+                 str(results.get("validated", "")),
+                 file,
+                 file_info[0]),
             )
 
     duration_sec = round(time.perf_counter() - tic, 3)
 
     _record_verify_event(context, db, file, duration_sec, "success", results,
                          bp_check_time=bp_check_time, cid_time=cid_time)
-
-    _set_validation_status(db, file_info[0], "verified")
 
     return Output(results, metadata={
         "duration_sec": duration_sec,
@@ -270,7 +284,7 @@ def verify_tape_copy(context) -> Output:
     })
 
 
-def _set_validation_status(db, file_id, status):
+def _set_validation_status(db: Any, file_id: int, status: str) -> None:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -279,7 +293,10 @@ def _set_validation_status(db, file_id, status):
             )
 
 
-def _record_verify_event(context, db, file, duration_sec, status, results, **extra):
+def _record_verify_event(
+    context: OpExecutionContext, db: Any, file: str,
+    duration_sec: float, status: str, results: dict[str, Any], **extra: Any
+) -> None:
     try:
         db.record_pipeline_event(
             run_id=context.run_id,

@@ -250,12 +250,13 @@ def get_object_list_items(fname: str) -> Optional[List[Dict[str, Any]]]:
     Get all details to check file persisted
     """
     from ds3 import ds3
+    CLIENT = ds3.createClientFromEnv()
 
     request = ds3.GetObjectsWithFullDetailsSpectraS3Request(
         name=f"{fname}", include_physical_placement=True
     )
     try:
-        result = _get_client().get_objects_with_full_details_spectra_s3(request)
+        result = CLIENT.get_objects_with_full_details_spectra_s3(request)
         data = result.result
     except Exception as err:
         print(err)
@@ -304,7 +305,7 @@ def put_notification(job_id: str) -> str:
     CLIENT = ds3.createClientFromEnv()
 
     job_completed_registration = (
-        _get_client().put_job_completed_notification_registration_spectra_s3(
+        CLIENT.put_job_completed_notification_registration_spectra_s3(
             ds3.PutJobCompletedNotificationRegistrationSpectraS3Request(
                 notification_end_point=JSON_END, format="JSON", job_id=job_id
             )

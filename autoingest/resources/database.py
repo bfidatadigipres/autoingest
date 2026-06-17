@@ -1,6 +1,8 @@
 import os
 import json
 from pathlib import Path
+from typing import Any
+
 import psycopg2
 from contextlib import contextmanager
 from dagster import resource, InitResourceContext
@@ -29,7 +31,7 @@ class WorkflowDatabase:
         }
 
     @contextmanager
-    def get_connection(self):
+    def get_connection(self) -> Any:
         conn = psycopg2.connect(**self._conn_params)
         try:
             yield conn
@@ -40,7 +42,7 @@ class WorkflowDatabase:
         finally:
             conn.close()
 
-    def fetch_field_argument(self, filename, field):
+    def fetch_field_argument(self, filename: str, field: str) -> tuple[Any, ...] | None:
         if field not in ALLOWED_FIELDS:
             raise ValueError(f"Field '{field}' is not in the allowed fields list")
         with self.get_connection() as conn:
@@ -51,7 +53,7 @@ class WorkflowDatabase:
                 )
                 return cur.fetchone()
 
-    def lookup_file_details(self, filename):
+    def lookup_file_details(self, filename: str) -> tuple[Any, ...] | None:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -60,7 +62,7 @@ class WorkflowDatabase:
                 )
                 return cur.fetchone()
 
-    def create_file_record(self, file_data: list):
+    def create_file_record(self, file_data: list[str | int]) -> int:
         fname, fpath, ftype, fsize = file_data
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -75,7 +77,7 @@ class WorkflowDatabase:
                 )
                 return cur.fetchone()[0]
 
-    def update_file_status(self, file_id: int, **fields):
+    def update_file_status(self, file_id: int, **fields: Any) -> None:
         if not fields:
             return
         for key in fields:
@@ -90,7 +92,7 @@ class WorkflowDatabase:
                     values,
                 )
 
-    def get_pending_tape_files(self, max_bytes: int):
+    def get_pending_tape_files(self, max_bytes: int) -> list[tuple[Any, ...]]:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -153,7 +155,7 @@ class WorkflowDatabase:
                     return existing[0]
                 return None
 
-    def upsert_file_record(self, file_data: dict) -> tuple[int, str]:
+    def upsert_file_record(self, file_data: dict[str, Any]) -> tuple[int, str]:
         file_name = file_data.get("file_name")
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -182,7 +184,7 @@ class WorkflowDatabase:
 
         return existing_id, "skip"
 
-    def _update_retry_record(self, record_id: int, file_data: dict):
+    def _update_retry_record(self, record_id: int, file_data: dict[str, Any]) -> None:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -214,7 +216,7 @@ class WorkflowDatabase:
                     record_id,
                 ))
 
-    def delete_file_record(self, file_id: int):
+    def delete_file_record(self, file_id: int) -> None:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -246,8 +248,8 @@ class WorkflowDatabase:
         event_type: str,
         status: str,
         metadata: dict | None = None,
-        message: str | None = None,
-    ):
+    message: str | None = None,
+) -> None:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -273,22 +275,22 @@ class WorkflowDatabase:
         op_name: str | None = None,
         event_type: str | None = None,
         days: int = 30,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         query = """
-            SELECT
-                op_name,
-                event_type,
-                COUNT(*) AS event_count,
-                COUNT(*) FILTER (WHERE status = 'success') AS success_count,
-                COUNT(*) FILTER (WHERE status = 'failure') AS failure_count,
-                AVG((metadata->>'duration_sec')::float) AS avg_duration_sec,
-                MIN((metadata->>'duration_sec')::float) AS min_duration_sec,
-                MAX((metadata->>'duration_sec')::float) AS max_duration_sec,
-                AVG((metadata->>'file_size')::bigint) AS avg_file_size
-            FROM app.pipeline_events
-            WHERE created_at >= NOW() - INTERVAL %s
-        """
-        params: list = [f"{days} days"]
+        SELECT
+            op_name,
+            event_type,
+            COUNT(*) AS event_count,
+            COUNT(*) FILTER (WHERE status = 'success') AS success_count,
+            COUNT(*) FILTER (WHERE status = 'failure') AS failure_count,
+            AVG((metadata->>'duration_sec')::float) AS avg_duration_sec,
+            MIN((metadata->>'duration_sec')::float) AS min_duration_sec,
+            MAX((metadata->>'duration_sec')::float) AS max_duration_sec,
+            AVG((metadata->>'file_size')::bigint) AS avg_file_size
+        FROM app.pipeline_events
+        WHERE created_at >= NOW() - INTERVAL %s
+    """
+        params: list[str] = [f"{days} days"]
         if op_name:
             query += " AND op_name = %s"
             params.append(op_name)

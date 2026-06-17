@@ -2,7 +2,7 @@ import time
 from pathlib import Path
 import autoingest.resources.utils as utils
 from datetime import datetime
-from dagster import op, Out, Output
+from dagster import op, Out, Output, OpExecutionContext
 
 
 @op(
@@ -11,7 +11,7 @@ from dagster import op, Out, Output
     required_resource_keys={"workflow_db"},
     config_schema={"file_path": str},
 )
-def generate_checksum(context) -> Output:
+def generate_checksum(context: OpExecutionContext) -> Output:
     tic = time.perf_counter()
 
     file_path = context.op_config["file_path"]

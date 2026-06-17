@@ -1,7 +1,9 @@
 import os
 import time
-import autoingest.resources.proxy_utils as ut
 from pathlib import Path
+from typing import Any
+
+import autoingest.resources.proxy_utils as ut
 from dagster import op, OpExecutionContext, Output
 
 
@@ -11,7 +13,7 @@ from dagster import op, OpExecutionContext, Output
 )
 def generate_images(
     context: OpExecutionContext,
-    file_info: dict,
+    file_info: dict[str, Any],
 ) -> Output:
     tic = time.perf_counter()
     proxy_path = file_info["proxy_video_path"]

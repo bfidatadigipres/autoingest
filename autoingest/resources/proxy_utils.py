@@ -306,7 +306,7 @@ def _safe_int(value: object, default: int = 0) -> int:
         return default
 
 
-def _remove_stream_repeats(value: str, fullpath: str) -> str:
+def _remove_stream_repeats(value: str, fullpath: str) -> str | None:
     """
     Deals with instances where height/width/DAR/PAR return
     multiple values for multiple streams - Video stream only
@@ -322,6 +322,7 @@ def _remove_stream_repeats(value: str, fullpath: str) -> str:
             return value[:chop_length]
     else:
         return value
+    return None
 
 
 def check_audio(
