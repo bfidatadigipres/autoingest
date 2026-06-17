@@ -438,7 +438,7 @@ def fetch_item_priref(ob_num: str) -> str:
 
 def check_file_has_media_rec(
     fname: str
-) -> bool:
+) -> bool | None:
     """
     Check if CID media record
     already created for filename

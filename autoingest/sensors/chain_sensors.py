@@ -1,6 +1,9 @@
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from autoingest.jobs.ingest_jobs import ingest_celery_job, catalogue_local_job
@@ -33,7 +36,7 @@ STATUS_FIELD_QUERY = {
 }
 
 
-def _make_status_sensor(status: str, conf: dict):
+def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]:
     job = conf["job"]
     op_name = conf["op"]
     sensor_name = conf["sensor_name"]

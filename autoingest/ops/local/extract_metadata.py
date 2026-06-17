@@ -1,16 +1,18 @@
 import time
 import json
 from pathlib import Path
+from typing import Any
+
 import autoingest.resources.utils as utils
 from datetime import datetime
-from dagster import op, Out, Output
+from dagster import op, Out, Output, OpExecutionContext
 
 
 @op(
     out=Out(dict),
     required_resource_keys={"workflow_db"},
 )
-def extract_metadata(context, file_info: dict) -> Output:
+def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> Output:
     tic = time.perf_counter()
 
     if file_info.get("do_ingest") != "TRUE":

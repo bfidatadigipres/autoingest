@@ -4,7 +4,7 @@ from dagster import op, OpExecutionContext
 
 
 @op(required_resource_keys={"workflow_db"})
-def sweep_completed_files(context: OpExecutionContext):
+def sweep_completed_files(context: OpExecutionContext) -> None:
     db = context.resources.workflow_db
     with db.get_connection() as conn:
         with conn.cursor() as cur:

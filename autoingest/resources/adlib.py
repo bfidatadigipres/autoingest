@@ -38,7 +38,7 @@ def retrieve_record(
     api: str,
     database: str,
     search: str, limit: str | int,
-    fields=None
+    fields: list[str] | None = None
 ) -> tuple[Optional[int], Optional[list[Dict[Any, Any]]]]:
     """
     Retrieve data from CID using new API
@@ -89,7 +89,7 @@ def retrieve_record(
     retry=retry_if_exception_type((exceptions.Timeout, exceptions.ConnectionError)),
     reraise=True,
 )
-def get(api: str, query: dict) -> Optional[Dict[Any, Any]]:
+def get(api: str, query: dict[str, str | int]) -> Optional[Dict[Any, Any]]:
     """
     Send a GET request with exponential backoff retries on transient errors.
     Retries up to 5 times: waits 4s, 8s, 16s, 32s, 60s between attempts.
@@ -107,7 +107,7 @@ def get(api: str, query: dict) -> Optional[Dict[Any, Any]]:
     retry=retry_if_exception_type((exceptions.Timeout, exceptions.ConnectionError)),
     reraise=True,
 )
-def post(api: str, payload: str, database: str, method: str) -> Optional[Dict[str, Any]]:
+def post(api: str, payload: str, database: str, method: str) -> Optional[Dict[str, Any]] | bool:
     """
     Send a POST request with exponential backoff retries on transient errors.
     Retries up to 3 times: waits 4s, 8s, 30s between attempts.
@@ -148,7 +148,7 @@ def post(api: str, payload: str, database: str, method: str) -> Optional[Dict[st
     return None
 
 
-def retrieve_field_name(record: dict, fieldname: str) -> list[str]:
+def retrieve_field_name(record: dict[str, Any], fieldname: str) -> list[str]:
     """
     Retrieve record, check for language data
     Alter retrieval method. record ==
@@ -172,7 +172,7 @@ def retrieve_field_name(record: dict, fieldname: str) -> list[str]:
     return field_list
 
 
-def retrieve_facet_list(record: dict, fname: str) -> list[str]:
+def retrieve_facet_list(record: dict[str, Any], fname: str) -> list[str]:
     """
     Retrieve list of facets
     """
@@ -183,7 +183,7 @@ def retrieve_facet_list(record: dict, fname: str) -> list[str]:
     return facets
 
 
-def group_check(record: dict, fname: str) -> Optional[list[str]]:
+def group_check(record: dict[str, Any], fname: str) -> Optional[list[str]]:
     """
     Get group that contains field key
     """
@@ -240,7 +240,7 @@ def group_check(record: dict, fname: str) -> Optional[list[str]]:
     retry=retry_if_exception_type((exceptions.Timeout, exceptions.ConnectionError)),
     reraise=True,
 )
-def get_grouped_items(api: str, database: str) -> tuple[Optional[dict], None]:
+def get_grouped_items(api: str, database: str) -> Optional[dict[str, list[str]]]:
     """
     Check dB for groupings and ensure
     these are added to XML configuration.
@@ -251,7 +251,7 @@ def get_grouped_items(api: str, database: str) -> tuple[Optional[dict], None]:
     result.raise_for_status()
     metadata = xmltodict.parse(result.text)
     if not isinstance(metadata, dict):
-        return None, None
+        return None
 
     grouped: dict[str, list[str]] = {}
     mdata = metadata["adlibXML"]["recordList"]["record"]
@@ -357,7 +357,7 @@ def escape_xml(s: str) -> str:
     )
 
 
-def create_grouped_data(priref: str, grouping: str, field_pairs: Union[List[Dict[str, str]], dict]) -> Optional[str]:
+def create_grouped_data(priref: str, grouping: str, field_pairs: Union[List[Dict[str, str]], dict[str, str]]) -> Optional[str]:
     """
     Handle repeated groups of fields pairs, suppied as list of dcts per group
     along with grouping known in advance and priref for append

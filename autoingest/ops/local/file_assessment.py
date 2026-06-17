@@ -7,13 +7,13 @@ import time
 import magic
 from pathlib import Path
 from typing import Optional, Tuple, Union
-from dagster import op, Out, Output
+from dagster import op, Out, Output, OpExecutionContext
 
 CID_API = os.environ.get("CID_API3")
 
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
-def assess_filename(context) -> Output:
+def assess_filename(context: OpExecutionContext) -> Output:
     tic = time.perf_counter()
 
     file_path = Path(context.op_config["file_path"])
@@ -424,7 +424,10 @@ def ext_in_file_type(
         return False, file_type
 
 
-def check_for_multipart(filename: str, part: int, whole: int) -> Union[bool, str]:
+def check_for_multipart(filename: str, part: int | None, whole: int | None) -> Union[bool, str]:
+
+    if part is None or whole is None:
+        return True
 
     file_split = filename.split("_")
     if len(file_split) == 4:

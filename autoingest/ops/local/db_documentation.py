@@ -1,11 +1,11 @@
 from ...resources import utils
 import time
 from pathlib import Path
-from dagster import op, Output
+from dagster import op, Output, OpExecutionContext
 
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str})
-def create_catalogue_record(context) -> Output:
+def create_catalogue_record(context: OpExecutionContext) -> Output:
     tic = time.perf_counter()
     file_path = Path(context.op_config["file_path"])
     file_name = file_path.name
