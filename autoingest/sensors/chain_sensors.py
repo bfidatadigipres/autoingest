@@ -6,6 +6,8 @@ from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorSt
 from autoingest.jobs.ingest_jobs import ingest_celery_job, catalogue_local_job
 from autoingest.jobs.validation_jobs import encoding_celery_job, cleanup_local_job
 
+RETRY_INTERVAL_SECONDS = 300  # re-trigger stuck files after 5 minutes
+
 
 STATUS_FIELD_QUERY = {
     "assessed": {
@@ -44,12 +46,18 @@ def _make_status_sensor(status: str, conf: dict):
         required_resource_keys={"workflow_db"},
     )
     def _sensor_fn(context: SensorEvaluationContext) -> list[RunRequest]:
-        triggered_ids = set()
+        # Cursor format: {file_id: last_attempt_epoch_seconds, ...}
+        cursor: dict[int, int] = {}
         if context.cursor:
             try:
-                triggered_ids = set(json.loads(context.cursor))
-            except (json.JSONDecodeError, TypeError):
-                triggered_ids = set()
+                raw = json.loads(context.cursor)
+                if isinstance(raw, dict):
+                    cursor = {int(k): int(v) for k, v in raw.items()}
+                elif isinstance(raw, list):
+                    # Upgrade old set-style cursor: all entries treated as freshly triggered now
+                    cursor = {int(v): int(time.time()) for v in raw}
+            except (json.JSONDecodeError, TypeError, ValueError):
+                cursor = {}
 
         db = context.resources.workflow_db
         with db.get_connection() as conn:
@@ -62,22 +70,27 @@ def _make_status_sensor(status: str, conf: dict):
                 rows = cur.fetchall()
 
         current_ids = {row[0] for row in rows}
+        now = int(time.time())
 
-        # Drop file_ids that changed status since last tick (removes stale entries)
-        triggered_ids = triggered_ids & current_ids
+        # Drop file_ids that changed status since last tick
+        stale = {fid for fid in cursor if fid not in current_ids}
+        for fid in stale:
+            del cursor[fid]
 
         new_requests = []
         for file_id, file_path in rows:
-            if file_id in triggered_ids:
+            last_attempt = cursor.get(file_id)
+            if last_attempt is not None and (now - last_attempt) < RETRY_INTERVAL_SECONDS:
                 continue
 
             context.log.info(
                 f"{sensor_name}: launching {op_name} for file_id={file_id} "
                 f"({Path(file_path).name})"
+                + (f" (retry, {now - last_attempt}s since last attempt)" if last_attempt else "")
             )
             new_requests.append(
                 RunRequest(
-                    run_key=f"{op_name}-{file_id}-{int(time.time())}",
+                    run_key=f"{op_name}-{file_id}-{now}",
                     run_config={
                         "ops": {
                             op_name: {
@@ -87,12 +100,12 @@ def _make_status_sensor(status: str, conf: dict):
                     },
                 )
             )
-            triggered_ids.add(file_id)
+            cursor[file_id] = now
 
         if new_requests:
             context.log.info(f"{sensor_name}: launching {len(new_requests)} run(s)")
 
-        context.update_cursor(json.dumps(list(triggered_ids)))
+        context.update_cursor(json.dumps(cursor))
         return new_requests
 
     return _sensor_fn
