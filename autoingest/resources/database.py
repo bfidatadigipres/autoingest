@@ -177,7 +177,7 @@ class WorkflowDatabase:
         if existing_status in ("No Status", "Failed assessment"):
             self._update_retry_record(existing_id, file_data)
             return existing_id, "update"
-        if existing_status in ("File cleared for ingest",):
+        if existing_status in ("File cleared for ingest", "checksummed"):
             return existing_id, "update"
 
         return existing_id, "skip"
