@@ -141,7 +141,8 @@ def assess_filename(context) -> Output:
         errors.append(f"Filename already has a CID Media record: {filename}")
         do_ingest = False
     context.log.info(f"No CID Media record found for file: {filename}")
-
+    context.log.info(bucket_list)
+    context.log.info(filename)
     status = bp.check_no_bp_status(filename, bucket_list)
     context.log.info(status)
     if status is False:
