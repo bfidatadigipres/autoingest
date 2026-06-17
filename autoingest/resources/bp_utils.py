@@ -100,6 +100,8 @@ def check_no_bp_status(fname: str, bucket_list: list[str]) -> bool:
         try:
             query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
             result: ds3.HeadObjectResponse = _get_client().head_object(query)
+            print("******************************************")
+            print(result)
             # Only return false if DOESNTEXIST is missing, eg file found
             if "DOESNTEXIST" in str(result.result):
                 print(f"File {fname} NOT found in Black Pearl bucket {bucket}")
@@ -359,34 +361,6 @@ def download_blobbed_object(fname: str, outpath: str, bucket: str) -> str:
         raise Exception(f"Unable to retrieve file {fname} from Black Pearl: {err}")
 
     return get_job_id
-
-
-def get_buckets_blob(bucket_collection: str) -> str:
-    """
-    Read JSON list return
-    key_value and list of others
-    """
-    key_bucket: str = ""
-
-    with open(DPI_BUCKETS) as data:
-        bucket_data: dict[str, str] = json.load(data)
-    if bucket_collection == "netflix":
-        for key, value in bucket_data.items():
-            if "netflixblobbing" in key.lower():
-                if value is True:
-                    key_bucket = key
-    elif bucket_collection == "amazon":
-        for key, value in bucket_data.items():
-            if "amazonblobbing" in key.lower():
-                if value is True:
-                    key_bucket = key
-    elif bucket_collection == "bfi":
-        for key, value in bucket_data.items():
-            if "preservationblobbing" in key.lower():
-                if value is True:
-                    key_bucket = key
-
-    return key_bucket
 
 
 def put_single_file(fpath: str, ref_num: str, bucket_name: str, check: bool = False) -> Optional[str]:
