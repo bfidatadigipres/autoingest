@@ -11,8 +11,8 @@ import json
 import os
 from typing import Optional, Union, List, Dict, Any
 
-DPI_BUCKETS = os.environ["DPI_BUCKET"]
-JSON_END = os.environ["JSON_END_POINT"]
+DPI_BUCKETS = os.environ.get("DPI_BUCKET", "")
+JSON_END = os.environ.get("JSON_END_POINT", "")
 
 
 def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[str]]:

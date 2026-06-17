@@ -54,8 +54,8 @@ def _make_status_sensor(status: str, conf: dict):
                 if isinstance(raw, dict):
                     cursor = {int(k): int(v) for k, v in raw.items()}
                 elif isinstance(raw, list):
-                    # Upgrade old set-style cursor: all entries treated as freshly triggered now
-                    cursor = {int(v): int(time.time()) for v in raw}
+                    # Upgrade old set-style cursor: mark as long-expired so retry fires immediately
+                    cursor = {int(v): 0 for v in raw}
             except (json.JSONDecodeError, TypeError, ValueError):
                 cursor = {}
 
