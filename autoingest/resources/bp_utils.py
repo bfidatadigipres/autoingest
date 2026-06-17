@@ -21,7 +21,7 @@ _HELPER = None
 def _get_client():
     global _CLIENT
     if _CLIENT is None:
-        import ds3
+        from ds3 import ds3
         _CLIENT = ds3.createClientFromEnv()
     return _CLIENT
 
@@ -37,7 +37,7 @@ def _get_helper():
 
 def __getattr__(name: str):
     if name == 'ds3':
-        import ds3 as _ds3
+        from ds3 import ds3 as _ds3
         globals()['ds3'] = _ds3
         return _ds3
     if name == 'ds3Helpers':
