@@ -6,6 +6,8 @@ from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorSt
 
 from autoingest.jobs.validation_jobs import verify_local_job
 
+RETRY_INTERVAL_SECONDS = 300
+
 
 @sensor(
     job=verify_local_job,
@@ -21,22 +23,27 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         context.log.warning("VALIDATION_FOLDER_PATHS is empty — no folders to watch.")
         return []
 
-    seen_files = set()
+    cursor: dict[str, int] = {}
     if context.cursor:
         try:
-            seen_files = set(json.loads(context.cursor))
-        except (json.JSONDecodeError, TypeError):
-            seen_files = set()
+            raw = json.loads(context.cursor)
+            if isinstance(raw, dict):
+                cursor = {str(k): int(v) for k, v in raw.items()}
+            elif isinstance(raw, list):
+                cursor = {str(v): 0 for v in raw}
+        except (json.JSONDecodeError, TypeError, ValueError):
+            cursor = {}
 
     context.log.info(
         f"Sensor tick — {len(validate_paths)} validation folder(s), "
-        f"{len(seen_files)} files in cursor"
+        f"{len(cursor)} files in cursor"
     )
 
     db = context.resources.workflow_db
+    now = int(time.time())
 
-    new_files = []
-    current_files = set()
+    new_requests = []
+    current_files: dict[str, str] = {}  # file_path → file_name
     total_subdirs = 0
     skipped_ingest = 0
     skipped_not_dir = 0
@@ -66,42 +73,61 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
                     continue
 
                 file_key = str(file_path)
-                current_files.add(file_key)
+                current_files[file_key] = file_path.name
 
-                if file_key not in seen_files:
-                    try:
-                        status_row = db.fetch_field_argument(file_path.name, "file_status")
-                        if not status_row or status_row[0] != "File cleared for ingest":
-                            skipped_not_ready += 1
-                            context.log.info(
-                                f"Skipping {file_path.name} — status is "
-                                f"'{status_row[0] if status_row else 'None'}', "
-                                f"expected 'File cleared for ingest'"
-                            )
-                            continue
-                    except Exception as exc:
-                        context.log.warning(
-                            f"DB check failed for {file_path.name}: {exc}. Adding anyway."
-                        )
+    # Prune cursor entries for files no longer on disk
+    stale = {fp for fp in cursor if fp not in current_files}
+    for fp in stale:
+        del cursor[fp]
 
-                    context.log.info(
-                        f"New file detected in {subfolder.name}: "
-                        f"{file_path.name}"
-                    )
-                    new_files.append(file_key)
+    for file_key, file_name in current_files.items():
+        last_trigger = cursor.get(file_key)
+        if last_trigger is not None and (now - last_trigger) < RETRY_INTERVAL_SECONDS:
+            continue
 
-    context.log.info(
-        f"Scan complete — subdirs scanned={total_subdirs}, "
-        f"skipped: not-dir={skipped_not_dir} ingest={skipped_ingest} "
-        f"not-file={skipped_not_file} not-ready={skipped_not_ready}, "
-        f"files found={len(current_files)}, new={len(new_files)}"
-    )
+        # Check DB for current file_status
+        file_status = None
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT file_status FROM app.file_catalogue "
+                    "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
+                    (file_name,),
+                )
+                row = cur.fetchone()
+                if row:
+                    file_status = row[0]
 
-    val_requests = []
-    for file_key in new_files:
-        val_requests.append(
+        # Only trigger if ready, or if stuck at 'validating' for re-trigger
+        if file_status == "File cleared for ingest":
+            pass
+        elif file_status == "validating" and last_trigger is not None:
+            # Stuck in validating from a crashed run — allow retrigger
+            context.log.info(
+                f"Retrying {file_name} — stuck at 'validating' for "
+                f"{now - last_trigger}s (possible crash recovery)"
+            )
+        elif file_status is None:
+            skipped_not_ready += 1
+            context.log.info(
+                f"Skipping {file_name} — no DB record found"
+            )
+            continue
+        else:
+            skipped_not_ready += 1
+            context.log.info(
+                f"Skipping {file_name} — status is '{file_status}', "
+                f"expected 'File cleared for ingest'"
+            )
+            continue
+
+        context.log.info(
+            f"Validation sensor: launching verify for {file_key}"
+            + (f" (retry, {now - last_trigger}s since last attempt)" if last_trigger else "")
+        )
+        new_requests.append(
             RunRequest(
-                run_key=f"validate-{Path(file_key).name}-{int(time.time())}",
+                run_key=f"validate-{file_name}-{now}",
                 run_config={
                     "ops": {
                         "verify_tape_copy": {
@@ -111,8 +137,17 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
                 },
             )
         )
+        cursor[file_key] = now
 
-    updated_seen = list(current_files)
-    context.update_cursor(json.dumps(updated_seen))
-    context.log.info(f"Cursor updated: {len(updated_seen)} files tracked")
-    return val_requests
+    context.log.info(
+        f"Scan complete — subdirs scanned={total_subdirs}, "
+        f"skipped: not-dir={skipped_not_dir} ingest={skipped_ingest} "
+        f"not-file={skipped_not_file} not-ready={skipped_not_ready}, "
+        f"files found={len(current_files)}, new={len(new_requests)}"
+    )
+
+    if new_requests:
+        context.log.info(f"Validation sensor: launching {len(new_requests)} run(s)")
+
+    context.update_cursor(json.dumps(cursor))
+    return new_requests
