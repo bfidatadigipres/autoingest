@@ -91,6 +91,11 @@ def create_catalogue_record(context) -> Output:
         })
 
     put_base = record.get("autoingest_path")
+    if not put_base:
+        context.log.warning(f"Missing autoingest_path for {file_name} — cannot move file.")
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output(None, metadata={"duration_sec": duration_sec, "preview": f"Missing autoingest_path: {file_name}"})
+
     source = Path(record["file_path"])
     base_dir = source.parent.parent.parent.parent
     autoingest_path = base_dir / put_base / file_name

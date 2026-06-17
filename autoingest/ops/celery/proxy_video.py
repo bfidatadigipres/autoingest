@@ -39,7 +39,7 @@ def encode_proxy_mp4(
 
     context.log.info(f"Encoding proxy for {filename} ({mime_type}, source: {source})")
 
-    if mime != "video":
+    if mime_type != "video":
         context.log.info("MIME type is not Video and cannot be transcoded...")
         duration_sec = round(time.perf_counter() - tic, 3)
         return Output({

@@ -249,7 +249,9 @@ def verify_tape_copy(context) -> Output:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE app.file_catalogue SET cid_media_priref = %s, updated_at = NOW() WHERE id = %s",
+                "UPDATE app.file_catalogue "
+                "SET cid_media_priref = %s, tape_verified = TRUE, updated_at = NOW() "
+                "WHERE id = %s",
                 (media_priref, file_info[0]),
             )
 
