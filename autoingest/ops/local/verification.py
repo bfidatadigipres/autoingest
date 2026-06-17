@@ -85,8 +85,9 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         errors.append(f"JOB ID partially failed to ingest file {file} to DPI:\n{json_path}")
 
     bp_bucket = file_info[18]
+    bucket_list = file_info[19]
     bp_tic = time.perf_counter()
-    confirmed, bp_checksum, bp_length = bp.get_confirmation_length_md5(file, bp_bucket)
+    confirmed, bp_checksum, bp_length = bp.get_confirmation_length_md5(file, bp_bucket, bucket_list)
     bp_toc = time.perf_counter()
     bp_check_time = round(bp_toc - bp_tic, 3)
 
