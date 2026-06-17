@@ -95,7 +95,11 @@ def assess_filename(context) -> Output:
         errors.append(f"Cannot find record with <object number> ...<{object_number}>")
         do_ingest = False
 
-    over_tb_accepted = check_accepted_file_type(str(file_path))
+    if filesize <= 1099511627776:
+        over_tb_accepted = False
+    else:
+        over_tb_accepted = check_accepted_file_type(str(file_path))
+
     bucket, bucket_list = bp.get_buckets(donor, over_tb_accepted)
     if not bucket:
         context.log.info(f"Failed to match Donor {donor} to buckets")
@@ -193,10 +197,11 @@ def assess_filename(context) -> Output:
 
     if filesize > 1099511627776:
         returns["put_type"] = "Blob"
-        autoingest_path = f"autoingest/processing/{donor.lower()}/blob/"
+        autoingest_path = f"autoingest/processing/{donor.lower()}/blobbed/"
     else:
         returns["put_type"] = "Group"
         autoingest_path = f"autoingest/processing/{donor.lower()}/"
+    context.log.info(autoingest_path)
 
     if do_ingest:
         returns["file_status"] = "assessed"
