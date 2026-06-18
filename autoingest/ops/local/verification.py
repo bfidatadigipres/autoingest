@@ -123,7 +123,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             context.log.warning("Could not extract BlackPearl object length")
             validation_pass = False
             errors.append("Filesize does not match BlackPearl object length")
-        if bp_length != file_info[20].strip():
+        if int(bp_length) != file_info[20]:
             context.log.warning(f"Black pearl file length {bp_length} does not match original file length {file_info[20]}")
             validation_pass = False
             deletion_needed = True
