@@ -64,11 +64,11 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     folder_number = os.path.basename(root)
     bp_job_id = file_info[46]
     print(bp_job_id, folder_number)
-    if folder_number != file_info[46]:
+    if folder_number.strip() != bp_job_id.strip():
         context.log.error(f"Ingest folder job ID does not match that stored for file: {file_info[46]}")
         _set_validation_status(db, file_info[0], "File cleared for ingest")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
-    json_path = retrieve_json_data(file_info[46])
+    json_path = retrieve_json_data(bp_job_id.strip())
     if not json_path:
         context.log.warning(f"Unable to locate file in JSON path:\n{json_path}")
         _set_validation_status(db, file_info[0], "File cleared for ingest")
