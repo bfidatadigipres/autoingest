@@ -170,6 +170,7 @@ def encode_proxy_mp4(
         file_id,
         proxy_video_path=str(output_path),
         proxy_size=proxy_size,
+        error_message=None,
     )
 
     toc = time.perf_counter()

@@ -145,7 +145,7 @@ def generate_images(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE app.file_catalogue SET file_status = 'encoded', updated_at = NOW() "
+                "UPDATE app.file_catalogue SET file_status = 'encoded', error_message = NULL, updated_at = NOW() "
                 "WHERE file_name = %s",
                 (file_name,),
             )

@@ -162,8 +162,17 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.info(f"Checks complete. Deleting download file: {download_path}")
         os.remove(download_path)
     else:
-        context.log.warning("No PUT type found in database, exiting.")
-        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"Already validating: {file}"})
+        context.log.warning("No Black Pearl job ID found in database, exiting.")
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue "
+                    "SET file_status = 'File cleared for ingest', error_message = 'BP Job ID not found', "
+                    "updated_at = NOW() WHERE id = %s",
+                    (file_info[0],),
+                )
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output({}, metadata={"duration_sec": duration_sec, "preview": f"BP job ID missing — retry: {file}"})
 
     bp_version = bp.get_version_id(file)
     if len(bp_version) > 30:
@@ -263,16 +272,17 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 "file_status = 'verified', "
                 "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
                 "bp_version_id = %s, validated = %s, reference_num = %s, "
+                "error_message = NULL, "
                 "updated_at = NOW() "
                 "WHERE id = %s",
                 (media_priref,
-                 str(results.get("persisted_ok", "")),
-                 results.get("bp_etag", ""),
-                 results.get("bp_length", ""),
-                 results.get("bp_version_id", ""),
-                 str(results.get("validated", "")),
-                 file,
-                 file_info[0]),
+                str(results.get("persisted_ok", "")),
+                results.get("bp_etag", ""),
+                results.get("bp_length", ""),
+                results.get("bp_version_id", ""),
+                str(results.get("validated", "")),
+                file,
+                file_info[0]),
             )
 
     duration_sec = round(time.perf_counter() - tic, 3)
