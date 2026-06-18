@@ -145,6 +145,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
         errors.append(f"Filename already has a CID Media record: {filename}")
         do_ingest = False
     context.log.info(f"No CID Media record found for file: {filename}")
+    """ Temporary restriction for test
     context.log.info(bucket_list)
     context.log.info(filename)
     status = bp.check_no_bp_status(filename, bucket_list)
@@ -153,7 +154,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
         context.log.info(f"File has already been ingested to Black Pearl: {filename} - Buckets {bucket_list}")
         errors.append(f"Filename has already been ingested to DPI: {filename}")
         do_ingest = False
-
+    """
     if not incomplete_scan or part != 1 or whole != 1:
         previous_part = check_for_multipart(filename, part, whole)
         if previous_part is True:

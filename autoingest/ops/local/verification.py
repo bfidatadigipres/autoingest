@@ -79,7 +79,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     results = {}
 
     success = check_for_failed_file(file, json_path)
-    if success is False:
+    if success:
         validation_pass = False
         ingest_retry_needed = True
         errors.append(f"JOB ID partially failed to ingest file {file} to DPI:\n{json_path}")
@@ -131,7 +131,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             context.log.info("Black Pearl object length matches file size")
             results["bp_length"] = bp_length
 
-    elif "blobbing" in file_info[18]:
+    elif file_info[47] == "Blob":
         context.log.info("Blobbed file identified. Downloading for MD5 verification")
         download_path = os.path.join(root, f"downloads/{file}")
         dl_tic = time.perf_counter()
@@ -161,6 +161,9 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
         context.log.info(f"Checks complete. Deleting download file: {download_path}")
         os.remove(download_path)
+    else:
+        context.log.warning("No PUT type found in database, exiting.")
+        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"Already validating: {file}"})
 
     bp_version = bp.get_version_id(file)
     if len(bp_version) > 30:
@@ -176,6 +179,8 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             )
         validation_pass = False
         errors.append(f"Filename already has a CID Media record: '<{file}>'")
+    context.log.info(f"Media record not found for file: <{file}>")
+    context.log.info(f"Validation pass: {validation_pass} / Deletion needed {deletion_needed} / Ingest retry needed {ingest_retry_needed}")
 
     if validation_pass is False:
         if deletion_needed is True:

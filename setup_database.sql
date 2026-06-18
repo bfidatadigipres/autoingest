@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     clean_ap_width      TEXT,
     video_duration      TEXT,
     autoingest_path     TEXT,  -- Eg from autoingest/ingest/autodetect or autoingest/ingest/incomplete_scans or autoingest/ingest/bfi/blob
-    bp_job_id           VARCHAR(32),
+    bp_job_id           TEXT,
     put_type            TEXT,  -- Eg, Blob / Group
     persisted_ok        TEXT,  -- Bool
     bp_etag             VARCHAR(32),  -- Whole file checksum
