@@ -107,7 +107,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.info("Assigned to storage domain confirmed as TRUE")
         results["persisted_ok"] = confirmed
 
-    if file_info[47] == "Grouped":
+    if file_info[47] == "Group":
         local_checksum = file_info[22].strip()
         if local_checksum.lower() != bp_checksum.lower():
             context.log.warning(f"Black Pearl version of {file} has different checksum to local:\n{bp_checksum}\n{local_checksum}")
