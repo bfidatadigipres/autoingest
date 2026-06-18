@@ -1,5 +1,6 @@
 import os
 import shutil
+from pathlib import Path
 from datetime import datetime
 from flask import Blueprint, render_template, jsonify, request, current_app
 
@@ -90,7 +91,11 @@ def api_refresh(file_id):
     file_name, file_path, autoingest_path, proxy_video_path = row
 
     found_path = None
-    for candidate in [file_path, autoingest_path]:
+    candidates = [file_path]
+    if autoingest_path and file_path:
+        base_dir = Path(file_path).parent.parent.parent.parent
+        candidates.append(str(base_dir / autoingest_path / file_name))
+    for candidate in candidates:
         if candidate and os.path.isfile(candidate):
             found_path = candidate
             break
