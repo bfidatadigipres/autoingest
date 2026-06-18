@@ -395,7 +395,7 @@ def create_media_record(file_info: tuple) -> Optional[str]:
     media_priref = ""
     print(record_data)
     record_data_xml = adlib.create_record_data(
-        CID_API, "media", None, 0, record_data
+        CID_API, "media", "", record_data
     )
     print(f"Record data XML: {record_data_xml}")
     try:
