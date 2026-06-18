@@ -72,10 +72,10 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         source_path.unlink()
         del_toc = time.perf_counter()
         del_time = round(del_toc - del_tic, 3)
-        db.update_file_status(file_id, file_status="complete", source_deletion=True)
+        db.update_file_status(file_id, file_status="complete", source_deletion=True, error_message=None)
     else:
         context.log.warning(f"Source file already gone: {source_path}")
-        db.update_file_status(file_id, file_status="complete", source_deletion=True)
+        db.update_file_status(file_id, file_status="complete", source_deletion=True, error_message=None)
 
     duration_sec = round(time.perf_counter() - tic, 3)
 
