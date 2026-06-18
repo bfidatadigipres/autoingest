@@ -50,7 +50,7 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
         "audio_codec": "Audio_Codec_List",
         "writing_library": "Encoded_Application",
         "audio_format": "Audio_Format_List",
-        "framerate": "FrameRate_String", # Formerly audio_ch_layout
+        "framerate": "FrameRate_String",
         "audio_ch_total": "Audio_Channels_Total",
         "audio_count": "AudioCount",
         "video_count": "VideoCount"
@@ -58,8 +58,8 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
     mdata_video = {   
         "height": "Height_String",
         "width": "Width_String",
-        "colorspace": "ColorSpace", # Formerly sample_height
-        "bitdepth": "BitDepth", # Formerly clean_ap_width
+        "colorspace": "ColorSpace",
+        "bitdepth": "BitDepth",
         "video_duration": "Duration",
     }
     metadata = file_info.get("mdata_full_json")
