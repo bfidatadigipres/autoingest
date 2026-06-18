@@ -62,6 +62,8 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         _set_validation_status(db, file_info[0], "File cleared for ingest")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     folder_number = os.path.basename(root)
+    bp_job_id = file_info[46]
+    print(bp_job_id, folder_number)
     if folder_number != file_info[46]:
         context.log.error(f"Ingest folder job ID does not match that stored for file: {file_info[46]}")
         _set_validation_status(db, file_info[0], "File cleared for ingest")
