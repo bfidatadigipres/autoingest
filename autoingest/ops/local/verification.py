@@ -266,6 +266,8 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.warning(f"Failed to create media record for ingested file: {file}")
         results["validated"] = False
 
+    verify_elapsed = round(time.perf_counter() - tic, 3)
+
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -274,6 +276,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 "file_status = 'verified', "
                 "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
                 "bp_version_id = %s, validated = %s, reference_num = %s, "
+                "verify_time_sec = %s, "
                 "error_message = NULL, "
                 "updated_at = NOW() "
                 "WHERE id = %s",
@@ -284,6 +287,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 results.get("bp_version_id", ""),
                 str(results.get("validated", "")),
                 file,
+                verify_elapsed,
                 file_info[0]),
             )
 

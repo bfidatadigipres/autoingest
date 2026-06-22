@@ -54,6 +54,8 @@ def generate_checksum(context: OpExecutionContext) -> Output:
 
     context.log.info(f"Checksum MD5: {md5} / Checksum XXHash: {xxhash_val}")
 
+    checksum_duration = round(time.perf_counter() - tic, 3)
+
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -61,10 +63,11 @@ def generate_checksum(context: OpExecutionContext) -> Output:
                 SET checksum_md5 = %s,
                     checksum_xxh = %s,
                     checksum_date = %s,
+                    checksum_time_sec = %s,
                     file_status = 'checksummed',
                     updated_at = NOW()
                 WHERE id = %s
-            """, (md5, xxhash_val, checksum_date, file_id))
+            """, (md5, xxhash_val, checksum_date, checksum_duration, file_id))
 
     toc = time.perf_counter()
     duration_sec = round(toc - tic, 3)

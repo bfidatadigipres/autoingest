@@ -111,6 +111,7 @@ def generate_images(
         file_info.get("file_id"),
         proxy_image_path=proxy_image_path,
         proxy_thumb_path=proxy_thumb_path,
+        image_time_sec=image_time,
     )
 
     toc = time.perf_counter()

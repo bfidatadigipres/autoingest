@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     bp_bucket           TEXT,
     bucket_list         TEXT,
     file_size           BIGINT,  -- 20
-    checksum_xxh        VARCHAR(32),
+    checksum_xxh        VARCHAR(36),
     checksum_md5        VARCHAR(32),
     checksum_date       TEXT,
     ingest_folder       TEXT,
@@ -98,14 +98,14 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     audio_codec         TEXT,
     writing_library     TEXT,
     audio_format        TEXT,
-    audio_ch_layout     TEXT,
+    framerate           TEXT,
     audio_ch_total      TEXT,
     audio_count         INT,
     video_count         INT,
     height              TEXT, -- 40
     width               TEXT,
-    sample_height       TEXT,
-    clean_ap_width      TEXT,
+    colorpsace          TEXT,
+    bitdepth            TEXT,
     video_duration      TEXT,
     autoingest_path     TEXT,  -- Eg from autoingest/ingest/autodetect or autoingest/ingest/incomplete_scans or autoingest/ingest/bfi/blob
     bp_job_id           TEXT,
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     persisted_ok        TEXT,  -- Bool
     bp_etag             VARCHAR(32),  -- Whole file checksum
     bp_length           BIGINT, -- 50  Total file size in BP
-    bp_version_id       VARCHAR(32),  -- Version ID
+    bp_version_id       VARCHAR(64),  -- Version ID
     validated           TEXT,
     reference_num       TEXT,
     ffmpeg_command      TEXT,
@@ -131,7 +131,8 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     encode_time_sec     DOUBLE PRECISION,
     image_time_sec      DOUBLE PRECISION,
     verify_time_sec     DOUBLE PRECISION,
-    total_ingest_time_sec DOUBLE PRECISION
+    total_ingest_time_sec DOUBLE PRECISION,
+    mdata_exit          TEXT
 );
 
 CREATE INDEX idx_ft_status      ON app.file_catalogue(file_status);
