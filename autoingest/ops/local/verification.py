@@ -277,6 +277,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
                 "bp_version_id = %s, validated = %s, reference_num = %s, "
                 "verify_time_sec = %s, "
+                "ingest_month = %s, "
                 "error_message = NULL, "
                 "updated_at = NOW() "
                 "WHERE id = %s",
@@ -288,6 +289,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 str(results.get("validated", "")),
                 file,
                 verify_elapsed,
+                datetime.now().strftime("%Y%m"),
                 file_info[0]),
             )
 

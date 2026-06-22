@@ -17,7 +17,6 @@ from autoingest.resources.utils import (
     create_xxhash_65536,
     get_buckets,
     get_buckets_blob,
-    get_current_api,
     probe_metadata,
 )
 
@@ -246,25 +245,6 @@ class TestGetBucketsBlob:
     def test_unknown_collection(self, tmp_bucket_json):
         with patch("autoingest.resources.utils.DPI_BUCKETS", tmp_bucket_json):
             assert get_buckets_blob("disney") == ""
-
-
-class TestGetCurrentApi:
-    def test_returns_env_var_from_control_json(self, tmp_path, monkeypatch):
-        control = tmp_path / "downtime_control.json"
-        control.write_text(json.dumps({"current_api": "MY_API_URL"}))
-        monkeypatch.setenv("MY_API_URL", "http://real-api.test")
-        with patch("autoingest.resources.utils.CONTROL_JSON", str(control)):
-            assert get_current_api() == "http://real-api.test"
-
-    def test_returns_none_when_file_missing(self, tmp_path):
-        with patch("autoingest.resources.utils.CONTROL_JSON", str(tmp_path / "nope.json")):
-            assert get_current_api() is None
-
-    def test_returns_none_when_no_api_key(self, tmp_path):
-        control = tmp_path / "downtime_control.json"
-        control.write_text(json.dumps({"current_api": ""}))
-        with patch("autoingest.resources.utils.CONTROL_JSON", str(control)):
-            assert get_current_api() is None
 
 
 class TestProbeMetadata:
