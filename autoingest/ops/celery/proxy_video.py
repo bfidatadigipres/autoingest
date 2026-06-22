@@ -66,16 +66,14 @@ def encode_proxy_mp4(
     cfg = context.resources.encoding_config
     output_dir = Path(cfg.proxy_output_path)
     if not ingest_month:
-        context.log.info(f"Ingest month not set for {filename} — verification may not have run.")
-        duration_sec = round(time.perf_counter() - tic, 3)
-        return Output({
-            "file_id": file_id,
-            "file_path": file_path,
-            "source": source,
-            "mime_type": mime_type,
-            "proxy_video_path": "",
-            "proxy_size": "",
-        }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (no ingest month): {filename}"})
+        context.log.error(
+            f"Ingest month not set for {filename} — verification has not populated the field. "
+            "Cannot determine proxy output path."
+        )
+        raise RuntimeError(
+            f"No ingest_month for {filename}. Re-run verification to populate the field, "
+            "or run: ALTER TABLE app.file_catalogue RENAME COLUMN ingest_folder TO ingest_month"
+        )
 
     output_path = output_dir / f"{ingest_month}" / f"{filename_stem}.mp4"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -115,9 +113,9 @@ def encode_proxy_mp4(
     context.log.info(f"Audio command chosen: {map_audio}")
     context.log.info(f"Middle command chosen: {vf_args}")
 
-    if not vf_args and audio is not None:
-        context.log.error("Cannot build valid command without video arguments")
-        raise RuntimeError(f"FFmpeg command build failed for {file_path}")
+    if not vf_args:
+        context.log.error("Cannot build valid command — vf_args is empty")
+        raise RuntimeError(f"FFmpeg command build failed for {file_path}: no video filter arguments could be determined")
 
     base = (
         [cfg.ffmpeg_path, "-i", file_path]
@@ -141,8 +139,12 @@ def encode_proxy_mp4(
     context.log.info(f"FFmpeg encoding completed in: {transcode_mins} minutes")
 
     if result.returncode != 0 or not os.path.isfile(output_path):
-        context.log.error(f"FFmpeg exit code {result.returncode} - stderr: {result.stderr}")
-        raise RuntimeError(f"FFmpeg encoding failed for {file_path}")
+        stderr_snippet = (result.stderr or b"").decode("utf-8", errors="replace")[-500:] if result.stderr else "(none)"
+        context.log.error(f"FFmpeg exit code {result.returncode} - stderr: {stderr_snippet}")
+        raise RuntimeError(
+            f"FFmpeg encoding failed for {file_path} (exit {result.returncode}). "
+            f"Command: {ffmpeg_call_neat}. Stderr: {stderr_snippet}"
+        )
 
     policy_check = utils.get_mediaconch(output_path, MP4_POLICY)
     if policy_check is True:
@@ -162,7 +164,11 @@ def encode_proxy_mp4(
     print(f"Seconds for JPEG cut: {seconds}")
     success = ut.get_jpeg(seconds, output_path, jpeg_location)
     if not success:
-        context.log.error("Failed to make JPEG image - try again in next script")
+        context.log.error(
+            f"Failed to extract JPEG from proxy: {jpeg_location}. "
+            "Cannot proceed to image generation."
+        )
+        raise RuntimeError(f"JPEG extraction failed for {file_path}")
 
     context.log.info("Updating Proxy Video data to dB")
     db.update_file_status(
@@ -192,6 +198,7 @@ def encode_proxy_mp4(
         "duration": duration,
         "audio": audio,
         "stream_count": stream_count,
+        "ffmpeg_command": ffmpeg_call_neat,
         "preview": f"{filename} encoded in {transcode_mins}min ({source_size}→{proxy_size}B, {compression_ratio}x)",
     }
 
@@ -222,5 +229,6 @@ def encode_proxy_mp4(
         "compression_ratio": compression_ratio,
         "height": height,
         "width": width,
+        "ffmpeg_command": ffmpeg_call_neat,
         "preview": f"{filename} encoded {transcode_mins}min, {source_size}→{proxy_size}B",
     })
