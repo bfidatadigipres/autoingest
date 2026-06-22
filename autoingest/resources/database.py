@@ -19,6 +19,7 @@ ALLOWED_FIELDS = {
     "cid_media_priref",
     "mdata_exif",
     "updated_to_cid",
+    "ffmpeg_command",
 }
 
 
