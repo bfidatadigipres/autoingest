@@ -4,6 +4,7 @@ from autoingest.graphs.validation_graphs import (
     verify_local_graph,
     encoding_celery_graph,
     cleanup_graph,
+    metadata_update_graph,
 )
 
 celery_exec = celery_executor.configured(
@@ -32,4 +33,10 @@ cleanup_local_job = cleanup_graph.to_job(
     name="cleanup_local_job",
     description="Runs check_and_delete_source locally on DATA15. "
                 "Sets file_status = 'complete' on success.",
+)
+
+metadata_update_local_job = metadata_update_graph.to_job(
+    name="metadata_update_local_job",
+    description="Enriches CID media record with technical metadata from MediaInfo/ExifTool. "
+                "Sets file_status = 'metadata_updated' on success.",
 )

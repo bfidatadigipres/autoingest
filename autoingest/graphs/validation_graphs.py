@@ -2,6 +2,7 @@ from dagster import graph
 
 from autoingest.ops.local.verification import verify_tape_copy
 from autoingest.ops.local.source_deletion import check_and_delete_source
+from autoingest.ops.local.cid_metadata_update import update_cid_metadata
 from autoingest.ops.celery.proxy_video import encode_proxy_mp4
 from autoingest.ops.celery.proxy_images import generate_images
 
@@ -21,3 +22,8 @@ def encoding_celery_graph():
 @graph
 def cleanup_graph():
     return check_and_delete_source()
+
+
+@graph
+def metadata_update_graph():
+    return update_cid_metadata()

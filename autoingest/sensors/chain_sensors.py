@@ -7,7 +7,11 @@ from typing import Any
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from autoingest.jobs.ingest_jobs import ingest_celery_job, catalogue_local_job
-from autoingest.jobs.validation_jobs import encoding_celery_job, cleanup_local_job
+from autoingest.jobs.validation_jobs import (
+    encoding_celery_job,
+    cleanup_local_job,
+    metadata_update_local_job,
+)
 
 RETRY_INTERVAL_SECONDS = 300  # re-trigger stuck files after 5 minutes
 
@@ -32,6 +36,11 @@ STATUS_FIELD_QUERY = {
         "job": cleanup_local_job,
         "op": "check_and_delete_source",
         "sensor_name": "cleanup_chain_sensor",
+    },
+    "complete": {
+        "job": metadata_update_local_job,
+        "op": "update_cid_metadata",
+        "sensor_name": "metadata_update_chain_sensor",
     },
 }
 
@@ -118,3 +127,4 @@ ingest_chain_sensor = _make_status_sensor("assessed", STATUS_FIELD_QUERY["assess
 catalogue_chain_sensor = _make_status_sensor("checksummed", STATUS_FIELD_QUERY["checksummed"])
 encoding_chain_sensor = _make_status_sensor("verified", STATUS_FIELD_QUERY["verified"])
 cleanup_chain_sensor = _make_status_sensor("encoded", STATUS_FIELD_QUERY["encoded"])
+metadata_update_chain_sensor = _make_status_sensor("complete", STATUS_FIELD_QUERY["complete"])

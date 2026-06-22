@@ -12,6 +12,7 @@ from autoingest.jobs.validation_jobs import (
     verify_local_job,
     encoding_celery_job,
     cleanup_local_job,
+    metadata_update_local_job,
 )
 from autoingest.jobs.cleanup_job import cleanup_job
 
@@ -22,6 +23,7 @@ from autoingest.sensors.chain_sensors import (
     catalogue_chain_sensor,
     encoding_chain_sensor,
     cleanup_chain_sensor,
+    metadata_update_chain_sensor,
 )
 
 
@@ -31,10 +33,11 @@ defs = Definitions(
         ingest_local_job,
         ingest_celery_job,
         catalogue_local_job,
-        # Validation pipeline — 3 chained jobs
+        # Validation pipeline — 4 chained jobs
         verify_local_job,
         encoding_celery_job,
         cleanup_local_job,
+        metadata_update_local_job,
         # Standalone cleanup sweep
         cleanup_job,
     ],
@@ -47,6 +50,7 @@ defs = Definitions(
         catalogue_chain_sensor,
         encoding_chain_sensor,
         cleanup_chain_sensor,
+        metadata_update_chain_sensor,
     ],
     resources={
         "workflow_db": workflow_database,
