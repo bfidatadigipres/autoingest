@@ -17,7 +17,6 @@ import ffmpeg
 # BFI library
 import autoingest.resources.adlib as adlib
 
-CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.json")
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
 DPI_BUCKETS = os.environ.get("DPI_BUCKET")
@@ -510,42 +509,6 @@ def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: 
         return results.stdout
     if results.stderr:
         return results.stderr
-
-
-def get_media_input_date(filename: str) -> Optional[str]:
-    """
-    Call up adlib to get input.date field
-    """
-    api = get_current_api()
-    try:
-        rec = adlib.retrieve_record(api, "media", f"reference_number='{filename}'", "1")[1]
-        input_date = adlib.retrieve_field_name(rec[0], "input.date")[0]
-        if len(input_date) == 10:
-            return "".join(input_date.split("-")[:2])
-    except Exception as err:
-        print(err)
-
-
-def get_current_api() -> Optional[str]:
-    """
-    Check control json for downtime requests
-    based on passed argument
-    if not utils.check_control['arg']:
-        sys.exit(message)
-    """
-
-    try:
-        with open(CONTROL_JSON) as control:
-            j: dict[str, str] = json.load(control)
-            if j["current_api"]:
-                api_key = j["current_api"]
-                return os.environ.get(api_key)
-            else:
-                print("No API key found in control json")
-                return None
-    except FileNotFoundError:
-        print(f"Control JSON file not found: {CONTROL_JSON}")
-        return None
 
 
 def cid_media_append(priref: str, data: list[str]) -> Optional[bool]:

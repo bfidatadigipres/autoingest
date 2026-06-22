@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     checksum_xxh        VARCHAR(36),
     checksum_md5        VARCHAR(32),
     checksum_date       TEXT,
-    ingest_folder       TEXT,
+    ingest_month        TEXT,
     mdata_text          TEXT,
     mdata_full_text     TEXT,
     mdata_full_xml      TEXT,

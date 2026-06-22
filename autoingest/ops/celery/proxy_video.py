@@ -25,7 +25,7 @@ def encode_proxy_mp4(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, mime_type, source FROM app.file_catalogue "
+                "SELECT id, mime_type, source, ingest_month FROM app.file_catalogue "
                 "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
                 (filename,),
             )
@@ -35,7 +35,7 @@ def encode_proxy_mp4(
         context.log.error(f"No DB record found for {filename}")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    file_id, mime_type, source = row
+    file_id, mime_type, source, ingest_month = row
 
     context.log.info(f"Encoding proxy for {filename} ({mime_type}, source: {source})")
 
@@ -65,9 +65,8 @@ def encode_proxy_mp4(
 
     cfg = context.resources.encoding_config
     output_dir = Path(cfg.proxy_output_path)
-    input_date = utils.get_media_input_date(filename)
-    if not input_date:
-        context.log.info(f"Input date for {filename} Digital Media record not reachable.")
+    if not ingest_month:
+        context.log.info(f"Ingest month not set for {filename} — verification may not have run.")
         duration_sec = round(time.perf_counter() - tic, 3)
         return Output({
             "file_id": file_id,
@@ -76,9 +75,9 @@ def encode_proxy_mp4(
             "mime_type": mime_type,
             "proxy_video_path": "",
             "proxy_size": "",
-        }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (CID unreachable): {filename}"})
+        }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (no ingest month): {filename}"})
 
-    output_path = output_dir / f"{input_date}" / f"{filename_stem}.mp4"
+    output_path = output_dir / f"{ingest_month}" / f"{filename_stem}.mp4"
     output_dir.mkdir(parents=True, exist_ok=True)
     if os.path.exists(output_path):
         confirm_finished = ut.check_mod_time(output_path)
@@ -156,7 +155,7 @@ def encode_proxy_mp4(
         context.log.error(f"Deleted proxy - Mediaconch MP4 policy failed against new proxy file: {output_path}")
         raise RuntimeError(f"FFmpeg encoding failed for {file_path}")
 
-    jpeg_location = output_dir / f"{input_date}" / f"{filename_stem}.jpg"
+    jpeg_location = output_dir / f"{ingest_month}" / f"{filename_stem}.jpg"
     context.log.info(f"JPEG proxy for clean up to go here: {jpeg_location}")
 
     seconds = ut.adjust_seconds(duration, result.stderr if result.stderr else "")

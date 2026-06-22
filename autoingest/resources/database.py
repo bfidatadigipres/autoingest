@@ -20,6 +20,7 @@ ALLOWED_FIELDS = {
     "mdata_exif",
     "updated_to_cid",
     "ffmpeg_command",
+    "ingest_month",
 }
 
 
