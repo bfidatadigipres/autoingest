@@ -605,7 +605,9 @@ def _advance_status(
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE app.file_catalogue "
-                "SET file_status = %s, updated_to_cid = 'TRUE', error_message = NULL, updated_at = NOW() "
+                "SET file_status = %s, updated_to_cid = 'TRUE', "
+                "total_ingest_time_sec = EXTRACT(EPOCH FROM (NOW() - created_at)), "
+                "error_message = NULL, updated_at = NOW() "
                 "WHERE id = %s",
                 (new_status, file_id),
             )

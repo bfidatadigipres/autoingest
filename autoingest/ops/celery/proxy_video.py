@@ -171,6 +171,7 @@ def encode_proxy_mp4(
         proxy_video_path=str(output_path),
         proxy_size=proxy_size,
         ffmpeg_command=ffmpeg_call_neat,
+        encode_time_sec=ffmpeg_time,
         error_message=None,
     )
 
