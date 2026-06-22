@@ -18,6 +18,7 @@ ALLOWED_FIELDS = {
     "verify_time_sec", "total_ingest_time_sec",
     "cid_media_priref",
     "mdata_exif",
+    "updated_to_cid",
 }
 
 

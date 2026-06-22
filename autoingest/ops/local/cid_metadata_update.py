@@ -240,7 +240,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
 
     if not payload_xml:
         context.log.warning(
-            f"Could not build metadata XML for {file_name} ({payload_source}). "
+            f"Could not build metadata XML for {file_name} ({payload_source})."
             "Payload was empty after field extraction."
         )
         _set_error_and_log(
@@ -302,11 +302,6 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         "source": payload_source,
         "preview": f"{file_name} metadata updated in {duration_sec}s",
     })
-
-
-# ---------------------------------------------------------------------------
-# XML build helpers
-# ---------------------------------------------------------------------------
 
 
 def build_metadata_xml_from_db(mdata: Any, priref: str) -> str:
@@ -553,11 +548,6 @@ def write_payload(payload: str, priref: str, database: str) -> tuple[bool, Any]:
     return True, record
 
 
-# ---------------------------------------------------------------------------
-# DB helpers
-# ---------------------------------------------------------------------------
-
-
 def _set_error_and_log(
     context: OpExecutionContext,
     db: Any,
@@ -615,7 +605,7 @@ def _advance_status(
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE app.file_catalogue "
-                "SET file_status = %s, error_message = NULL, updated_at = NOW() "
+                "SET file_status = %s, updated_to_cid = 'TRUE', error_message = NULL, updated_at = NOW() "
                 "WHERE id = %s",
                 (new_status, file_id),
             )
