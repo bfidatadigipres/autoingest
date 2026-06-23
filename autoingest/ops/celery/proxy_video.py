@@ -137,14 +137,19 @@ def encode_proxy_mp4(
         + ["-c:v", "libx264", "-crf", "28", "-pix_fmt", "yuv420p"]
     )
     output = ["-nostdin", "-y", output_path, "-f", "null", "-"]
-
+    print(base)
     if audio is None:
         ffmpeg_cmd = base + vf_args + ["-movflags", "faststart"] + output
     else:
         ffmpeg_cmd = base + vf_args + map_audio + ["-movflags", "faststart"] + output
+    print(ffmpeg_cmd)
+    if isinstance(ffmpeg_cmd, list):
+        ffmpeg_call_neat = " ".join(ffmpeg_cmd)
+        context.log.info(f"FFmpeg command: {ffmpeg_call_neat}")
+    else:
+        context.log.warning(f"FFmpeg command creation failed - not list: {type(ffmpeg_cmd)} {ffmpeg_cmd}")
+        raise RuntimeError(f"FFmpeg build failed: {ffmpeg_cmd}")
 
-    ffmpeg_call_neat = " ".join(ffmpeg_cmd)
-    context.log.info(f"FFmpeg command: {ffmpeg_call_neat}")
     ffmpeg_tic = time.perf_counter()
     result = ut.call_ffmpeg_command(ffmpeg_cmd)
     ffmpeg_toc = time.perf_counter()
