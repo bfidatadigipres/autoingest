@@ -136,7 +136,7 @@ def encode_proxy_mp4(
         + map_video
         + ["-c:v", "libx264", "-crf", "28", "-pix_fmt", "yuv420p"]
     )
-    output = ["-nostdin", "-y", output_path, "-f", "null", "-"]
+    output = ["-nostdin", "-y", str(output_path), "-f", "null", "-"]
     print(base)
     if audio is None:
         ffmpeg_cmd = base + vf_args + ["-movflags", "faststart"] + output
