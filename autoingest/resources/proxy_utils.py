@@ -236,12 +236,12 @@ def get_height(fullpath: str) -> int:
     regular_height = _safe_int(regular_height_raw, default=0)
 
     height = str(max(sampled_height, regular_height))
-
+    print(height)
     if len(height) >= 6:
         print(f"Suspect height has multiple returned streams: {height}")
         height = _remove_stream_repeats(height, fullpath)
 
-    normalized_prefixes = {
+    normalised_prefixes = {
         "480 ": "480",
         "486 ": "486",
         "576 ": "576",
@@ -251,9 +251,9 @@ def get_height(fullpath: str) -> int:
         "1 080 ": "1080",
     }
 
-    for prefix, normalized in normalized_prefixes.items():
+    for prefix, normalised in normalised_prefixes.items():
         if height.startswith(prefix):
-            return int(normalized)
+            return int(normalised)
 
     height = height.split(" pixel", maxsplit=1)[0]
     digits_only = re.sub(r"[^0-9]", "", height)
