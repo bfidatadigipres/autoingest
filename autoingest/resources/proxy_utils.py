@@ -187,8 +187,8 @@ def get_width(fullpath: str) -> int:
     width_raw = utils.get_metadata("Video", "Width/String", fullpath)
     clap_width_raw = utils.get_metadata("Video", "Width_CleanAperture/String", fullpath)
 
-    width = _safe_int(width_raw, 0)
-    clap_width = _safe_int(clap_width_raw, 0)
+    width = width_raw.strip() if width_raw else ""
+    clap_width = clap_width_raw.strip() if clap_width_raw else ""
 
     normalised_prefix = {
         "703 ": "703",
