@@ -132,7 +132,8 @@ def encode_proxy_mp4(
         raise RuntimeError(f"FFmpeg command build failed for {file_path}: no video filter arguments could be determined")
 
     base = (
-        [cfg.ffmpeg_path, "-i", file_path]
+        #[cfg.ffmpeg_path, "-i", file_path]
+        ["ffmpeg", "-i", file_path]
         + map_video
         + ["-c:v", "libx264", "-crf", "28", "-pix_fmt", "yuv420p"]
     )
