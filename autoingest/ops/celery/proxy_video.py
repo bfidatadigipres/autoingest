@@ -18,8 +18,6 @@ def encode_proxy_mp4(
 ) -> Output:
     tic = time.perf_counter()
     file_path = context.op_config["file_path"]
-    if not os.path.isfile(file_path):
-        raise RuntimeError(f"Filepath not found: {file_path}")
     filename_stem = Path(file_path).stem
     filename = Path(file_path).name
 
@@ -27,7 +25,8 @@ def encode_proxy_mp4(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, mime_type, source, ingest_month FROM app.file_catalogue "
+                "SELECT id, mime_type, source, ingest_month, bp_job_id "
+                "FROM app.file_catalogue "
                 "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
                 (filename,),
             )
@@ -37,7 +36,17 @@ def encode_proxy_mp4(
         context.log.error(f"No DB record found for {filename}")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    file_id, mime_type, source, ingest_month = row
+    file_id, mime_type, source, ingest_month, bp_job_id = row
+
+    root = Path(file_path).parent.parent.parent.parent
+    source_path = root / "autoingest" / "validate" / (bp_job_id or "") / filename
+    if not source_path.is_file():
+        raise RuntimeError(
+            f"Source file not found at validation path: {source_path}. "
+            f"Original ingest path ({file_path}) may be stale — file has moved through the pipeline."
+        )
+
+    file_path = str(source_path)
 
     context.log.info(f"Encoding proxy for {filename} ({mime_type}, source: {source})")
 
