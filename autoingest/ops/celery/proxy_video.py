@@ -162,7 +162,7 @@ def encode_proxy_mp4(
     context.log.info(f"FFmpeg encoding completed in: {transcode_mins} minutes")
 
     if result.returncode != 0 or not os.path.isfile(output_path):
-        stderr_snippet = (result.stderr or b"").decode("utf-8", errors="replace")[-500:] if result.stderr else "(none)"
+        stderr_snippet = (result.stderr or b"").encode("utf-8", errors="replace")[-500:] if result.stderr else "(none)"
         context.log.error(f"FFmpeg exit code {result.returncode} - stderr: {stderr_snippet}")
         raise RuntimeError(
             f"FFmpeg encoding failed for {file_path} (exit {result.returncode}). "
