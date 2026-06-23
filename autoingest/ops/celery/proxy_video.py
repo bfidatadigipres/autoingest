@@ -18,6 +18,8 @@ def encode_proxy_mp4(
 ) -> Output:
     tic = time.perf_counter()
     file_path = context.op_config["file_path"]
+    if not os.path.isfile(file_path):
+        raise RuntimeError(f"Filepath not found: {file_path}")
     filename_stem = Path(file_path).stem
     filename = Path(file_path).name
 
