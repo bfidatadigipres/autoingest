@@ -86,7 +86,10 @@ def encode_proxy_mp4(
             "or run: ALTER TABLE app.file_catalogue RENAME COLUMN ingest_folder TO ingest_month"
         )
 
-    output_path = str(output_dir / f"{ingest_month}" / f"{filename_stem}.mp4")
+    output_folder = str(output_dir / f"{ingest_month}")
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder, exist_ok=True)
+    output_path = os.path.join(output_folder, f"{filename_stem}.mp4")
     output_dir.mkdir(parents=True, exist_ok=True)
     if os.path.exists(output_path):
         confirm_finished = ut.check_mod_time(output_path)
