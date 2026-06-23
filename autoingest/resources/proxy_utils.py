@@ -215,7 +215,10 @@ def get_width(fullpath: str) -> int:
         return int(width)
 
     width = width.split(" pixel", maxsplit=1)[0]
-    return int(re.sub("[^0-9]", "", width))
+    digits_only = re.sub(r"[^0-9]", "", width)
+    if not digits_only:
+        return 0
+    return int(digits_only)
 
 
 def get_height(fullpath: str) -> int:
@@ -253,7 +256,10 @@ def get_height(fullpath: str) -> int:
             return int(normalized)
 
     height = height.split(" pixel", maxsplit=1)[0]
-    return int(re.sub(r"[^0-9]", "", height))
+    digits_only = re.sub(r"[^0-9]", "", height)
+    if not digits_only:
+        return 0
+    return int(digits_only)
 
 
 def get_dar(fullpath: str) -> str:
