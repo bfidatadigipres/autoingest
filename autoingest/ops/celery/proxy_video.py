@@ -25,7 +25,8 @@ def encode_proxy_mp4(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, mime_type, source, ingest_month FROM app.file_catalogue "
+                "SELECT id, mime_type, source, ingest_month, bp_job_id "
+                "FROM app.file_catalogue "
                 "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
                 (filename,),
             )
@@ -35,7 +36,17 @@ def encode_proxy_mp4(
         context.log.error(f"No DB record found for {filename}")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    file_id, mime_type, source, ingest_month = row
+    file_id, mime_type, source, ingest_month, bp_job_id = row
+
+    root = Path(file_path).parent.parent.parent.parent
+    source_path = root / "autoingest" / "validate" / (bp_job_id or "") / filename
+    if not source_path.is_file():
+        raise RuntimeError(
+            f"Source file not found at validation path: {source_path}. "
+            f"Original ingest path ({file_path}) may be stale — file has moved through the pipeline."
+        )
+
+    file_path = str(source_path)
 
     context.log.info(f"Encoding proxy for {filename} ({mime_type}, source: {source})")
 
@@ -75,7 +86,10 @@ def encode_proxy_mp4(
             "or run: ALTER TABLE app.file_catalogue RENAME COLUMN ingest_folder TO ingest_month"
         )
 
-    output_path = output_dir / f"{ingest_month}" / f"{filename_stem}.mp4"
+    output_folder = str(output_dir / f"{ingest_month}")
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder, exist_ok=True)
+    output_path = os.path.join(output_folder, f"{filename_stem}.mp4")
     output_dir.mkdir(parents=True, exist_ok=True)
     if os.path.exists(output_path):
         confirm_finished = ut.check_mod_time(output_path)
@@ -121,19 +135,25 @@ def encode_proxy_mp4(
         raise RuntimeError(f"FFmpeg command build failed for {file_path}: no video filter arguments could be determined")
 
     base = (
-        [cfg.ffmpeg_path, "-i", file_path]
+        #[cfg.ffmpeg_path, "-i", file_path]
+        ["ffmpeg", "-i", file_path]
         + map_video
         + ["-c:v", "libx264", "-crf", "28", "-pix_fmt", "yuv420p"]
     )
-    output = ["-nostdin", "-y", output_path, "-f", "null", "-"]
-
+    output = ["-nostdin", "-y", str(output_path), "-f", "null", "-"]
+    print(base)
     if audio is None:
         ffmpeg_cmd = base + vf_args + ["-movflags", "faststart"] + output
     else:
         ffmpeg_cmd = base + vf_args + map_audio + ["-movflags", "faststart"] + output
+    print(ffmpeg_cmd)
+    if isinstance(ffmpeg_cmd, list):
+        ffmpeg_call_neat = " ".join(ffmpeg_cmd)
+        context.log.info(f"FFmpeg command: {ffmpeg_call_neat}")
+    else:
+        context.log.warning(f"FFmpeg command creation failed - not list: {type(ffmpeg_cmd)} {ffmpeg_cmd}")
+        raise RuntimeError(f"FFmpeg build failed: {ffmpeg_cmd}")
 
-    ffmpeg_call_neat = " ".join(ffmpeg_cmd)
-    context.log.info(f"FFmpeg command: {ffmpeg_call_neat}")
     ffmpeg_tic = time.perf_counter()
     result = ut.call_ffmpeg_command(ffmpeg_cmd)
     ffmpeg_toc = time.perf_counter()
@@ -142,7 +162,7 @@ def encode_proxy_mp4(
     context.log.info(f"FFmpeg encoding completed in: {transcode_mins} minutes")
 
     if result.returncode != 0 or not os.path.isfile(output_path):
-        stderr_snippet = (result.stderr or b"").decode("utf-8", errors="replace")[-500:] if result.stderr else "(none)"
+        stderr_snippet = (result.stderr or b"").encode("utf-8", errors="replace")[-500:] if result.stderr else "(none)"
         context.log.error(f"FFmpeg exit code {result.returncode} - stderr: {stderr_snippet}")
         raise RuntimeError(
             f"FFmpeg encoding failed for {file_path} (exit {result.returncode}). "
