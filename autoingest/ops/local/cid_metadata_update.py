@@ -1,3 +1,5 @@
+from importlib import metadata
+from itertools import islice
 import os
 import time
 import json
@@ -139,7 +141,9 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, file_name, file_status, mime_type, "
-                "cid_media_priref, mdata_full_json, mdata_exif "
+                "cid_media_priref, mdata_full_json, mdata_exif, "
+                "mdata_text, mdata_full_text, mdata_full_xml, "
+                "mdata_ebucore, mdata_pbcore "
                 "FROM app.file_catalogue WHERE file_name = %s "
                 "ORDER BY created_at DESC LIMIT 1",
                 (file_name,),
@@ -157,8 +161,15 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
     file_status = row[2]
     mime_type = row[3]
     media_priref = row[4] or ""
-    mdata_full_json = row[5]
-    mdata_exif = row[6] or ""
+    db_metadata = {
+        "MediaInfo json 0": row[5],
+        "Exiftool text": row[6] or "",
+        "MediaInfo text 0": row[7] or "",
+        "MediaInfo text 0 full": row[8] or "",
+        "MediaInfo xml 0": row[9] or "",
+        "MediaInfo ebucore 0": row[10] or "",
+        "MediaInfo pbcore 0": row[11] or ""
+    }
 
     if file_status != "complete":
         context.log.info(
@@ -197,12 +208,32 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             "preview": f"CID API down: {file_name}",
         })
 
+    # Add to header tags
+    payload_data = ""
+    for key, value in db_metadata.items():
+        if len(value) > 0:
+            try:
+                text = f"<Header_tags><header_tags.parser>{key}</header_tags.parser><header_tags><![CDATA[{value}]]></header_tags></Header_tags>"
+                payload_data += text
+            except Exception as err:
+                print(err)
+    if len(payload_data) > 10:
+        context.log.info(f"Writing header tag data to CID Media record: {media_priref}\n{payload_data}")
+        payload = f"<adlibXML><recordList><record priref='{media_priref}'>{payload_data}</record></recordList></adlibXML>"
+        cid_tic = time.perf_counter()
+        success, response = write_payload(payload, "media")
+        cid_toc = time.perf_counter()
+        cid_update_time = round(cid_toc - cid_tic, 3)
+    else:
+        context.log.warning(f"Failed ")
+        cid_update_time = 0
+
     mime_type = (mime_type or "").lower()
     payload_xml = ""
     payload_source = ""
 
     if mime_type in ("video", "audio"):
-        if not mdata_full_json:
+        if not next(islice(db_metadata.values(), 0, None)):
             context.log.warning(
                 f"No MediaInfo JSON data for {file_name} — advancing status."
             )
@@ -212,10 +243,11 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
                 "preview": f"No JSON metadata: {file_name}",
             })
 
-        payload_xml = build_metadata_xml_from_db(mdata_full_json, media_priref)
+        payload_xml = build_metadata_xml_from_db(next(islice(db_metadata.values(), 0, None)), media_priref)
         payload_source = "mediainfo_json"
+
     elif mime_type == "image":
-        if not mdata_exif:
+        if not next(islice(db_metadata.values(), 1, None)):
             context.log.warning(
                 f"No ExifTool data for {file_name} — advancing status."
             )
@@ -225,8 +257,9 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
                 "preview": f"No EXIF metadata: {file_name}",
             })
 
-        payload_xml = build_exif_metadata_xml_from_db(mdata_exif, media_priref)
+        payload_xml = build_exif_metadata_xml_from_db(next(islice(db_metadata.values(), 1, None)), media_priref)
         payload_source = "exiftool"
+
     else:
         context.log.info(
             f"MIME type '{mime_type}' for {file_name} — no technical metadata to update. "
@@ -255,9 +288,10 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         })
 
     cid_tic = time.perf_counter()
-    success, response = write_payload(payload_xml, media_priref, "media")
+    success, response = write_payload(payload_xml, "media")
     cid_toc = time.perf_counter()
-    cid_update_time = round(cid_toc - cid_tic, 3)
+    cid_update2_time = round(cid_toc - cid_tic, 3)
+    cid_update_time += cid_update2_time
 
     if not success:
         context.log.warning(
@@ -533,7 +567,7 @@ def wrap_as_xml(grouping: str, field_pairs: list[dict]) -> str:
     return f"<{grouping}>{mid}</{grouping}>"
 
 
-def write_payload(payload: str, priref: str, database: str) -> tuple[bool, Any]:
+def write_payload(payload: str, database: str) -> tuple[bool, Any]:
     try:
         record = adlib.post(CID_API, payload, database, "updaterecord")
     except Exception as err:
