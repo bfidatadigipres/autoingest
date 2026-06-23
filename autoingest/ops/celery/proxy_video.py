@@ -89,7 +89,10 @@ def encode_proxy_mp4(
 
     height = ut.get_height(file_path)
     width = ut.get_width(file_path)
-    aspect = round(width / height, 3)
+    if height == 0 or width == 0:
+        context.log.warning(f"Height {height} or Width {width} failed to fetch. Exiting.")
+        raise RuntimeError(f"Encoding failed - missing height and/or width - {width}:{height}")
+    aspect = round(int(width) / int(height), 3)
     dar = ut.get_dar(file_path)
     par = ut.get_par(file_path)
     audio, stream_default, stream_count = ut.check_audio(file_path)
