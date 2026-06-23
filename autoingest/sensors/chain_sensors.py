@@ -31,6 +31,7 @@ STATUS_FIELD_QUERY = {
         "job": encoding_celery_job,
         "op": "encode_proxy_mp4",
         "sensor_name": "encoding_chain_sensor",
+        "statuses": ("verified", "encoding"),
     },
     "encoded": {
         "job": cleanup_local_job,
@@ -49,6 +50,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
     job = conf["job"]
     op_name = conf["op"]
     sensor_name = conf["sensor_name"]
+    statuses = conf.get("statuses")
 
     @sensor(
         job=job,
@@ -74,11 +76,18 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
         db = context.resources.workflow_db
         with db.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, file_path FROM app.file_catalogue "
-                    "WHERE file_status = %s ORDER BY created_at ASC",
-                    (status,),
-                )
+                if statuses:
+                    cur.execute(
+                        "SELECT id, file_path FROM app.file_catalogue "
+                        "WHERE file_status IN %s ORDER BY created_at ASC",
+                        (statuses,),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT id, file_path FROM app.file_catalogue "
+                        "WHERE file_status = %s ORDER BY created_at ASC",
+                        (status,),
+                    )
                 rows = cur.fetchall()
 
         current_ids = {row[0] for row in rows}
