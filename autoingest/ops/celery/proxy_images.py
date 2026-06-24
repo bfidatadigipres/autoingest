@@ -132,11 +132,11 @@ def generate_images(
         context.log.info(f"Generating largeimage from proxy: {proxy_path}")
         img_tic = time.perf_counter()
         if oversize is False:
-            proxy_image_path = ut.make_jpg(source_image, "full", largeimage_path, None)
+            proxy_image_path = ut.make_jpg(source_image, "full", root, None)
         else:
-            proxy_image_path = ut.make_jpg(source_image, "oversize", largeimage_path, percent)
+            proxy_image_path = ut.make_jpg(source_image, "oversize", root, percent)
         context.log.info(f"Generating thumbnail from proxy: {proxy_path}")
-        proxy_thumb_path = ut.make_jpg(source_image, "thumb", thumbnail_path, None)
+        proxy_thumb_path = ut.make_jpg(source_image, "thumb", root, None)
         img_toc = time.perf_counter()
         image_time = round(img_toc - img_tic, 3)
 
@@ -146,6 +146,16 @@ def generate_images(
             proxy_image_path = ""
         if os.path.isfile(proxy_image_path) and os.path.isfile(proxy_thumb_path):
             context.log.info(f"New images created:\n - {proxy_image_path}\n - {proxy_thumb_path}")
+
+            if proxy_image_path:
+                stripped = os.path.splitext(proxy_image_path)[0]
+                os.replace(proxy_image_path, stripped)
+                proxy_image_path = stripped
+
+            if proxy_thumb_path:
+                stripped = os.path.splitext(proxy_thumb_path)[0]
+                os.replace(proxy_thumb_path, stripped)
+                proxy_thumb_path = stripped
         else:
             context.log.error(f"One or both JPEG image creations failed for file {Path(proxy_path).name}")
             raise RuntimeError("JPEG proxy image failed for image and/or thumbnail")
@@ -218,11 +228,6 @@ def generate_images(
         _rollback_images_status(db, file_id)
         _cleanup_partial_images(largeimage_path, thumbnail_path, context)
         raise
-
-
-# ---------------------------------------------------------------------------
-# Image generation helpers
-# ---------------------------------------------------------------------------
 
 
 def _set_images_status(db, file_id: int) -> None:
