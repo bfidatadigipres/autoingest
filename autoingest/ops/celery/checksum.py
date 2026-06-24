@@ -6,7 +6,7 @@ from dagster import op, Out, Output, OpExecutionContext
 
 
 @op(
-    tags={"dagster-celery/queue": "encoding"},
+    tags={"dagster-celery/queue": "checksum"},
     out=Out(dict),
     required_resource_keys={"workflow_db"},
     config_schema={"file_path": str},
