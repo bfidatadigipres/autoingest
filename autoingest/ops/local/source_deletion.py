@@ -1,3 +1,4 @@
+from hashlib import md5
 import os
 import time
 from pathlib import Path
@@ -16,7 +17,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, file_path, bp_job_id, proxy_video_path, proxy_image_path, "
-                "proxy_thumb_path, cid_media_priref "
+                "proxy_thumb_path, cid_media_priref, checksum_md5, checksum_data "
                 "FROM app.file_catalogue WHERE file_name = %s "
                 "ORDER BY created_at DESC LIMIT 1",
                 (file_name,),
@@ -33,6 +34,8 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
     proxy_image_path = row[4] or ""
     proxy_thumb_path = row[5] or ""
     media_priref = row[6] or ""
+    checksum_md5 = row[7] or ""
+    checksum_date = row[7] or ""
 
     root = Path(row[1]).parent.parent.parent.parent
     source_path = root / "autoingest" / "validate" / bp_job_id / file_name
@@ -44,6 +47,13 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         media_data.append(f"<access_rendition.largeimage>{Path(proxy_image_path).name}</access_rendition.largeimage>")
     if proxy_thumb_path:
         media_data.append(f"<access_rendition.thumbnail>{Path(proxy_thumb_path).name}</access_rendition.thumbnail>")
+    if checksum_md5 and checksum_path:
+        media_data.append(f"<Checksum><checksum.value>{checksum_md5}</checksum.value><checksum.type>MD5</checksum.type>")
+        media_data.append(f"<checksum.date>{checksum_date}</checksum.date><checksum.path>"{file_path_str}"</checksum.path></Checksum>")
+    if media_data:
+        media_data.append(f"<Edit><edit.name>datadigipres</edit.name><edit.date>{str(datetime.datetime.now())[:10]}</edit.date>")
+        media_data.append(f"<edit.time>{str(datetime.datetime.now())[11:19]}</edit.time>")
+        media_data.append("<edit.notes>Automated bulk checksum and proxy documentation.</edit.notes></Edit>")
 
     if media_priref and media_data:
         cid_tic = time.perf_counter()
