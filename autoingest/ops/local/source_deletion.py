@@ -36,7 +36,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
     proxy_thumb_path = row[5] or ""
     media_priref = row[6] or ""
     checksum_md5 = row[7] or ""
-    checksum_date = row[7] or ""
+    checksum_date = row[8] or ""
 
     root = Path(row[1]).parent.parent.parent.parent
     source_path = root / "autoingest" / "validate" / bp_job_id / file_name
@@ -90,6 +90,16 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
     else:
         context.log.warning(f"Source file already gone: {source_path}")
         db.update_file_status(file_id, file_status="complete", source_deletion=True, error_message=None)
+
+    bp_folder = source_path.parent
+    try:
+        next(bp_folder.iterdir())
+    except StopIteration:
+        try:
+            bp_folder.rmdir()
+            context.log.info(f"Removed empty BP job folder: {bp_folder}")
+        except OSError as exc:
+            context.log.warning(f"Could not remove BP job folder: {bp_folder} — {exc}")
 
     duration_sec = round(time.perf_counter() - tic, 3)
 
