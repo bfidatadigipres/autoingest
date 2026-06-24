@@ -25,7 +25,7 @@ def encode_proxy_mp4(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, mime_type, source, ingest_month, bp_job_id "
+                "SELECT id, file_status, mime_type, source, ingest_month, bp_job_id "
                 "FROM app.file_catalogue "
                 "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
                 (filename,),
@@ -36,7 +36,23 @@ def encode_proxy_mp4(
         context.log.error(f"No DB record found for {filename}")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    file_id, mime_type, source, ingest_month, bp_job_id = row
+    file_id, file_status, mime_type, source, ingest_month, bp_job_id = row
+
+    if file_status == "encoding":
+        context.log.info(f"File {filename} is already being encoded. Skipping.")
+        return Output(None, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Already encoding: {filename}",
+        })
+
+    if file_status != "verified":
+        context.log.warning(
+            f"File {filename} has status '{file_status}' — expected 'verified'. Skipping."
+        )
+        return Output(None, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Skipped: status={file_status}",
+        })
 
     root = Path(file_path).parent.parent.parent.parent
     source_path = root / "autoingest" / "validate" / (bp_job_id or "") / filename
