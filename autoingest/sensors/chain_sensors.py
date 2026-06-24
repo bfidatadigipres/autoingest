@@ -31,7 +31,7 @@ STATUS_FIELD_QUERY = {
         "job": encoding_celery_job,
         "op": "encode_proxy_mp4",
         "sensor_name": "encoding_chain_sensor",
-        "statuses": ("verified", "encoding"),
+        "statuses": ("verified",),
     },
     "encoded": {
         "job": cleanup_local_job,

@@ -221,6 +221,7 @@ def encode_proxy_mp4(
             proxy_size=proxy_size,
             ffmpeg_command=ffmpeg_call_neat,
             encode_time_sec=ffmpeg_time,
+            file_status="creating_images",
             error_message=None,
         )
 

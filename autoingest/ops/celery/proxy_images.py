@@ -19,6 +19,40 @@ def generate_images(
     proxy_path = file_info["proxy_video_path"]
     root = os.path.split(proxy_path)[0]
     filename_stem = Path(proxy_path).stem
+    file_id = file_info.get("file_id")
+    file_name = Path(file_info["file_path"]).name
+
+    db = context.resources.workflow_db
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT file_status FROM app.file_catalogue "
+                "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
+                (file_name,),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        context.log.error(f"No DB record found for {file_name}")
+        return Output({
+            "file_id": file_id,
+            "proxy_video_path": proxy_path,
+            "proxy_image_path": "",
+            "proxy_thumb_path": "",
+        }, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"No record: {file_name}"})
+
+    file_status = row[0]
+
+    if file_status != "creating_images":
+        context.log.info(
+            f"File {file_name} has status '{file_status}' — expected 'creating_images'. Skipping."
+        )
+        return Output({
+            "file_id": file_id,
+            "proxy_video_path": proxy_path,
+            "proxy_image_path": "",
+            "proxy_thumb_path": "",
+        }, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"Skipped: status={file_status}"})
 
     mime = file_info["mime_type"]
     if mime not in ["video", "image"]:
