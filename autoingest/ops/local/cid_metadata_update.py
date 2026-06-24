@@ -295,7 +295,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
 
     if not success:
         context.log.warning(
-            f"Failed to push metadata to CID media record {media_priref} for {file_name}"
+            f"Failed to push metadata to CID media record {media_priref} for {file_name}\n{response}"
         )
         _set_error_and_log(
             context, db, file_id, file_name, tic,
