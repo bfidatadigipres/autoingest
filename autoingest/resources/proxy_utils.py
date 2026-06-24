@@ -631,6 +631,7 @@ def get_jpeg(seconds: float, fullpath: str, outpath: str) -> bool:
         "1",
         "-q:v",
         "2",
+        "-y",
         outpath,
     ]
 
