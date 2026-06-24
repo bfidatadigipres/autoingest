@@ -192,6 +192,7 @@ def encode_proxy_mp4(
                 f"Command: {ffmpeg_call_neat}. Stderr: {stderr_snippet}"
             )
 
+        os.chmod(output_path, 0o777)
         policy_check = utils.get_mediaconch(output_path, MP4_POLICY)
         if policy_check is True:
             proxy_size = os.path.getsize(output_path)
