@@ -18,7 +18,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, file_path, bp_job_id, proxy_video_path, proxy_image_path, "
-                "proxy_thumb_path, cid_media_priref, checksum_md5, checksum_data "
+                "proxy_thumb_path, cid_media_priref, checksum_md5, checksum_date "
                 "FROM app.file_catalogue WHERE file_name = %s "
                 "ORDER BY created_at DESC LIMIT 1",
                 (file_name,),
