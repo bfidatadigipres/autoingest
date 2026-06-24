@@ -15,7 +15,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, file_path, proxy_video_path, proxy_image_path, "
+                "SELECT id, file_path, bp_job_id, proxy_video_path, proxy_image_path, "
                 "proxy_thumb_path, cid_media_priref "
                 "FROM app.file_catalogue WHERE file_name = %s "
                 "ORDER BY created_at DESC LIMIT 1",
@@ -28,11 +28,14 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         return Output(None, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     file_id = row[0]
-    source_path = Path(row[1])
-    proxy_video_path = row[2] or ""
-    proxy_image_path = row[3] or ""
-    proxy_thumb_path = row[4] or ""
-    media_priref = row[5] or ""
+    bp_job_id = row[2] or ""
+    proxy_video_path = row[3] or ""
+    proxy_image_path = row[4] or ""
+    proxy_thumb_path = row[5] or ""
+    media_priref = row[6] or ""
+
+    root = Path(row[1]).parent.parent.parent.parent
+    source_path = root / "autoingest" / "validate" / bp_job_id / file_name
 
     media_data = []
     if proxy_video_path:
