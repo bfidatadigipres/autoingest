@@ -48,7 +48,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         media_data.append(f"<access_rendition.largeimage>{Path(proxy_image_path).name}</access_rendition.largeimage>")
     if proxy_thumb_path:
         media_data.append(f"<access_rendition.thumbnail>{Path(proxy_thumb_path).name}</access_rendition.thumbnail>")
-    if checksum_md5 and checksum_path:
+    if checksum_md5 and checksum_date:
         media_data.append(f"<Checksum><checksum.value>{checksum_md5}</checksum.value><checksum.type>MD5</checksum.type>")
         media_data.append(f"<checksum.date>{checksum_date}</checksum.date><checksum.path>'{file_path_str}'</checksum.path></Checksum>")
     if media_data:
