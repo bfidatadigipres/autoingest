@@ -16,5 +16,13 @@ worker_prefetch_multiplier = 1
 task_time_limit = 86400       # 24 hours hard limit
 task_soft_time_limit = 82800  # 23 hours soft limit
 
+# Worker lifecyle
+worker_max_tasks_per_child = 50   # restart after 50 tasks to prevent memory leaks
+worker_disable_rate_limits = True
+
+# Result expiry — discard results after 1 hour
+result_expires = 3600
+task_ignore_result = True
+
 # Concurrency per worker is set at CLI start time,
 # but you can set defaults here per queue if needed

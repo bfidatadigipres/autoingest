@@ -74,6 +74,7 @@ def encode_proxy_mp4(
 
         if mime_type != "video":
             context.log.info("MIME type is not Video and cannot be transcoded...")
+            db.update_file_status(file_id, file_status="encoding_complete")
             duration_sec = round(time.perf_counter() - tic, 3)
             return Output({
                 "file_id": file_id,
@@ -86,6 +87,7 @@ def encode_proxy_mp4(
 
         if source.lower() in ["netflix", "amazon", "disney"]:
             context.log.info(f"Source is {source}... No transcode required.")
+            db.update_file_status(file_id, file_status="encoding_complete")
             duration_sec = round(time.perf_counter() - tic, 3)
             return Output({
                 "file_id": file_id,
@@ -221,7 +223,7 @@ def encode_proxy_mp4(
             proxy_size=proxy_size,
             ffmpeg_command=ffmpeg_call_neat,
             encode_time_sec=ffmpeg_time,
-            file_status="creating_images",
+            file_status="encoded",
             error_message=None,
         )
 
