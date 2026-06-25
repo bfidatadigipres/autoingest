@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="300">
+    <title>BFI National Archive — KLC File Progress</title>
+    <link rel="stylesheet" href="/static/klc.css">
+</head>
+<body>
+
+<div class="header">
+    <h1>BFI National Archive — File Progress Viewer</h1>
+    <div class="button-bar">
+        <button onclick="location.reload()" class="btn" title="Reload page">Refresh</button>
+        {% if help_url %}
+        <a href="{{ help_url }}" target="_blank" rel="noopener" class="btn">Help</a>
+        {% endif %}
+    </div>
+    <div id="stats" class="stats-bar">Loading&hellip;</div>
+</div>
+
+<div class="filter-bar">
+    <label class="filter-label">
+        Search
+        <input type="text" id="searchInput" placeholder="file name / status / error&hellip;" autocomplete="off">
+    </label>
+    <label class="filter-label">
+        Storage
+        <select id="storageFilter">
+            <option value="">All</option>
+            {% for opt in storage_options %}
+            <option value="{{ opt }}">{{ opt }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label class="filter-label">
+        Errors
+        <select id="errorFilter">
+            <option value="">All files</option>
+            <option value="yes">With errors</option>
+            <option value="no">Without errors</option>
+        </select>
+    </label>
+    <span id="resultCount" class="result-count"></span>
+</div>
+
+<div class="table-wrapper">
+<table id="fileTable">
+    <thead>
+        <tr>
+            <th>File Name</th>
+            <th>Status</th>
+            <th>Error</th>
+            <th>Storage</th>
+            <th>Size in GB</th>
+            <th>Media Type</th>
+            <th>Pixel height</th>
+            <th>Pixel width</th>
+            <th>MD5 checksum</th>
+            <th>File format</th>
+            <th>Video codec</th>
+            <th>Audio codec</th>
+            <th>Framerate</th>
+            <th>Last updated</th>
+        </tr>
+    </thead>
+    <tbody id="tableBody">
+        <tr><td colspan="14">Loading&hellip;</td></tr>
+    </tbody>
+</table>
+</div>
+
+<div id="lastUpdate" class="footer"></div>
+
+<script>
+let guidance = {};
+let searchTimeout = null;
+
+async function loadGuidance() {
+    try {
+        var resp = await fetch("/klc/api/guidance");
+        guidance = await resp.json();
+    } catch (e) {}
+}
+
+function matchGuidance(errorText) {
+    if (!errorText || !guidance) return guidance["_default"] || {text: "", link: ""};
+    var keys = Object.keys(guidance);
+    for (var i = 0; i < keys.length; i++) {
+        if (keys[i] === "_default") continue;
+        if (errorText.toLowerCase().indexOf(keys[i].toLowerCase()) !== -1) {
+            return guidance[keys[i]];
+        }
+    }
+    return guidance["_default"] || {text: "", link: ""};
+}
+
+function buildTooltip(errorText, g) {
+    var tip = '<div class="tooltip-inner">';
+    tip += '<div class="tooltip-header">Error Details</div>';
+    tip += '<div class="tooltip-body">' + esc(errorText) + '</div>';
+    if (g && g.text) {
+        tip += '<div class="tooltip-guidance">' + esc(g.text) + '</div>';
+    }
+    if (g && g.link) {
+        tip += '<a href="' + esc(g.link) + '" target="_blank" rel="noopener" class="tooltip-link">More info &rarr;</a>';
+    }
+    tip += '</div>';
+    return tip;
+}
+
+async function loadFiles() {
+    var search = document.getElementById("searchInput").value;
+    var storage = document.getElementById("storageFilter").value;
+    var hasError = document.getElementById("errorFilter").value;
+
+    var params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (storage) params.set("storage", storage);
+    if (hasError) params.set("has_error", hasError);
+    params.set("limit", "200");
+
+    try {
+        var resp = await fetch("/klc/api/files?" + params.toString());
+        var files = await resp.json();
+        renderTable(files);
+    } catch (e) {
+        document.getElementById("tableBody").innerHTML =
+            '<tr><td colspan="14" class="error-cell">Error loading data</td></tr>';
+    }
+    document.getElementById("lastUpdate").textContent =
+        "Last updated: " + new Date().toLocaleTimeString();
+    setTimeout(loadFiles, 30000);
+}
+
+function renderTable(files) {
+    var tbody = document.getElementById("tableBody");
+    document.getElementById("resultCount").textContent =
+        files.length + " file" + (files.length !== 1 ? "s" : "");
+
+    if (files.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="14">No files found</td></tr>';
+        return;
+    }
+
+    var html = "";
+    for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        var errorText = f.error_message || "";
+        var g = matchGuidance(errorText);
+
+        var statusClass =
+            f.file_status === "metadata_updated" ? "status-ok" :
+            f.file_status === "complete" ? "status-ok" :
+            f.file_status === "encoding_complete" ? "status-ok" :
+            f.file_status === "Failed assessment" ? "status-fail" :
+            f.file_status === "failed" ? "status-fail" :
+            f.file_status === "Error" ? "status-error" :
+            f.file_status && f.file_status.toLowerCase().indexOf("fail") !== -1 ? "status-error" :
+            "status-pending";
+
+        var errorCell = "";
+        if (errorText) {
+            errorCell =
+                '<span class="error-icon" '
+                + 'onmouseenter="showTooltip(event, \'' + escAttr(errorText) + '\', \'' + escAttr(g.text || "") + '\', \'' + escAttr(g.link || "") + '\')" '
+                + 'onmouseleave="hideTooltip()">'
+                + '&#9888; ' + esc(errorText.substring(0, 60))
+                + '</span>';
+        }
+
+        html +=
+            '<tr>' +
+            '<td class="filename" title="' + esc(f.file_name) + '">' + esc(f.file_name) + '</td>' +
+            '<td><span class="status ' + statusClass + '">' + esc(f.file_status) + '</span></td>' +
+            '<td class="error-cell">' + errorCell + '</td>' +
+            '<td>' + esc(f.storage) + '</td>' +
+            '<td class="num">' + esc(f.file_size_gb) + '</td>' +
+            '<td>' + esc(f.mime_type) + '</td>' +
+            '<td class="num">' + esc(f.height) + '</td>' +
+            '<td class="num">' + esc(f.width) + '</td>' +
+            '<td class="mono">' + esc(f.checksum_md5_short) + '</td>' +
+            '<td>' + esc(f.file_fmt) + '</td>' +
+            '<td>' + esc(f.video_codec) + '</td>' +
+            '<td>' + esc(f.audio_codec) + '</td>' +
+            '<td>' + esc(f.framerate) + '</td>' +
+            '<td>' + esc(f.updated_at) + '</td>' +
+            '</tr>';
+    }
+    tbody.innerHTML = html;
+}
+
+function esc(v) {
+    if (v == null) return "";
+    return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function escAttr(v) {
+    return esc(v).replace(/\\/g, "\\\\");
+}
+
+function showTooltip(ev, errorText, guidanceText, linkUrl) {
+    var el = document.getElementById("tooltip");
+    if (!el) {
+        el = document.createElement("div");
+        el.id = "tooltip";
+        el.className = "tooltip";
+        document.body.appendChild(el);
+    }
+    var html = '<div class="tooltip-inner">';
+    html += '<div class="tooltip-header">Error Details</div>';
+    html += '<div class="tooltip-body">' + errorText + '</div>';
+    if (guidanceText) {
+        html += '<div class="tooltip-guidance">' + guidanceText + '</div>';
+    }
+    if (linkUrl) {
+        html += '<a href="' + linkUrl + '" target="_blank" rel="noopener" class="tooltip-link">More info &rarr;</a>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+    el.style.display = "block";
+
+    var rect = ev.target.getBoundingClientRect();
+    var top = rect.bottom + window.scrollY + 6;
+    var left = rect.left + window.scrollX;
+    if (left + 380 > window.innerWidth) left = window.innerWidth - 390;
+    if (top + 200 > window.innerHeight + window.scrollY) top = rect.top + window.scrollY - 210;
+    el.style.top = top + "px";
+    el.style.left = left + "px";
+}
+
+function hideTooltip() {
+    var el = document.getElementById("tooltip");
+    if (el) el.style.display = "none";
+}
+
+async function loadStats() {
+    try {
+        var resp = await fetch("/klc/api/stats");
+        var stats = await resp.json();
+        var bar = document.getElementById("stats");
+        bar.innerHTML = stats.map(function(s) {
+            return '<span class="stat"><b>' + s.count + '</b> ' + esc(s.status) + '</span>';
+        }).join(" &middot; ");
+    } catch (e) {}
+}
+
+document.getElementById("searchInput").addEventListener("input", function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(loadFiles, 350);
+});
+document.getElementById("storageFilter").addEventListener("change", loadFiles);
+document.getElementById("errorFilter").addEventListener("change", loadFiles);
+
+loadGuidance();
+loadFiles();
+loadStats();
+setInterval(loadStats, 60000);
+</script>
+
+</body>
+</html>
