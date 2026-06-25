@@ -225,7 +225,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         cid_toc = time.perf_counter()
         cid_update_time = round(cid_toc - cid_tic, 3)
     else:
-        context.log.warning(f"Failed to push metadata to CID media record {media_priref} for {file_name}\n{payload}")
+        context.log.warning(f"Failed to push metadata to header tags in rec {media_priref}:\n{payload}")
         cid_update_time = 0
 
     mime_type = (mime_type or "").lower()
@@ -295,7 +295,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
 
     if not success:
         context.log.warning(
-            f"Failed to push metadata to CID media record {media_priref} for {file_name}\n{response}"
+            f"Failed to push metadata field data rec {media_priref}:\n{response}"
         )
         _set_error_and_log(
             context, db, file_id, file_name, tic,
