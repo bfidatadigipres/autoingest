@@ -80,7 +80,7 @@ def throughput_line(throughput: list[dict], period: str = "hour") -> go.Figure:
     ))
     fig.add_trace(go.Scatter(
         x=df[time_col],
-        y=df["bytes_processed"] / 1e9,
+        y=df["bytes_processed"].apply(float) / 1e9,
         name="GB processed",
         yaxis="y2",
         line=dict(color="#ff6b6b", width=2),
