@@ -109,6 +109,7 @@ def index():
     return render_template(
         "klc.html",
         help_url=current_app.config.get("KLC_HELP_URL", ""),
+        service_desk_url=current_app.config.get("SERVICE_DESK_URL", ""),
         storage_options=STORAGE_OPTIONS,
     )
 

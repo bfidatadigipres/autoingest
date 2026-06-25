@@ -8,16 +8,18 @@
 </head>
 <body>
 
-<div class="header">
-    <h1>BFI National Archive — File Progress Viewer</h1>
-    <div class="button-bar">
-        <button onclick="location.reload()" class="btn" title="Reload page">Refresh</button>
-        {% if help_url %}
-        <a href="{{ help_url }}" target="_blank" rel="noopener" class="btn">Help</a>
+<div class="brand-bar">
+    <img src="/static/logo.png" alt="BFI" class="brand-logo">
+    <span class="brand-title">BFI National Archive — Autoingest file progress viewer</span>
+    <div class="brand-actions">
+        <button onclick="location.reload()" class="btn-refresh">Refresh</button>
+        {% if service_desk_url %}
+        <a href="{{ service_desk_url }}" target="_blank" rel="noopener" class="btn-servicedesk">Service Desk</a>
         {% endif %}
     </div>
-    <div id="stats" class="stats-bar">Loading&hellip;</div>
 </div>
+
+<div id="stats" class="stats-bar">Loading&hellip;</div>
 
 <div class="filter-bar">
     <label class="filter-label">
