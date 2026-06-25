@@ -2,5 +2,5 @@ from autoingest.app import create_app
 import os
 
 app = create_app()
-port = int(os.environ.get("VIEWER_PORT", "5000"))
+port = int(os.environ.get("VIEWER_PORT", "5050"))
 app.run(host="0.0.0.0", port=port)

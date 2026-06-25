@@ -16,9 +16,13 @@ def create_app():
 
     app.config["CONFLUENCE_URL"] = os.environ.get("CONFLUENCE_URL", "")
     app.config["SERVICE_DESK_URL"] = os.environ.get("SERVICE_DESK_URL", "")
+    app.config["KLC_HELP_URL"] = os.environ.get("KLC_HELP_URL", "")
 
     from autoingest.app.routes import bp
     app.register_blueprint(bp)
+
+    from autoingest.app.klc.routes import klc_bp
+    app.register_blueprint(klc_bp, url_prefix="/klc")
 
     return app
 

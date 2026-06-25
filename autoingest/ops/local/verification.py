@@ -215,12 +215,12 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 context.log.info(log)
                 results["error_message"] = "Reingest requested after failed PUT attempt"
                 results["do_ingest"] = True
-                results["validate"] = False
+                results["validated"] = False
             else:
                 context.log.warning(f"Move error for {file_info['file_name']}:\n{err}")
                 results["error_message"] = "Reingest requested - manual move of file to ingest path needed"
                 results["do_ingest"] = True
-                results["validate"] = False
+                results["validated"] = False
             _record_verify_event(context, db, file, duration_sec, "reingest", results)
             _set_validation_status(db, file_info[0], "No Status")
             return Output(results, metadata={"duration_sec": duration_sec, "file_name": file, "preview": f"Reingest: {file}"})
@@ -228,7 +228,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.warning(f"Ingest verification failed: {errors[0]}")
         results["error_message"] = errors[0]
         results["do_ingest"] = False
-        results["validate"] = False
+        results["validated"] = False
         duration_sec = round(time.perf_counter() - tic, 3)
         _record_verify_event(context, db, file, duration_sec, "failure", results)
         _set_validation_status(db, file_info[0], "Failed validation")
@@ -238,7 +238,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.info("CID API is not responsive for media record creation")
         results["error_message"] = "CID API unreachable — will retry verification"
         results["do_ingest"] = False
-        results["validate"] = False
+        results["validated"] = False
         duration_sec = round(time.perf_counter() - tic, 3)
         _record_verify_event(context, db, file, duration_sec, "failure", results)
         _set_validation_status(db, file_info[0], "File cleared for ingest")

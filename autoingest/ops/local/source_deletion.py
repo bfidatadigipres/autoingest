@@ -39,7 +39,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
     checksum_date = row[8] or ""
 
     root = Path(row[1]).parent.parent.parent.parent
-    source_path = root / "autoingest" / "validate" / bp_job_id / file_name
+    source_path = root / "autoingest" / "validation" / bp_job_id / file_name
 
     media_data = []
     if proxy_video_path:

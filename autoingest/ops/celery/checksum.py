@@ -48,7 +48,7 @@ def generate_checksum(context: OpExecutionContext) -> Output:
     xxhash_val = utils.create_xxhash_65536(file_path)
     xxh_toc = time.perf_counter()
 
-    checksum_date = str(datetime.now())[:19]
+    checksum_date = str(datetime.now())[:10]
     md5_time = round(md5_toc - md5_tic, 3)
     xxh_time = round(xxh_toc - xxh_tic, 3)
 
