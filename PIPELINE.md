@@ -88,10 +88,30 @@ autoingest/
 │   │   ├── proxy_utils.py        FFmpeg filter chains, audio detection, JPEG/GM operations
 │   │   └── celery_client.py      Celery executor config
 │   │
-│   └── app/                      Flask viewer (file catalogue dashboard)
-│       ├── __init__.py           App factory
-│       ├── __main__.py           Entry point (python -m autoingest.app)
-│       └── routes.py             /api/files, /api/stats, /api/refresh, /api/delete
+│   ├── app/                      Flask apps (viewer + KLC dashboard)
+│   │   ├── __init__.py           App factory — registers both Blueprints
+│   │   ├── __main__.py           Entry point (python -m autoingest.app, port 5050)
+│   │   ├── routes.py             Existing viewer — /api/files, /api/stats, /api/refresh, /api/delete
+│   │   ├── static/
+│   │   │   ├── style.css         Existing viewer styles
+│   │   │   └── klc.css           KLC viewer — dark theme, tooltips, filter bar
+│   │   ├── templates/
+│   │   │   └── index.html        Existing viewer template
+│   │   └── klc/                  KLC File Progress Viewer (read-only, port 5050)
+│   │       ├── __init__.py       Blueprint factory
+│   │       ├── routes.py         /klc, /api/klc/files, /api/klc/stats, /api/klc/guidance
+│   │       ├── templates/
+│   │       │   └── klc.html      14-column table, search, filters, error tooltips
+│   │       └── static/
+│   │           └── klc.css       (in main static/ folder)
+│   │
+│   └── dashboard/                Streamlit Pipeline Monitor (port 8501)
+│       ├── __init__.py
+│       ├── config.py             DB connection, refresh interval env vars
+│       ├── queries.py            16 SQL query functions for all tabs
+│       ├── charts.py             7 Plotly chart builders
+│       ├── file_view.py          File Lookup tab — search, runs, timings, raw events
+│       └── app.py                Entry point — 5-tab layout, sidebar summaries
 │
 └── tests/                        pytest test suite
     ├── conftest.py
@@ -181,32 +201,47 @@ autoingest/
  │                                     ▼                                       │
  │        ┌──────────────────────────────────────────────────────────┐         │
  │        │                 encoding_celery_job                      │  [CEL—  │
- │        │                                                          │  ERY]   │
- │        │  encode_proxy_mp4 ───────────────────────────────────────│         │
- │        │    · Claim: verified → encoding                          │         │
- │        │    · Navigate to /validate/<bp_job_id>/ source file      │         │
- │        │    · MediaInfo probes (height, width, DAR, PAR, audio)   │         │
- │        │    · FFmpeg H.264 proxy → /access_renditions/<YYYYMM>/   │         │
- │        │    · JPEG extraction from proxy                          │         │
- │        │    · Mediaconch policy check                             │         │
- │        │    · Sets encode_time_sec, ffmpeg_command                │         │
- │        │    · Success → encoded                                   │         │
- │        │         │                                                │         │
- │        │         ▼   [file_info: proxy_video_path, mime_type, ...]│         │
- │        │                                                          │         │
- │        │  generate_images ────────────────────────────────────────│         │
- │        │    · Guard: skip if status != encoded                    │         │
- │        │    · Claim: encoded → generating_images                  │         │
- │        │    · GM largeimage + thumbnail from JPEG                 │         │
- │        │    · Strip .jpg extension (HLS NGINX requirement)        │         │
- │        │    · Rename proxy: strip .mp4 extension                  │         │
- │        │    · Sets image_time_sec                                 │         │
- │        │    · Success → encoding_complete                         │         │
- │        │                                                          │         │
- │        │              On failure at either step:                  │         │
- │        │              • Rollback status → verified                │         │
- │        │              • Clean up partial proxy/JPEG/images        │         │
- │        └──────────────────────────────────────────────────────────┘         │
+│        │                                                          │  ERY]   │
+│        │  encode_proxy_mp4 ───────────────────────────────────────│         │
+│        │    · Guard: skip if status != verified                   │         │
+│        │    · Guard: skip if already encoding (stale tasks)       │         │
+│        │    · Claim: verified → encoding                          │         │
+│        │    · Navigate to /validate/<bp_job_id>/ source file      │         │
+│        │    · SKIP: non-video → encoding_complete                 │         │
+│        │    · SKIP: non-BFI → encoding_complete                   │         │
+│        │    · MediaInfo probes (height, width, DAR, PAR, audio)   │         │
+│        │    · FFmpeg H.264 proxy → /access_renditions/<YYYYMM>/   │         │
+│        │    · JPEG extraction from proxy                          │         │
+│        │    · Mediaconch policy check                             │         │
+│        │    · Sets encode_time_sec, ffmpeg_command                │         │
+│        │    · Success → encoded                                   │         │
+│        │         │                                                │         │
+│        │         ▼   [file_info: proxy_video_path, mime_type, ...]│         │
+│        │                                                          │         │
+│        │  generate_images ────────────────────────────────────────│         │
+│        │    · Guard: skip if status != encoded                    │         │
+│        │    · Guard: skip if already generating_images            │         │
+│        │    · Claim: encoded → generating_images                  │         │
+│        │    · GM largeimage + thumbnail from JPEG                 │         │
+│        │    · Strip .jpg extension (HLS NGINX requirement)        │         │
+│        │    · Rename proxy: strip .mp4 extension                  │         │
+│        │    · Sets image_time_sec                                 │         │
+│        │    · Success → encoding_complete                         │         │
+│        │                                                          │         │
+│        │              HELPERS (encode_proxy_mp4):                 │         │
+│        │              · _set_encoding_status(db, file_id)         │         │
+│        │              · _rollback_encoding_status(db, file_id)    │         │
+│        │              · _cleanup_partial_files(paths, ctx)        │         │
+│        │                                                          │         │
+│        │              HELPERS (generate_images):                  │         │
+│        │              · _set_images_status(db, file_id)           │         │
+│        │              · _rollback_images_status(db, file_id)      │         │
+│        │              · _cleanup_partial_images(paths, ctx)       │         │
+│        │                                                          │         │
+│        │              On failure at either step:                  │         │
+│        │              • Rollback status → verified                │         │
+│        │              • Clean up partial proxy/JPEG/images        │         │
+│        └──────────────────────────────────────────────────────────┘         │
  │                                     │                                       │
  │                            cleanup_chain_sensor                             │
  │                            (watches: encoding_complete)                     │
@@ -220,9 +255,10 @@ autoingest/
  │                  │      (access_rendition.mp4,         │                    │
  │                  │       access_rendition.largeimage,  │                    │
  │                  │       access_rendition.thumbnail)   │                    │
- │                  │    · Delete source from             │                    │
- │                  │      /validate/<bp_job_id>/         │                    │
- │                  │    · Sets proxy_created = TRUE      │                    │
+│                  │    · Delete source from             │                    │
+│                  │      /validate/<bp_job_id>/         │                    │
+│                  │    · Remove empty bp_job_id folder  │                    │
+│                  │    · Sets proxy_created = TRUE      │                    │
  │                  │    · Success → complete             │                    │
  │                  └─────────────────────────────────────┘                    │
  │                                     │                                       │
@@ -285,6 +321,8 @@ autoingest/
 | `image_time_sec` | `generate_images` | GM JPEG generation time |
 | `verify_time_sec` | `verify_tape_copy` | Full verification including BP checks + CID create |
 | `total_ingest_time_sec` | `update_cid_metadata` | `EXTRACT(EPOCH FROM (NOW() - created_at))` — cumulative since file record creation |
+| `ingest_month` | `verify_tape_copy` | `datetime.now().strftime("%Y%m")` — used by encode_proxy_mp4 for proxy output directory naming |
+| `ffmpeg_command` | `encode_proxy_mp4` | Complete FFmpeg CLI string, persisted to DB for debugging |
 
 
 ## CID Updates (per file)
