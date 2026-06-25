@@ -24,7 +24,7 @@ autoingest/                                             Top level folder
 │   └── netflix/                                        DMS requirement only
 │       └── blobbed/                                    Unlikely to be needed
 │
-└── validate/                                           Automation validation / transcode / deletion path
+└── validation/                                         Automation validation / transcode / deletion path
     └── 8571113e-d23a-4f59-9fd4-91ea60e47ace/           PUT batches completed (grouped to 1TB or single > 1TB)
 ```
 
