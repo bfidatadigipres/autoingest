@@ -19,8 +19,6 @@
     </div>
 </div>
 
-<div id="stats" class="stats-bar">Loading&hellip;</div>
-
 <div class="filter-bar">
     <label class="filter-label">
         Search
@@ -237,17 +235,6 @@ function hideTooltip() {
     if (el) el.style.display = "none";
 }
 
-async function loadStats() {
-    try {
-        var resp = await fetch("/klc/api/stats");
-        var stats = await resp.json();
-        var bar = document.getElementById("stats");
-        bar.innerHTML = stats.map(function(s) {
-            return '<span class="stat"><b>' + s.count + '</b> ' + esc(s.status) + '</span>';
-        }).join(" &middot; ");
-    } catch (e) {}
-}
-
 document.getElementById("searchInput").addEventListener("input", function() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(loadFiles, 350);
@@ -257,8 +244,6 @@ document.getElementById("errorFilter").addEventListener("change", loadFiles);
 
 loadGuidance();
 loadFiles();
-loadStats();
-setInterval(loadStats, 60000);
 </script>
 
 </body>
