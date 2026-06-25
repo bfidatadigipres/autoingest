@@ -213,7 +213,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
     for key, value in db_metadata.items():
         if len(value) > 0:
             try:
-                text = f'<Header_tags><header_tags.parser>{key}</header_tags.parser><header_tags><![CDATA["{str(value)}"]]></header_tags></Header_tags>'
+                text = f'<Header_tags><header_tags.parser>{key}</header_tags.parser><header_tags><![CDATA[{str(value)}]]></header_tags></Header_tags>'
                 payload_data += text
             except Exception as err:
                 print(err)
