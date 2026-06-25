@@ -213,7 +213,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
     for key, value in db_metadata.items():
         if len(value) > 0:
             try:
-                text = f'<Header_tags><header_tags.parser>{key}</header_tags.parser><header_tags><![CDATA["{str(value)}"]]></header_tags></Header_tags>'
+                text = f'<Header_tags><header_tags.parser>{key}</header_tags.parser><header_tags><![CDATA[{str(value)}]]></header_tags></Header_tags>'
                 payload_data += text
             except Exception as err:
                 print(err)
@@ -225,7 +225,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         cid_toc = time.perf_counter()
         cid_update_time = round(cid_toc - cid_tic, 3)
     else:
-        context.log.warning(f"Failed to push metadata to CID media record {media_priref} for {file_name}\n{payload}")
+        context.log.warning(f"Failed to push metadata to header tags in rec {media_priref}:\n{payload}")
         cid_update_time = 0
 
     mime_type = (mime_type or "").lower()
@@ -295,11 +295,11 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
 
     if not success:
         context.log.warning(
-            f"Failed to push metadata to CID media record {media_priref} for {file_name}\n{response}"
+            f"Failed to push metadata field data rec {media_priref}:\n{response}"
         )
         _set_error_and_log(
             context, db, file_id, file_name, tic,
-            error=f"CID POST failed for {payload_source} metadata",
+            error=f"CID POST failed for {payload_source} metadata field entry",
             stage="post_failure",
             extra={
                 "media_priref": media_priref,
@@ -575,11 +575,11 @@ def write_payload(payload: str, database: str) -> tuple[bool, Any]:
 
     if record is None:
         return False, record
+    if isinstance(record, dict) and "@attributes" in record:
+        return True, record
     if isinstance(record, str) and "'error': {'message':" in record:
         return False, record
-    if isinstance(record, dict) and "error" in str(record).lower():
-        return False, record
-    return True, record
+    return False, record
 
 
 def _set_error_and_log(
