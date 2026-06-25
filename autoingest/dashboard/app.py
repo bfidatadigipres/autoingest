@@ -34,7 +34,7 @@ with tabs[0]:
     c1.metric("Files today", today[0] if today else 0)
     c2.metric("Completed", today[1] if today else 0)
     c3.metric("Errored", today[2] if today else 0)
-    c4.metric("GB processed", f"{today[3] / 1e9:.1f}" if today and today[3] else "0")
+    c4.metric("GB processed", f"{float(today[3]) / 1e9:.1f}" if today and today[3] else "0")
     c5.metric("Avg encode", f"{today[4] / 60:.1f} min" if today and today[4] else "—")
     c6.metric("Avg total", f"{today[5] / 60:.1f} min" if today and today[5] else "—")
 
@@ -86,7 +86,7 @@ with tabs[1]:
     if encode_data:
         df_enc = pd.DataFrame(encode_data)
         df_enc["size_gb"] = df_enc["file_size"].apply(
-            lambda s: f"{int(s) / 1e9:.2f}" if s else ""
+            lambda s: f"{float(s) / 1e9:.2f}" if s else ""
         )
         df_enc["encode_min"] = df_enc["encode_time_sec"].apply(
             lambda t: f"{float(t) / 60:.1f}" if t else ""
