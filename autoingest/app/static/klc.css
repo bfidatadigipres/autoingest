@@ -5,8 +5,8 @@ body {
     font-size: 13px;
     margin: 0;
     padding: 16px;
-    background: #2a2a36;
-    color: #1a1a2e;
+    background: #444;
+    color: #f0f0f0;
 }
 
 .brand-bar {
@@ -14,7 +14,7 @@ body {
     align-items: center;
     gap: 16px;
     padding: 10px 20px;
-    background: #3d3d50;
+    background: #666;
     border-radius: 6px;
     margin-bottom: 12px;
 }
@@ -51,8 +51,8 @@ body {
 
 .btn-servicedesk {
     padding: 6px 14px;
-    background: #5a5a70;
-    border: 1px solid #4a4a60;
+    background: #888;
+    border: 1px solid #777;
     border-radius: 4px;
     font-size: 12px;
     font-weight: 600;
@@ -60,32 +60,35 @@ body {
     text-decoration: none;
     color: #fff;
 }
-.btn-servicedesk:hover { background: #6a6a80; }
+.btn-servicedesk:hover { background: #999; }
 
 .stats-bar {
     width: 100%;
     font-size: 12px;
-    color: #aaa;
+    color: #ccc;
     padding: 6px 0;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid #666;
     display: flex;
     flex-wrap: wrap;
     gap: 4px 16px;
     margin-bottom: 10px;
 }
 
+.stat b { color: #f0f0f0; }
+
 .btn {
     display: inline-block;
     padding: 6px 14px;
-    background: #e0e4ea;
-    border: 1px solid #c0c5ce;
+    background: #888;
+    border: 1px solid #777;
     border-radius: 4px;
     font-size: 12px;
     cursor: pointer;
     text-decoration: none;
-    color: #1a1a2e;
+    color: #fff;
     font-weight: 500;
 }
+.btn:hover { background: #999; }
 
 .stat { white-space: nowrap; }
 .stat b { color: #1a1a2e; }
@@ -101,7 +104,7 @@ body {
 .filter-label {
     font-size: 12px;
     font-weight: 600;
-    color: #444;
+    color: #f0f0f0;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -122,7 +125,7 @@ body {
 
 .result-count {
     font-size: 12px;
-    color: #888;
+    color: #ccc;
     margin-left: auto;
 }
 
@@ -255,4 +258,4 @@ tbody tr:hover { background: #f0f4ff; }
 
 .btn:hover { background: #d0d4de; }
 
-.footer { font-size: 11px; color: #888; margin-top: 12px; text-align: right; }
+.footer { font-size: 11px; color: #aaa; margin-top: 12px; text-align: right; }
