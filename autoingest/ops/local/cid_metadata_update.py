@@ -299,7 +299,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         )
         _set_error_and_log(
             context, db, file_id, file_name, tic,
-            error=f"CID POST failed for {payload_source} metadata",
+            error=f"CID POST failed for {payload_source} metadata field entry",
             stage="post_failure",
             extra={
                 "media_priref": media_priref,
@@ -575,11 +575,11 @@ def write_payload(payload: str, database: str) -> tuple[bool, Any]:
 
     if record is None:
         return False, record
+    if isinstance(record, dict) and "@attributes" in record:
+        return True, record
     if isinstance(record, str) and "'error': {'message':" in record:
         return False, record
-    if isinstance(record, dict) and "error" in str(record).lower():
-        return False, record
-    return True, record
+    return False, record
 
 
 def _set_error_and_log(
