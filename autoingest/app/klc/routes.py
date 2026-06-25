@@ -170,11 +170,7 @@ def api_files():
             if r.get("file_size")
             else ""
         )
-        r["checksum_md5_short"] = (
-            r["checksum_md5"][:12]
-            if r.get("checksum_md5")
-            else ""
-        )
+        r["checksum_md5_short"] = r.get("checksum_md5") or ""
         r["height"] = str(r.get("height") or "")
         r["width"] = str(r.get("width") or "")
         if r.get("updated_at"):
