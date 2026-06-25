@@ -38,8 +38,7 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
         mt_toc = time.perf_counter()
         mdata_times[mtype] = round(mt_toc - mt_tic, 3)
         if "json" in mdata:
-            metadata_str = json.dumps(mdata)
-            file_info[mtype] = metadata_str
+            file_info[mtype] = mdata
         else:
             file_info[mtype] = mdata
 
@@ -93,7 +92,7 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
         if general_track:
             try:
                 for k, v in general_track.items():
-                    for key, val in mdata_general.values():
+                    for key, val in mdata_general.items():
                         file_info[key] = ""
                         if val == k:
                             file_info[key] = v
