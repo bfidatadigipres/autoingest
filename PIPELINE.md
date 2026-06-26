@@ -201,47 +201,47 @@ autoingest/
  │                                     ▼                                       │
  │        ┌──────────────────────────────────────────────────────────┐         │
  │        │                 encoding_celery_job                      │  [CEL—  │
-│        │                                                          │  ERY]   │
-│        │  encode_proxy_mp4 ───────────────────────────────────────│         │
-│        │    · Guard: skip if status != verified                   │         │
-│        │    · Guard: skip if already encoding (stale tasks)       │         │
-│        │    · Claim: verified → encoding                          │         │
-│        │    · Navigate to /validate/<bp_job_id>/ source file      │         │
-│        │    · SKIP: non-video → encoding_complete                 │         │
-│        │    · SKIP: non-BFI → encoding_complete                   │         │
-│        │    · MediaInfo probes (height, width, DAR, PAR, audio)   │         │
-│        │    · FFmpeg H.264 proxy → /access_renditions/<YYYYMM>/   │         │
-│        │    · JPEG extraction from proxy                          │         │
-│        │    · Mediaconch policy check                             │         │
-│        │    · Sets encode_time_sec, ffmpeg_command                │         │
-│        │    · Success → encoded                                   │         │
-│        │         │                                                │         │
-│        │         ▼   [file_info: proxy_video_path, mime_type, ...]│         │
-│        │                                                          │         │
-│        │  generate_images ────────────────────────────────────────│         │
-│        │    · Guard: skip if status != encoded                    │         │
-│        │    · Guard: skip if already generating_images            │         │
-│        │    · Claim: encoded → generating_images                  │         │
-│        │    · GM largeimage + thumbnail from JPEG                 │         │
-│        │    · Strip .jpg extension (HLS NGINX requirement)        │         │
-│        │    · Rename proxy: strip .mp4 extension                  │         │
-│        │    · Sets image_time_sec                                 │         │
-│        │    · Success → encoding_complete                         │         │
-│        │                                                          │         │
-│        │              HELPERS (encode_proxy_mp4):                 │         │
-│        │              · _set_encoding_status(db, file_id)         │         │
-│        │              · _rollback_encoding_status(db, file_id)    │         │
-│        │              · _cleanup_partial_files(paths, ctx)        │         │
-│        │                                                          │         │
-│        │              HELPERS (generate_images):                  │         │
-│        │              · _set_images_status(db, file_id)           │         │
-│        │              · _rollback_images_status(db, file_id)      │         │
-│        │              · _cleanup_partial_images(paths, ctx)       │         │
-│        │                                                          │         │
-│        │              On failure at either step:                  │         │
-│        │              • Rollback status → verified                │         │
-│        │              • Clean up partial proxy/JPEG/images        │         │
-│        └──────────────────────────────────────────────────────────┘         │
+ │        │                                                          │  ERY]   │
+ │        │  encode_proxy_mp4 ───────────────────────────────────────│         │
+ │        │    · Guard: skip if status != verified                   │         │
+ │        │    · Guard: skip if already encoding (stale tasks)       │         │
+ │        │    · Claim: verified → encoding                          │         │
+ │        │    · Navigate to /validate/<bp_job_id>/ source file      │         │
+ │        │    · SKIP: non-video → encoding_complete                 │         │
+ │        │    · SKIP: non-BFI → encoding_complete                   │         │
+ │        │    · MediaInfo probes (height, width, DAR, PAR, audio)   │         │
+ │        │    · FFmpeg H.264 proxy → /access_renditions/<YYYYMM>/   │         │
+ │        │    · JPEG extraction from proxy                          │         │
+ │        │    · Mediaconch policy check                             │         │
+ │        │    · Sets encode_time_sec, ffmpeg_command                │         │
+ │        │    · Success → encoded                                   │         │
+ │        │         │                                                │         │
+ │        │         ▼   [file_info: proxy_video_path, mime_type, ...]│         │
+ │        │                                                          │         │
+ │        │  generate_images ────────────────────────────────────────│         │
+ │        │    · Guard: skip if status != encoded                    │         │
+ │        │    · Guard: skip if already generating_images            │         │
+ │        │    · Claim: encoded → generating_images                  │         │
+ │        │    · GM largeimage + thumbnail from JPEG                 │         │
+ │        │    · Strip .jpg extension (HLS NGINX requirement)        │         │
+ │        │    · Rename proxy: strip .mp4 extension                  │         │
+ │        │    · Sets image_time_sec                                 │         │
+ │        │    · Success → encoding_complete                         │         │
+ │        │                                                          │         │
+ │        │              HELPERS (encode_proxy_mp4):                 │         │
+ │        │              · _set_encoding_status(db, file_id)         │         │
+ │        │              · _rollback_encoding_status(db, file_id)    │         │
+ │        │              · _cleanup_partial_files(paths, ctx)        │         │
+ │        │                                                          │         │
+ │        │              HELPERS (generate_images):                  │         │
+ │        │              · _set_images_status(db, file_id)           │         │
+ │        │              · _rollback_images_status(db, file_id)      │         │
+ │        │              · _cleanup_partial_images(paths, ctx)       │         │
+ │        │                                                          │         │
+ │        │              On failure at either step:                  │         │
+ │        │              • Rollback status → verified                │         │
+ │        │              • Clean up partial proxy/JPEG/images        │         │
+ │        └──────────────────────────────────────────────────────────┘         │
  │                                     │                                       │
  │                            cleanup_chain_sensor                             │
  │                            (watches: encoding_complete)                     │
@@ -255,10 +255,10 @@ autoingest/
  │                  │      (access_rendition.mp4,         │                    │
  │                  │       access_rendition.largeimage,  │                    │
  │                  │       access_rendition.thumbnail)   │                    │
-│                  │    · Delete source from             │                    │
-│                  │      /validate/<bp_job_id>/         │                    │
-│                  │    · Remove empty bp_job_id folder  │                    │
-│                  │    · Sets proxy_created = TRUE      │                    │
+ │                  │    · Delete source from             │                    │
+ │                  │      /validate/<bp_job_id>/         │                    │
+ │                  │    · Remove empty bp_job_id folder  │                    │
+ │                  │    · Sets proxy_created = TRUE      │                    │
  │                  │    · Success → complete             │                    │
  │                  └─────────────────────────────────────┘                    │
  │                                     │                                       │
