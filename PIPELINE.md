@@ -16,13 +16,13 @@ autoingest/                                             Top level folder
 ├── processing/                                         Automation PUT path
 │   ├── bfi/                                            Majority of files placed in here
 │   │   ├── ingest_2026-06-24_13-30-10/                 PUT scripts sort into 1TB batches
-│   │   └── blobbed/                                    Any over 1TB isolated and PUT separately
+│   │   └── blob/                                       Any over 1TB isolated and PUT separately
 │   ├── amazon/                                         DMS requirement only
-│   │   └── blobbed/                                    Unlikely to be needed
+│   │   └── blob/                                       Unlikely to be needed
 │   ├── disney/                                         DMS requirement only
-│   │   └── blobbed/                                    Unlikely to be needed
+│   │   └── blob/                                       Unlikely to be needed
 │   └── netflix/                                        DMS requirement only
-│       └── blobbed/                                    Unlikely to be needed
+│       └── blob/                                       Unlikely to be needed
 │
 └── validation/                                         Automation validation / transcode / deletion path
     └── 8571113e-d23a-4f59-9fd4-91ea60e47ace/           PUT batches completed (grouped to 1TB or single > 1TB)
