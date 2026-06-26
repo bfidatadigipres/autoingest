@@ -11,21 +11,9 @@ Script PUT actions:
 3. The script takes subfolder contents and PUT to Black Pearl using ds3Helper
    client, and using the blobbing command for items over 1TB
 4. Once complete request that a notification JSON is issued to validate PUT success.
-5. Use receieved job_id to rename the PUT subfolder.
+5. Use receieved job_id to create new folder in validate path / move file
+6. Update Autoingest Dagster PostgreSQL table with job id
 
-Script VALIDATE actions:
-1. Download items again from Black Pearl into download check folder (to be identified)
-2. Checksum generated for downloaded file
-3. Checksums compared to ensure that the PUT item is a perfect match
-4. Write output to persistence_queue.csv
-    'Ready for persistence checking'
-5. Create CID media record and link to Item record
-    If this fails, the script updates the folder with 'record_failed_' but continues with the rest
-    duration 'HH:MM:SS' of media asset -> unknown field
-    byte size of media asset -> unknown field
-    Move finished filename to autoingest/transcode folder
-6. Once completed above move JSON to Logs/black_pearl/completed folder.
-   The empty job id folder is deleted if empty, if not prepended 'error_'
 
 2026
 """

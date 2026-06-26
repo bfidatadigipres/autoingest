@@ -15,7 +15,8 @@ Script actions:
    and batch PUTs to Black Pearl using ds3 client.
 4. Once complete iterate returned job ids, and request that a
    notification JSON is issued to validate PUT success.
-5. Use receieved job_id to rename the PUT subfolder.
+5. Use receieved job_id to rename the PUT subfolder and move to validate path.
+6. Update Autoingest Dagster PostgreSQL table with job id.
 
 Notes: Threads hardcoded to 3 per script run / 5000 objects per job
        Updated for new DATA15 paths, rename/move and updated SQL
