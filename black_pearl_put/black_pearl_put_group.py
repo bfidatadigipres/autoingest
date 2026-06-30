@@ -3,12 +3,12 @@
 """
 RETRIEVE PATH NAME SYS.ARGV[1] FROM CRON LAUNCH
 
-Script to manage retrieval of Ingest jobs from Black Pearl ingest
+Script to manage retrieval of Ingest jobs from processing/(bfi/amazon...)
 folders and PUT data to Black Pearl tape library
 
 Script actions:
 1. Identify supply path and collection for bucket selection
-2. Adds items found top level in black_pearl_(netflix_)ingest to dated ingest
+2. Adds items found top level in processing/amazon to dated ingest
    subfolder until the total size of the folder exceeds upload size,
    using while loop to count total subfolder size.
 3. When exceeding upload size, the script takes subfolder contents
@@ -19,7 +19,7 @@ Script actions:
 6. Update Autoingest Dagster PostgreSQL table with job id.
 
 Notes: Threads hardcoded to 3 per script run / 5000 objects per job
-       Updated for new DATA15 paths, rename/move and updated SQL
+       Updated for new DATA15 paths and updated SQL
 
 2026
 """
@@ -436,7 +436,7 @@ def pth_rename(folderpth: str, validate_path: str, job_list: list[str]) -> Optio
     """
     Take folder path and change name for job_list
     """
-    pth = os.path.split(folderpth)[0]
+
     if len(job_list) > 1:
         logger.warning("More than one job id returned for folder: %s", folderpth)
         foldername = "_".join(job_list)

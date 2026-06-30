@@ -6,14 +6,13 @@ RETRIEVE PATH NAME SYS.ARGV[1] FROM CRON LAUNCH
 Script to manage ingest of items over 1TB in size
 
 Script PUT actions:
-1. Identify supply path and collection for blobbing bucket selection
-2. Adds item found second level in black_pearl_(netflix_)ingest/blobbing
-3. The script takes subfolder contents and PUT to Black Pearl using ds3Helper
-   client, and using the blobbing command for items over 1TB
+1. Identify supply path and collection for blobbing bucket selection.
+2. Adds item found second level in ingest/(bfi/amazon...)/blob/.
+3. The script iterates individual files and PUT to Black Pearl using ds3Helper
+   client, and using the blobbing command for items over 1TB.
 4. Once complete request that a notification JSON is issued to validate PUT success.
-5. Use receieved job_id to create new folder in validate path / move file
-6. Update Autoingest Dagster PostgreSQL table with job id
-
+5. Use received job_id to create new folder in validation/job_id path then move file in.
+6. Update Autoingest Dagster PostgreSQL table with job id.
 
 2026
 """
@@ -67,19 +66,19 @@ def main():
     if not utils.check_storage(sys.argv[1]):
         sys.exit("Script run prevented by storage_control.json. Script exiting.")
 
-    if "netflix" in str(sys.argv[1]):
+    if "/netflix/" in str(sys.argv[1]):
         fullpath = os.environ["PLATFORM_INGEST_PTH"]
         autoingest = os.path.join(
             fullpath, f"{os.environ['BP_INGEST_NETFLIX']}/blob/"
         )
         bucket_collection = "netflix"
-    elif "amazon" in str(sys.argv[1]):
+    elif "/amazon/" in str(sys.argv[1]):
         fullpath = os.environ["PLATFORM_INGEST_PTH"]
         autoingest = os.path.join(
             fullpath, f"{os.environ['BP_INGEST_AMAZON']}/blob/"
         )
         bucket_collection = "amazon"
-    elif "disney" in str(sys.argv[1]):
+    elif "/disney/" in str(sys.argv[1]):
         fullpath = os.environ["PLATFORM_INGEST_PTH"]
         autoingest = os.path.join(
             fullpath, f"{os.environ['BP_INGEST_DISNEY']}/blob/"
@@ -90,7 +89,7 @@ def main():
         data_sizes = utils.read_yaml(INGEST_CONFIG)
         hosts = data_sizes["Host_size"]
         for host in hosts:
-            for key, val in host.items():
+            for key, _ in host.items():
                 if str(sys.argv[1]) in key:
                     fullpath = key
         autoingest = os.path.join(fullpath, f"{os.environ['BP_INGEST']}/blob")
@@ -102,7 +101,8 @@ def main():
         LOGGER.warning("Complication with autoingest path: %s", autoingest)
         sys.exit("Supplied argument did not match path")
 
-    # Get current bucket name for bucket_collection type
+    # Get current bucket name for bucket_collection type 
+    # _ bucket_list response will be needed later in script life
     bucket, _ = bp.get_buckets(bucket_collection, True)
 
     # Get initial files as list, exit if none
@@ -127,11 +127,12 @@ def main():
                 continue
             if fname.startswith("."):
                 continue
-            if fname.endswith((".txt", ".md5", ".log", ".mhl", ".ini", ".json")):
+            if fname.endswith((".md5", ".log", ".mhl", ".ini", ".json")):
                 continue
             fpath = os.path.join(autoingest, fname)
 
             # Begin blobbed PUT (bool argument for checksum validation off/on in ds3Helpers)
+            put_job_id = ""
             tic = time.perf_counter()
             LOGGER.info("Beginning PUT of blobbing file %s", fname)
             put_job_id = bp.put_single_file(fpath, fname, bucket, check=True)
@@ -152,7 +153,7 @@ def main():
                     "Job list retrieved for Black Pearl PUT, moving file into new folder: %s",
                     put_job_id,
                 )
-                validate_path = os.path.join(fullpath, os.environ.get("VALIDATION"))
+                validate_path = os.path.join(fullpath, os.environ.get("VALIDATION"), f"{put_job_id}/")
                 try:
                     os.makedirs(validate_path, exist_ok=False)
                     shutil.move(fpath, os.path.join(validate_path, fname))
