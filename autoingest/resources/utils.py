@@ -6,6 +6,7 @@ workflow, across ops.
 
 import os
 import re
+import yaml
 import json
 import shutil
 import xxhash
@@ -18,6 +19,7 @@ import ffmpeg
 import autoingest.resources.adlib as adlib
 
 STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.json")
+CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
 DPI_BUCKETS = os.environ.get("DPI_BUCKET")
 CID_API = os.environ.get("CID_API3")
@@ -107,6 +109,15 @@ def accepted_file_type(ext: str) -> Optional[str]:
     return None
 
 
+def read_yaml(file: str) -> dict:
+    """
+    Safe open yaml and return as dict
+    """
+    with open(file) as config_file:
+        d = yaml.safe_load(config_file)
+        return d
+
+
 def check_storage(filepath: str) -> Union[bool, str]:
     """
     check if storage is avaliable for use
@@ -123,6 +134,24 @@ def check_storage(filepath: str) -> Union[bool, str]:
             return storage_dict[key]
 
     return "Storage not found"
+
+
+def check_control(arg: str) -> bool:
+    """
+    Check control json for downtime requests
+    based on passed argument
+    if not utils.check_control['arg']:
+        sys.exit(message)
+    """
+    if not isinstance(arg, str):
+        arg = str(arg)
+
+    with open(CONTROL_JSON) as control:
+        j: dict[str, str] = json.load(control)
+        if j[arg]:
+            return True
+        else:
+            return False
 
 
 def cid_check(cid_api: Optional[str]) -> Optional[bool]:
@@ -168,6 +197,26 @@ def check_filename(fname: str, screencraft: bool) -> bool:
             return False
 
     return True
+
+
+def get_size(fpath: str) -> Union[bool, int]:
+    """
+    Check the size of given folder path
+    return size in kb
+    """
+    if os.path.isfile(fpath):
+        return os.path.getsize(fpath)
+
+    try:
+        byte_size: int = sum(
+            os.path.getsize(os.path.join(fpath, f))
+            for f in os.listdir(fpath)
+            if os.path.isfile(os.path.join(fpath, f))
+        )
+        return byte_size
+    except OSError as err:
+        print(f"get_size(): Cannot reach folderpath for size check: {fpath}\n{err}")
+        return None
 
 
 def get_metadata(stream: str, arg: str, dpath: str) -> str:

@@ -21,6 +21,7 @@ ALLOWED_FIELDS = {
     "updated_to_cid",
     "ffmpeg_command",
     "ingest_month",
+    "bp_job_id",
 }
 
 
@@ -95,6 +96,20 @@ class WorkflowDatabase:
                     f"UPDATE app.file_catalogue SET {set_clause} WHERE id = %s",
                     values,
                 )
+
+    def update_bp_job_id(
+        self, filename: str, job_id: str, put_type: str = "Group"
+    ) -> bool:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue "
+                    "SET bp_job_id = %s, put_type = %s "
+                    "WHERE file_name = %s "
+                    "  AND (bp_job_id IS NULL OR bp_job_id = '')",
+                    (job_id, put_type, filename),
+                )
+                return cur.rowcount > 0
 
     def get_pending_tape_files(self, max_bytes: int) -> list[tuple[Any, ...]]:
         with self.get_connection() as conn:

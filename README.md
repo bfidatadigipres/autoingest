@@ -120,10 +120,26 @@ pip install -e ".[dev]"
 source .venv/bin/activate
 export CELERY_BROKER_URL=redis://:password@redis-server:6379/0
 export CELERY_RESULT_BACKEND=redis://:password@redis-server:6379/1
-dagster-celery worker start -A dagster_celery.app -q encoding
+dagster-celery worker start -A dagster_celery.app -q checksum,encoding -c 1
 ```
 
-Workers need the same Redis credentials as the control server. If your Redis password contains special characters, URL-encode it first:
+Workers need the same Redis credentials as the control server. Queue mapping:
+
+| Queue | Ops | Concurrency guidance |
+|---|---|---|
+| `checksum` | `generate_checksum` | High — I/O bound, deploy ~20 workers per node |
+| `encoding` | `encode_proxy_mp4`, `generate_images` | Low — CPU-bound (one FFmpeg per worker slot) |
+
+For 80-thread servers running 40 concurrent encodes, per-node examples:
+```bash
+# checksum workers (high throughput)
+dagster-celery worker start -A dagster_celery.app -q checksum -c 20
+
+# encoding workers (1 FFmpeg per slot)
+dagster-celery worker start -A dagster_celery.app -q encoding -c 40
+```
+
+If your Redis password contains special characters, URL-encode it first:
 
 ```bash
 python3 -c "import urllib.parse; print(urllib.parse.quote_plus('password'))"
@@ -133,7 +149,7 @@ Redis must be bound to `0.0.0.0` and firewalls must allow TCP 6379 from both the
 
 ### Pipeline viewer
 
-The project includes a Flask-based file viewer at `autoingest/app/` that shows the `file_catalogue` table with auto-refresh, status badges, and a "Refresh Request" button to re-queue files for ingest.
+The project includes a Flask-based file viewer at `autoingest/app/` that shows the `file_catalogue` table with auto-refresh, status badges, and a "Refresh Request" button to re-queue files for ingest. Also hosts the KLC viewer on the same port under `/klc`.
 
 ```bash
 pip install flask
@@ -142,12 +158,53 @@ export WORKFLOW_PG_HOST=...
 export WORKFLOW_PG_USERNAME=...
 export WORKFLOW_PG_PASSWORD=...
 export WORKFLOW_PG_DB=...
-export CONFLUENCE_URL=https://your-confluence.example.com   # optional
-export SERVICE_DESK_URL=https://your-servicedesk.example.com  # optional
+export CONFLUENCE_URL=https://your-confluence.example.com       # optional
+export SERVICE_DESK_URL=https://your-servicedesk.example.com      # optional
+export KLC_HELP_URL=https://your-confluence.example.com/display   # optional — KLC guidance links
 python -m autoingest.app
 ```
 
-Opens on `http://localhost:5000`. Pages auto-refresh every 30 seconds. The Info and Service Desk buttons are hidden if their URLs are unset.
+Opens on `http://localhost:5050` (and `/klc` for the KLC viewer). Pages auto-refresh every 30 seconds (a 5-minute meta-refresh also applies to `/klc`).
+
+### KLC File Progress Viewer
+
+A read-only Flask Blueprint at `/klc` designed for KLC colleagues to review file progress. Features:
+
+- **14-column table** — File Name, Status, Error, Storage, Size in GB, Media Type, Pixel height/width, MD5 checksum, File/Video/Audio codec, Framerate, Last updated
+- **Search** by file name, status, or error message (debounced 350ms)
+- **Storage filter** — dropdown for qnap_01 through qnap_11 paths (prefix-matched to support subpaths)
+- **Error filter** — show files with errors, without errors, or all
+- **Error tooltips** — hover over ⚠ to see full error text, matched guidance (from a built-in 14-pattern lookup), and a "More info →" link to Confluence
+- **Dark theme** — `#444` page background, `#666` brand bar with BFI logo, white bold title, yellow Refresh button, Service Desk link
+- **No write operations** — read-only viewer, no refresh/delete buttons
+
+Env vars: `SERVICE_DESK_URL` (enables Service Desk button), `KLC_HELP_URL` (base URL for error guidance links).
+
+### Pipeline Dashboard (Streamlit)
+
+A Streamlit-based monitoring dashboard at `autoingest/dashboard/` with 5 tabs:
+
+| Tab | Contents |
+|---|---|
+| Overview | 6 metric cards (files today, completed, errored, GB processed, avg encode, avg total), status distribution bar chart, source pie chart, recent activity table |
+| Performance | Encode time histogram, stage timing bar chart, timing summary table, top-20 slowest encodes |
+| Throughput | Files + GB per hour (7 days), per day (30 days), total ingest latency box plot |
+| Errors | Error distribution bar chart, files-with-errors table (100 most recent) |
+| File Lookup | Search by file name → file details, all pipeline runs with run IDs, per-stage timing bar chart, raw pipeline_events JSON dump |
+
+```bash
+pip install streamlit plotly pandas
+source .venv/bin/activate
+export WORKFLOW_PG_HOST=...
+export WORKFLOW_PG_USERNAME=...
+export WORKFLOW_PG_PASSWORD=...
+export WORKFLOW_PG_DB=...
+export DASHBOARD_REFRESH=60          # optional — auto-refresh seconds (default 60)
+export DASHBOARD_MAX_ROWS=500        # optional — max rows in data tables (default 500)
+streamlit run autoingest/dashboard/app.py --server.port 8501
+```
+
+Opens on `http://localhost:8501`. The File Lookup tab is especially useful for investigating problem files — it collates all run IDs and per-stage timings for any file name into a single view.
 
 For production, run as a systemd service (see the Daemon / Webserver examples above — same pattern, different `ExecStart`).
 
@@ -168,7 +225,7 @@ This project was built for the BFI National Archive's digital preservation pipel
 
 | Dependency | Location in code | What it does | Workaround |
 |---|---|---|---|
-| **Adlib API v3.7** (CID collections management) | `resources/adlib.py` — all functions (`get`, `post`, `retrieve_record`, `create_record_data`, etc.) | Collection catalogue lookups, media record creation, data appends | Replace `adlib.py` with your own catalogue API client. Consumer files: `file_assessment.py` (item priref lookup, file-type matching), `verification.py` (media record creation), `cleanup/source_deletion.py` (media data append), `utils.py` (`fetch_item_priref`, `check_file_has_media_rec`, `get_media_input_date`, `cid_media_append`) |
+| **Adlib API v3.7** (CID collections management) | `resources/adlib.py` — all functions (`get`, `post`, `retrieve_record`, `create_record_data`, etc.) | Collection catalogue lookups, media record creation, data appends | Replace `adlib.py` with your own catalogue API client. Consumer files: `file_assessment.py` (item priref lookup, file-type matching), `verification.py` (media record creation), `source_deletion.py` (media data append), `cid_metadata_update.py` (87-field FIELDS metadata enrichment), `utils.py` (`fetch_item_priref`, `check_file_has_media_rec`, `cid_media_append`) |
 | **Spectra Logic Black Pearl** (ds3 SDK) | `resources/bp_utils.py` — 16 functions backed by `ds3.createClientFromEnv()` | Tape archival, object verification, checksum comparison, deletion | Replace `bp_utils.py` with your own storage backend. Modul-level `CLIENT` and `HELPER` objects initialise on import, so this module must be present (or stubbed) even if unused. Consumer files: `file_assessment.py` (bucket mapping), `verification.py` (tape confirmation/checksum/deletion) |
 
 ### Infrastructure services
@@ -197,7 +254,7 @@ These are called directly via `subprocess`. Python pip packages alone will **not
 | `mediainfo` | `utils.py`, `proxy_utils.py` (metadata extraction) | hardcoded on PATH | Called in ~20 places across the codebase |
 | `mediaconch` | `utils.py` (`get_mediaconch`) | hardcoded on PATH | Optional — only if `MP4_POLICY` is set |
 | `gm` (GraphicsMagick) | `proxy_utils.py` (`make_jpg`) | hardcoded on PATH | Image resizing / thumbnail creation |
-| `exiftool` | `utils.py` (`exif_data`) | hardcoded on PATH | Legacy — used in one code path |
+| `exiftool` | `utils.py` (`exif_data`), `extract_metadata.py` (autoingest pipeline) | Legacy — used for image metadata extraction |
 
 Install on Ubuntu:
 ```bash
@@ -245,21 +302,29 @@ Variables marked **Required** will raise a `KeyError` at import time if missing.
 | `PROXY_OUTPUT_PATH` | No | `/mnt/proxy` | `resources/encoding.py` | Proxy file output directory |
 | `WATCH_FOLDER_PATHS` | No | `""` | `sensors/watch_folder.py` | Comma-separated ingest watch directories |
 | `VALIDATION_FOLDER_PATHS` | No | `""` | `sensors/validation_folder.py` | Comma-separated validation watch directories |
-| `MP4_POLICY` | No | `None` | `ops/encoding/proxy_video.py` | MediaConch XML policy file path |
+| `MP4_POLICY` | No | `None` | `ops/celery/proxy_video.py` | MediaConch XML policy file path |
+| `VIEWER_PORT` | No | `5050` | `app/__main__.py` | Flask viewer + KLC viewer port |
+| `CONFLUENCE_URL` | No | `""` | `app/__init__.py` | Existing viewer Help button URL |
+| `SERVICE_DESK_URL` | No | `""` | `app/__init__.py` | Service Desk button URL (viewer + KLC) |
+| `KLC_HELP_URL` | No | `""` | `app/__init__.py` | KLC error guidance links base URL |
 | `LOG_PATH` | No | `""` | `utils.py`, `verification.py` | Base directory for control JSON and Black Pearl log files |
 | `DPI_BUCKET` | **Yes** (bp_utils) | — | `utils.py`, `bp_utils.py` | Path to Black Pearl bucket-config JSON file |
 | `JSON_END_POINT` | **Yes** (bp_utils) | — | `bp_utils.py` | Black Pearl notification endpoint URL |
-| `CID_API_URL` | **Yes** (indirect) | — | `utils.py` (via `downtime_control.json`) | Adlib REST API base URL — the exact name is set inside `downtime_control.json` |
+| `CID_API3` | **Yes** | — | `verification.py`, `file_assessment.py`, `cid_metadata_update.py`, `utils.py` | Adlib REST API base URL |
+| `CID_API_URL` | **Yes** (indirect) | — | `utils.py` (via `downtime_control.json`) — **deprecated** | Legacy API URL ref; prefer `CID_API3` |
 | `DS3_ENDPOINT` `DS3_ACCESS_KEY` `DS3_SECRET_KEY` | **Yes** (ds3 SDK) | — | `bp_utils.py` (implicit via `ds3.createClientFromEnv()`) | Black Pearl S3 credentials |
+| `DASHBOARD_REFRESH` | No | `60` | `dashboard/config.py` | Streamlit dashboard auto-refresh interval (seconds) |
+| `DASHBOARD_MAX_ROWS` | No | `500` | `dashboard/config.py` | Max rows in dashboard data tables |
 
 ### What to strip or replace when forking
 
 1. **`resources/adlib.py`** — Replace with your own catalogue API module. Provides record lookups, media-record creation, and XML payload building that three ops depend on.
 2. **`resources/bp_utils.py`** — Replace with your own archival backend. Covers bucket mapping, tape confirmation, checksum verification, object deletion. The module-level `CLIENT` init also requires stubbing if the ds3 SDK is absent.
-3. **`resources/utils.py`** — Trim or stub functions that reach out to the above: `fetch_item_priref`, `check_file_has_media_rec`, `get_media_input_date`, `cid_media_append`, `get_current_api`, `get_buckets`, `get_buckets_blob`. The remaining utility functions (filename parsing, checksums, mediainfo wrappers) are broadly reusable.
-4. **`ops/ingest/file_assessment.py`** — Lines referencing `bp.get_buckets()`, `adlib.retrieve_record()`, `adlib.retrieve_field_name()`, `utils.fetch_item_priref()`, `utils.check_file_has_media_rec()`, `bp.check_no_bp_status()` will need porting to your replacement services.
-5. **`ops/archive/verification.py`** — Black Pearl tape verification and CID media-record creation will need to map to your archival + catalog system.
-6. **`ops/cleanup/source_deletion.py`** — The `utils.cid_media_append()` call at the end updates the catalogue record. Replace with your own catalogue update.
+3. **`resources/utils.py`** — Trim or stub functions that reach out to the above: `fetch_item_priref`, `check_file_has_media_rec`, `cid_media_append`, `get_buckets`, `get_buckets_blob`. The remaining utility functions (filename parsing, checksums, mediainfo wrappers, `exif_data`) are broadly reusable.
+4. **`ops/local/file_assessment.py`** — Lines referencing `bp.get_buckets()`, `adlib.retrieve_record()`, `adlib.retrieve_field_name()`, `utils.fetch_item_priref()`, `utils.check_file_has_media_rec()` will need porting to your replacement services.
+5. **`ops/local/verification.py`** — Black Pearl tape verification and CID media-record creation will need to map to your archival + catalog system.
+6. **`ops/local/source_deletion.py`** — The `utils.cid_media_append()` call updates the catalogue record. Replace with your own catalogue update.
+7. **`ops/local/cid_metadata_update.py`** — Builds XML payloads from the FIELDS dictionary (87 fields across container/video/audio/other/text/image) and POSTs to CID. Replace with your own metadata enrichment pipeline. Uses `adlib.post()` and `adlib.create_record_data()`.
 7. **`setup_database.sql`** — The schema is specific to this pipeline's tracking tables (`file_catalogue`, `file_tracking`, etc.). Reuse if you want the same status-tracking model, or replace entirely.
 8. **JSON config files** — `downtime_control.json`, `storage_control.json`, and the `DPI_BUCKET` config file all need to exist at configured paths. Either remove the code paths that read them or provision the files.
 
