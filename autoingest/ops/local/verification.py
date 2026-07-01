@@ -135,7 +135,9 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
     elif file_info[47] == "Blob":
         context.log.info("Blobbed file identified. Downloading for MD5 verification")
-        download_path = os.path.join(root, f"downloads/{file}")
+        download_folder = os.path.join(root, "downloads/")
+        os.makedirs(download_folder, exist_ok=True)
+        download_path = os.path.join(download_folder, file)
         dl_tic = time.perf_counter()
         download_id = bp.download_blobbed_object(file, download_path, file_info[18])
         dl_toc = time.perf_counter()
@@ -163,6 +165,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
         context.log.info(f"Checks complete. Deleting download file: {download_path}")
         os.remove(download_path)
+        os.rmdir(download_folder)
     else:
         context.log.warning("No Black Pearl job ID found in database, exiting.")
         with db.get_connection() as conn:
