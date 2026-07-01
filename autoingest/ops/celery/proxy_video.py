@@ -55,7 +55,7 @@ def encode_proxy_mp4(
         })
 
     root = Path(file_path).parent.parent.parent.parent
-    source_path = root / "autoingest" / "validate" / (bp_job_id or "") / filename
+    source_path = root / "autoingest" / "validation" / (bp_job_id or "") / filename
     if not source_path.is_file():
         raise RuntimeError(
             f"Source file not found at validation path: {source_path}. "
