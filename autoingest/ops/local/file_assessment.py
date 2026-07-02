@@ -92,7 +92,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
     priref = utils.fetch_item_priref(object_number)
     if not priref:
         context.log.info(f"Cannot find a record with object_number: {object_number}")
-        errors.append(f"Cannot find record with <object number> ...<{object_number}>")
+        errors.append(f"Cannot find record with <{object_number}>")
         do_ingest = False
 
     if filesize <= 1099511627776:
@@ -108,8 +108,8 @@ def assess_filename(context: OpExecutionContext) -> Output:
 
     mime_type = check_mime_type(str(file_path))
     if mime_type not in ["application", "audio", "image", "video"]:
-        context.log.info(f"Mime type does not confirm to accepted type: {mime_type}")
-        errors.append(f"MIMEtype '{mime_type}' is not permitted...")
+        context.log.info(f"MIME type does not confirm to accepted type: {mime_type}")
+        errors.append(f"MIMEtype <{mime_type}> is not permitted")
         do_ingest = False
 
     ffprobe_exit = None
@@ -127,13 +127,18 @@ def assess_filename(context: OpExecutionContext) -> Output:
         except Exception as err:
             context.log.warning(f"CID API error during file_type check: {err}")
             file_type_match = False
-            ftype = None
             errors.append(f"CID API unreachable during file_type check")
             do_ingest = False
-        if not file_type_match:
-            context.log.info(f"File exension {filetype} does not match CID Item file_type: {ftype}")
-            errors.append(f"Extension '{filetype}' does not match <{ftype}> in record")
+        if not file_type_match and ftype:
+            context.log.warning(f"Extension {filetype} does not match file type in record")
+            errors.append(f"Extension does not match <file_type> in record")
             do_ingest = False
+        elif not file_type_match and not ftype:
+            context.log.info(f"File exension {filetype} does not match CID Item file_type: {ftype}")
+            errors.append(f"Invalid <file_type> in Collect record")
+            do_ingest = False
+        else:
+            context.log.info(f"File extension {filetype} matches CID record file type {ftype}")
 
     media_check = utils.check_file_has_media_rec(filename)
     if media_check is None:
@@ -145,16 +150,16 @@ def assess_filename(context: OpExecutionContext) -> Output:
         errors.append(f"Filename already has a CID Media record: {filename}")
         do_ingest = False
     context.log.info(f"No CID Media record found for file: {filename}")
-    """ Temporary restriction for test
-    context.log.info(bucket_list)
-    context.log.info(filename)
+
+    # Check Black Pearl
+    context.log.info(bucket_list, filename)
     status = bp.check_no_bp_status(filename, bucket_list)
     context.log.info(status)
     if status is False:
         context.log.info(f"File has already been ingested to Black Pearl: {filename} - Buckets {bucket_list}")
-        errors.append(f"Filename has already been ingested to DPI: {filename}")
+        errors.append(f"Filename has already been ingested to DPI: <{filename}>")
         do_ingest = False
-    """
+
     if not incomplete_scan or part != 1 or whole != 1:
         previous_part = check_for_multipart(filename, part, whole)
         if previous_part is True:

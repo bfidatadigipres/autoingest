@@ -59,19 +59,19 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     autoingest_path = str(fp.parent.parent.parent.parent / Path(path_to_autoingest))
     if not autoingest_path or not os.path.exists(autoingest_path):
         context.log.warning(f"Autoingest path not found:\n{autoingest_path}")
-        _set_validation_status(db, file_info[0], "File cleared for ingest")
+        _set_validation_status(db, file_info[0], "File cleared for ingest", "")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     folder_number = os.path.basename(root)
     bp_job_id = file_info[46]
     print(bp_job_id, folder_number)
     if folder_number.strip() != bp_job_id.strip():
         context.log.error(f"Ingest folder job ID does not match that stored for file: {file_info[46]}")
-        _set_validation_status(db, file_info[0], "File cleared for ingest")
+        _set_validation_status(db, file_info[0], "File cleared for ingest", "")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     json_path = retrieve_json_data(bp_job_id.strip())
     if not json_path:
         context.log.warning(f"Unable to locate file in JSON path:\n{json_path}")
-        _set_validation_status(db, file_info[0], "File cleared for ingest")
+        _set_validation_status(db, file_info[0], "File cleared for ingest", "")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     errors = []
@@ -97,7 +97,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.warning("Problem retrieving Black Pearl TapeList.")
         validation_pass = False
         ingest_retry_needed = True
-        errors.append("Problem retrieving BlackPearl TapeList.")
+        errors.append("No BlackPearl ObjectList returned from BlackPearl API query")
     elif confirmed is False:
         context.log.warning("Assigned to storage domain is FALSE: {file}")
         validation_pass = False
@@ -130,7 +130,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             ingest_retry_needed = True
             errors.append("Filesize does not match BlackPearl object length")
         else:
-            context.log.info("Black Pearl object length matches file size")
+            context.log.info(f"Black Pearl object length {bp_length} matches file size {file_info[20]}")
             results["bp_length"] = bp_length
 
     elif file_info[47] == "Blob":
@@ -193,10 +193,12 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             )
         validation_pass = False
         errors.append(f"Filename already has a CID Media record: '<{file}>'")
-    context.log.info(f"Media record not found for file: <{file}>")
+    else:
+        context.log.info(f"Media record not found for file: <{file}>")
+
     context.log.info(f"Validation pass: {validation_pass} / Deletion needed {deletion_needed} / Ingest retry needed {ingest_retry_needed}")
 
-    if validation_pass is False:
+    if not validation_pass:
         if deletion_needed is True:
             context.log.warning(f"{file} did not ingest cleanly into BlackPearl, so deleting file with version ID {bp_version}")
             delete_confirm = bp.delete_black_pearl_object(file, bp_version, file_info[18])
@@ -225,7 +227,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 results["do_ingest"] = True
                 results["validated"] = False
             _record_verify_event(context, db, file, duration_sec, "reingest", results)
-            _set_validation_status(db, file_info[0], "No Status")
+            _set_validation_status(db, file_info[0], "No Status", results["error_message"])
             return Output(results, metadata={"duration_sec": duration_sec, "file_name": file, "preview": f"Reingest: {file}"})
 
         context.log.warning(f"Ingest verification failed: {errors[0]}")
@@ -234,7 +236,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         results["validated"] = False
         duration_sec = round(time.perf_counter() - tic, 3)
         _record_verify_event(context, db, file, duration_sec, "failure", results)
-        _set_validation_status(db, file_info[0], "Failed validation")
+        _set_validation_status(db, file_info[0], "Failed validation", results["error_message"])
         return Output(results, metadata={"duration_sec": duration_sec, "file_name": file, "preview": f"Verification failed: {file}"})
 
     if not utils.cid_check(CID_API):
@@ -244,7 +246,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         results["validated"] = False
         duration_sec = round(time.perf_counter() - tic, 3)
         _record_verify_event(context, db, file, duration_sec, "failure", results)
-        _set_validation_status(db, file_info[0], "File cleared for ingest")
+        _set_validation_status(db, file_info[0], "File cleared for ingest", results["error_message"])
         return Output(results, metadata={
             "duration_sec": duration_sec,
             "file_name": file,
@@ -260,6 +262,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         media_priref = ""
     cid_toc = time.perf_counter()
     cid_time = round(cid_toc - cid_tic, 3)
+    verify_elapsed = round(time.perf_counter() - tic, 3)
 
     if len(media_priref) > 6:
         context.log.info(f"New media record created for ingested file: {media_priref}")
@@ -267,9 +270,16 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         results["validated"] = True
     else:
         context.log.warning(f"Failed to create media record for ingested file: {file}")
+        results["error_message"] = "No CID Media record created for this file"
+        results["do_ingest"] = False
         results["validated"] = False
-
-    verify_elapsed = round(time.perf_counter() - tic, 3)
+        _record_verify_event(context, db, file, cid_time, "failure", results)
+        _set_validation_status(db, file_info[0], "Failed validation", results["error_message"])
+        return Output(results, metadata={
+            "duration_sec": verify_elapsed,
+            "file_name": file,
+            "preview": f"CID Media record creation failed for {file}",
+        })
 
     with db.get_connection() as conn:
         with conn.cursor() as cur:
@@ -311,12 +321,12 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     })
 
 
-def _set_validation_status(db: Any, file_id: int, status: str) -> None:
+def _set_validation_status(db: Any, file_id: int, status: str, error: str) -> None:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE app.file_catalogue SET file_status = %s, updated_at = NOW() WHERE id = %s",
-                (status, file_id),
+                "UPDATE app.file_catalogue SET file_status = %s, error = %s, updated_at = NOW() WHERE id = %s",
+                (status, error, file_id),
             )
 
 

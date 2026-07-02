@@ -75,6 +75,11 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
         "video_duration": "Duration",
     }
     metadata = file_info.get("mdata_full_json")
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = None
     if not isinstance(metadata, dict):
         context.log.warning("JSON full metadata has not created DICT - no file specific metadata in record")
     else:
@@ -91,9 +96,9 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
 
         if general_track:
             try:
-                for k, v in general_track.items():
-                    for key, val in mdata_general.items():
-                        file_info[key] = ""
+                for key, val in mdata_general.items():
+                    file_info[key] = ""
+                    for k, v in general_track.items():
                         if val == k:
                             file_info[key] = v
                             break
@@ -102,9 +107,9 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
 
         if video_track:
             try:
-                for k, v in video_track.items():
-                    for key, val in mdata_video.items():
-                        file_info[key] = ""
+                for key, val in mdata_video.items():
+                    file_info[key] = ""
+                    for k, v in video_track.items():
                         if val == k:
                             file_info[key] = v
                             break
