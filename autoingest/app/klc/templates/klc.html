@@ -70,6 +70,7 @@
 <script>
 let guidance = {};
 let searchTimeout = null;
+let tooltipLeave = null;
 
 async function loadGuidance() {
     try {
@@ -191,6 +192,7 @@ function escAttr(v) {
 }
 
 function showTooltip(ev, errorText, guidanceText, linkUrl) {
+    clearTimeout(tooltipLeave);
     var el = document.getElementById("tooltip");
     if (!el) {
         el = document.createElement("div");
@@ -210,6 +212,8 @@ function showTooltip(ev, errorText, guidanceText, linkUrl) {
     html += '</div>';
     el.innerHTML = html;
     el.style.display = "block";
+    el.onmouseenter = function() { clearTimeout(tooltipLeave); };
+    el.onmouseleave = hideTooltip;
 
     var rect = ev.target.getBoundingClientRect();
     var top = rect.bottom + window.scrollY + 6;
@@ -221,8 +225,10 @@ function showTooltip(ev, errorText, guidanceText, linkUrl) {
 }
 
 function hideTooltip() {
-    var el = document.getElementById("tooltip");
-    if (el) el.style.display = "none";
+    tooltipLeave = setTimeout(function() {
+        var el = document.getElementById("tooltip");
+        if (el) el.style.display = "none";
+    }, 150);
 }
 
 document.getElementById("searchInput").addEventListener("input", function() {

@@ -186,7 +186,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         )
         _set_error_and_log(
             context, db, file_id, file_name, tic,
-            error="Missing CID media priref",
+            error=f"CID media metadata update failed for file {file_name}",
             stage="no_priref",
             extra={"media_priref": ""},
         )
@@ -199,7 +199,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         context.log.warning("CID API is not responsive for metadata update")
         _set_error_and_log(
             context, db, file_id, file_name, tic,
-            error="CID API unreachable",
+            error=f"CID media metadata update failed for file {file_name}",
             stage="cid_down",
             extra={"media_priref": media_priref},
         )
@@ -278,7 +278,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         )
         _set_error_and_log(
             context, db, file_id, file_name, tic,
-            error=f"Empty metadata payload from {payload_source}",
+            error=f"CID media metadata update failed for file {file_name}",
             stage="empty_payload",
             extra={"media_priref": media_priref, "source": payload_source},
         )
@@ -299,7 +299,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         )
         _set_error_and_log(
             context, db, file_id, file_name, tic,
-            error=f"CID POST failed for {payload_source} metadata field entry",
+            error=f"CID media metadata update failed for file {file_name}",
             stage="post_failure",
             extra={
                 "media_priref": media_priref,
