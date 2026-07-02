@@ -86,7 +86,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
 
     if do_ingest and not utils.cid_check(CID_API):
         context.log.info(f"CID API is not responsive — deferring {filename}")
-        errors.append("CID API unreachable — will retry on next ingest attempt")
+        errors.append("Cannot reach CID database API")
         do_ingest = False
 
     priref = utils.fetch_item_priref(object_number)
@@ -127,11 +127,11 @@ def assess_filename(context: OpExecutionContext) -> Output:
         except Exception as err:
             context.log.warning(f"CID API error during file_type check: {err}")
             file_type_match = False
-            errors.append(f"CID API unreachable during file_type check")
+            errors.append(f"Cannot reach CID database API")
             do_ingest = False
         if not file_type_match and ftype:
             context.log.warning(f"Extension {filetype} does not match file type in record")
-            errors.append(f"Extension does not match <file_type> in record")
+            errors.append(f"Extension does not match <{file_type}> in record")
             do_ingest = False
         elif not file_type_match and not ftype:
             context.log.info(f"File exension {filetype} does not match CID Item file_type: {ftype}")
@@ -143,7 +143,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
     media_check = utils.check_file_has_media_rec(filename)
     if media_check is None:
         context.log.info(f"Media dB could not be reached...")
-        errors.append(f"Media dB could not be reached at this time")
+        errors.append(f"Cannot reach CID database API")
         do_ingest = False
     if media_check is True:
         context.log.info(f"Filename already matched to CID media record!")

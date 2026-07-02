@@ -37,6 +37,10 @@ GUIDANCE = {
         "text": "This indicates a serious problem with the file's metadata preventing it from being preserved in DPI. In most cases this indicates a badly encoded file, which must be re-encoded or re-acquired, as it cannot be ingested to DPI.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
+    "Skip object as previous part not yet ingested or queued for ingest": {
+        "text": "This message indicates that a partWhole is attempting to ingest out of sequence. This issue should clear itself if all reel/image parts are being processed at the same time. Please raise a ticket in Collections Systems Service desk if you need more assistance with this issue.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
     "Filesize does not match BlackPearl object length": {
         "text": "This indicates a different filesize locally to the filesize being reported by Black Pearl for the ingested object. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether the version previously ingested must be replaced with this version.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
@@ -61,12 +65,16 @@ GUIDANCE = {
         "text": "This indicates that the filename uses an Object Number that does not exist in CID. Check in CID to identify possible mistyping of Object Number. If no corresponding CID record can be found, file should be removed from Autoingest until further investigation can assign a correct Object Number.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "Cannot parse from filename": {
+    "Cannot parse <object_number> from filename": {
         "text": "This indicates that the filename does not have the correct formatting, eg prefix does not match accepted prefixes.Change filename to correct these errors. A list of accepted prefixes is available at the Autoingest Service Overview.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "No BlackPearl ObjectList returned from BlackPearl API query": {
         "text": "This indicates a problem has arisen with the Black Pearl ingest scripts. The file does not appear to have persisted to Black Pearl tape libraries. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
+    "BlackPearl failed to ingest file": {
+        "text": "This indicates that the BlackPearl PUT notification reported this file as failing ingest, or persisted to tape notification is FALSE. The file should attempt a second ingest but plLease raise a ticket in Collections Systems Service Desk if the problem persists.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "Filename has already been ingested to DPI": {
@@ -77,8 +85,20 @@ GUIDANCE = {
         "text": "This indicates that a file that has been qualified as persisted does not have a CID media record. A CID media record may need manually creating. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "File failed move into autoingest processing folder": {
+    "File failed move into autoingest folder": {
         "text": "This indicates a problem with the autoingest folder permissions. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
+    "CID media metadata update failed for file": {
+        "text": "An error occurred while augmenting the file metadata into the CID media record that represents it. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
+    "BlackPearl JOB ID absent": {
+        "text": "The file has been moved into the validated folder, signalling completion of write to BlackPearl. But JOB ID for this PUT is not available for the file to process. If this issue does not clear in 24 hours please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
+    "Failed to delete BlackPearl file": {
+        "text": "The clean up of a failed ingest has not been able to delete the file from BlackPearl tape libraries and no further ingest attempts will succeed. Please raise a ticket in Collections Systems Service Desk to request a review of the problem quoting supplied ID number and filename.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "_default": {

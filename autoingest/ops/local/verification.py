@@ -63,6 +63,18 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     folder_number = os.path.basename(root)
     bp_job_id = file_info[46]
+    if not bp_job_id:
+        context.log.warning("No Black Pearl job ID found in database, exiting.")
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue "
+                    "SET file_status = 'File cleared for ingest', error_message = "BlackPearl JOB ID absent", "
+                    "updated_at = NOW() WHERE id = %s",
+                    (file_info[0],),
+                )
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output({}, metadata={"duration_sec": duration_sec, "preview": f"BP job ID missing — retry: {file}"})
     print(bp_job_id, folder_number)
     if folder_number.strip() != bp_job_id.strip():
         context.log.error(f"Ingest folder job ID does not match that stored for file: {file_info[46]}")
@@ -84,7 +96,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     if success:
         validation_pass = False
         ingest_retry_needed = True
-        errors.append(f"JOB ID partially failed to ingest file {file} to DPI:\n{json_path}")
+        errors.append(f"BlackPearl failed to ingest file {file}")
 
     bp_bucket = file_info[18]
     bucket_list = file_info[19]
@@ -102,7 +114,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.warning("Assigned to storage domain is FALSE: {file}")
         validation_pass = False
         ingest_retry_needed = True
-        errors.append("BlackPearl has not persisted file to data tape but ObjectList exists")
+        errors.append(f"BlackPearl failed to ingest file {file}")
     elif confirmed is True:
         context.log.info("Assigned to storage domain confirmed as TRUE")
         results["persisted_ok"] = confirmed
@@ -133,7 +145,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             context.log.info(f"Black Pearl object length {bp_length} matches file size {file_info[20]}")
             results["bp_length"] = bp_length
 
-    elif file_info[47] == "Blob":
+    else:
         context.log.info("Blobbed file identified. Downloading for MD5 verification")
         download_folder = os.path.join(root, "downloads/")
         os.makedirs(download_folder, exist_ok=True)
@@ -166,18 +178,6 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.info(f"Checks complete. Deleting download file: {download_path}")
         os.remove(download_path)
         os.rmdir(download_folder)
-    else:
-        context.log.warning("No Black Pearl job ID found in database, exiting.")
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE app.file_catalogue "
-                    "SET file_status = 'File cleared for ingest', error_message = 'BP Job ID not found', "
-                    "updated_at = NOW() WHERE id = %s",
-                    (file_info[0],),
-                )
-        duration_sec = round(time.perf_counter() - tic, 3)
-        return Output({}, metadata={"duration_sec": duration_sec, "preview": f"BP job ID missing — retry: {file}"})
 
     bp_version = bp.get_version_id(file)
     if len(bp_version) > 30:
@@ -211,7 +211,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                     ingest_retry_needed = True
                 else:
                     context.log.warning(f"{file} - failed to delete from Black Pearl. Manual clean up needed")
-                    errors.append(f"Failed to delete Black Pearl file {file}. Manual clean up needed.")
+                    errors.append(f"Failed to delete BlackPearl file {file} - {bp_version}.")
                     ingest_retry_needed = False
         if ingest_retry_needed is True:
             success_move, log = utils.move_file(file_path_str, file_info[3])
