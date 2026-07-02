@@ -54,18 +54,14 @@
             <th>Storage</th>
             <th>Size in GB</th>
             <th>Media Type</th>
-            <th>Pixel height</th>
-            <th>Pixel width</th>
             <th>MD5 checksum</th>
+            <th>XXHash checksum</th>
             <th>File format</th>
-            <th>Video codec</th>
-            <th>Audio codec</th>
-            <th>Framerate</th>
             <th>Last updated</th>
         </tr>
     </thead>
     <tbody id="tableBody">
-        <tr><td colspan="14">Loading&hellip;</td></tr>
+        <tr><td colspan="10">Loading&hellip;</td></tr>
     </tbody>
 </table>
 </div>
@@ -126,7 +122,7 @@ async function loadFiles() {
         renderTable(files);
     } catch (e) {
         document.getElementById("tableBody").innerHTML =
-            '<tr><td colspan="14" class="error-cell">Error loading data</td></tr>';
+            '<tr><td colspan="10" class="error-cell">Error loading data</td></tr>';
     }
     document.getElementById("lastUpdate").textContent =
         "Last updated: " + new Date().toLocaleTimeString();
@@ -139,7 +135,7 @@ function renderTable(files) {
         files.length + " file" + (files.length !== 1 ? "s" : "");
 
     if (files.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14">No files found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10">No files found</td></tr>';
         return;
     }
 
@@ -177,13 +173,9 @@ function renderTable(files) {
             '<td>' + esc(f.storage) + '</td>' +
             '<td class="num">' + esc(f.file_size_gb) + '</td>' +
             '<td>' + esc(f.mime_type) + '</td>' +
-            '<td class="num">' + esc(f.height) + '</td>' +
-            '<td class="num">' + esc(f.width) + '</td>' +
             '<td class="mono">' + esc(f.checksum_md5_short) + '</td>' +
+            '<td class="mono">' + esc(f.checksum_xxh_short) + '</td>' +
             '<td>' + esc(f.file_fmt) + '</td>' +
-            '<td>' + esc(f.video_codec) + '</td>' +
-            '<td>' + esc(f.audio_codec) + '</td>' +
-            '<td>' + esc(f.framerate) + '</td>' +
             '<td>' + esc(f.updated_at) + '</td>' +
             '</tr>';
     }

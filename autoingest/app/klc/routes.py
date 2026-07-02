@@ -147,8 +147,8 @@ def api_files():
 
     query = f"""
         SELECT id, file_name, file_status, error_message, file_path,
-               file_size, mime_type, height, width, checksum_md5,
-               file_fmt, video_codec, audio_codec, framerate, updated_at
+               file_size, mime_type, checksum_md5, checksum_xxh,
+               file_fmt, updated_at
         FROM app.file_catalogue
         {where_clause}
         ORDER BY updated_at DESC
@@ -172,8 +172,7 @@ def api_files():
             else ""
         )
         r["checksum_md5_short"] = r.get("checksum_md5") or ""
-        r["height"] = str(r.get("height") or "")
-        r["width"] = str(r.get("width") or "")
+        r["checksum_xxh_short"] = r.get("checksum_xxh") or ""
         if r.get("updated_at"):
             r["updated_at"] = r["updated_at"].strftime("%Y-%m-%d %H:%M")
         rows.append(r)
