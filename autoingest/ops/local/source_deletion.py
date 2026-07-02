@@ -1,11 +1,14 @@
 from hashlib import md5
 import os
 import time
+import shutil
 import datetime
 from pathlib import Path
 from dagster import op, OpExecutionContext, Output
 from ...resources import utils
 
+JSON_PATH = os.path.join(os.environ.get("LOG_PATH", ""), "black_pearl/")
+COMP_PATH = os.path.join(JSON_PATH, 'completed/')
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str})
 def check_and_delete_source(context: OpExecutionContext) -> Output:
@@ -98,6 +101,10 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         try:
             bp_folder.rmdir()
             context.log.info(f"Removed empty BP job folder: {bp_folder}")
+            # Clear away json
+            json_file = os.path.join(JSON_PATH, f"{bp_folder}.json")
+            if os.path.isfile(json_file):
+                shutil.move(json_file, COMP_PATH)
         except OSError as exc:
             context.log.warning(f"Could not remove BP job folder: {bp_folder} — {exc}")
 

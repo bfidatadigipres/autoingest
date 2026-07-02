@@ -21,7 +21,7 @@ def generate_checksum(context: OpExecutionContext) -> Output:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, do_ingest, file_size, file_path "
+                "SELECT id, file_status, do_ingest, file_size, file_path "
                 "FROM app.file_catalogue WHERE file_name = %s "
                 "ORDER BY created_at DESC LIMIT 1",
                 (file_name,),
@@ -32,13 +32,21 @@ def generate_checksum(context: OpExecutionContext) -> Output:
         context.log.info(f"No DB record found for {file_name}. Skipping.")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    file_id, do_ingest, file_size, stored_path = row
+    file_id, file_status, do_ingest, file_size, stored_path = row
+
+    if file_status == "generating_checksum":
+        context.log.info(f"File {file_name} is already being checksummed. Skipping.")
+        return Output(None, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Already checksumming: {file_name}",
+        })
 
     if do_ingest != "TRUE":
         context.log.info(f"Skipping checksum generation — file not cleared for ingest: {file_name}")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     context.log.info(f"Generating MD5 checksum for {file_name}")
+    _set_encoding_status(db, file_id)
 
     md5_tic = time.perf_counter()
     md5 = utils.create_md5_65536(file_path)
@@ -112,3 +120,13 @@ def generate_checksum(context: OpExecutionContext) -> Output:
         "xxhash_time_sec": xxh_time,
         "preview": f"{file_name} checksums in {duration_sec}s",
     })
+
+
+def _set_encoding_status(db, file_id: int) -> None:
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app.file_catalogue SET file_status = 'generating_checksum', "
+                "error_message = NULL, updated_at = NOW() WHERE id = %s",
+                (file_id,),
+            )
