@@ -102,9 +102,9 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
             bp_folder.rmdir()
             context.log.info(f"Removed empty BP job folder: {bp_folder}")
             # Clear away json
-            json = os.path.join(JSON_PATH, f"{bp_folder}.json")
-            if os.path.isfile(json):
-                shutil.move(json, COMP_PATH)
+            json_file = os.path.join(JSON_PATH, f"{bp_folder}.json")
+            if os.path.isfile(json_file):
+                shutil.move(json_file, COMP_PATH)
         except OSError as exc:
             context.log.warning(f"Could not remove BP job folder: {bp_folder} — {exc}")
 
