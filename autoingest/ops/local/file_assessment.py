@@ -152,7 +152,6 @@ def assess_filename(context: OpExecutionContext) -> Output:
     context.log.info(f"No CID Media record found for file: {filename}")
 
     # Check Black Pearl
-    context.log.info(bucket_list, filename)
     status = bp.check_no_bp_status(filename, bucket_list)
     context.log.info(status)
     if status is False:
