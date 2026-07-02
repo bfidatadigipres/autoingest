@@ -146,7 +146,7 @@ function renderTable(files) {
         var g = matchGuidance(errorText);
 
         var statusClass =
-            f.file_status === "metadata_updated" ? "status-ok" :
+            f.file_status === "All stages complete" ? "status-ok" :
             f.file_status === "complete" ? "status-ok" :
             f.file_status === "encoding_complete" ? "status-ok" :
             f.file_status === "Failed assessment" ? "status-fail" :
