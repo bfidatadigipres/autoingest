@@ -97,7 +97,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.warning("Problem retrieving Black Pearl TapeList.")
         validation_pass = False
         ingest_retry_needed = True
-        errors.append("Problem retrieving BlackPearl TapeList.")
+        errors.append("No BlackPearl ObjectList returned from BlackPearl API query")
     elif confirmed is False:
         context.log.warning("Assigned to storage domain is FALSE: {file}")
         validation_pass = False
@@ -262,6 +262,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         media_priref = ""
     cid_toc = time.perf_counter()
     cid_time = round(cid_toc - cid_tic, 3)
+    verify_elapsed = round(time.perf_counter() - tic, 3)
 
     if len(media_priref) > 6:
         context.log.info(f"New media record created for ingested file: {media_priref}")
@@ -269,9 +270,16 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         results["validated"] = True
     else:
         context.log.warning(f"Failed to create media record for ingested file: {file}")
+        results["error_message"] = "No CID Media record created for this file"
+        results["do_ingest"] = False
         results["validated"] = False
-
-    verify_elapsed = round(time.perf_counter() - tic, 3)
+        _record_verify_event(context, db, file, cid_time, "failure", results)
+        _set_validation_status(db, file_info[0], "Failed validation", results["error_message"])
+        return Output(results, metadata={
+            "duration_sec": verify_elapsed,
+            "file_name": file,
+            "preview": f"CID Media record creation failed for {file}",
+        })
 
     with db.get_connection() as conn:
         with conn.cursor() as cur:
