@@ -21,61 +21,69 @@ STORAGE_OPTIONS = [
 ]
 
 GUIDANCE = {
-    "Cannot find record with <object number>": {
-        "text": "The object number extracted from the filename does not match any record in the CID collections database. Verify the filename follows BFI naming conventions (PREFIX_OBJECTNUMBER_PARTofWHOLE.ext) and check that the object exists in CID Collect.",
-        "link": "/display/KB/Object+Number+Errors",
+    "Cannot parse partWhole from filename": {
+        "text": "This indicates poorly formed partWhole statement, eg 01of002. Please change filename to use correct partWhole syntax making sure to use an underscore to separate Object Number, not a hyphen or space.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "Filename formatted incorrectly": {
-        "text": "The filename does not conform to BFI naming conventions. Accepted prefixes: N, C, PD, SPD, PBS, PBM, PBL, SCR, CA. Filename must follow the pattern PREFIX_OBJECTNUMBER_PARTofWHOLE.ext with no special characters.",
-        "link": "/display/KB/Filename+Errors",
+        "text": "This indicates poorly formed filename with incorrect Object Number syntax, eg using hyphens rather than underscores. Correct any obvious Object Number syntax issues and remove and incorrect characters or extensions.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "CID API unreachable": {
-        "text": "The CID collections management system is not responding. This may be due to scheduled maintenance or a temporary outage. The file will be retried automatically on the next ingest cycle, or you can manually refresh from the autoingest viewer.",
-        "link": "/display/KB/CID+API+Errors",
+    "Extension does not match in record": {
+        "text": "This indicates a mismatch between the file_type in the CID record and the file extensions. In some cases this can indicate the wrong Object Number use in the filename. Most commonly the file_type in the CID record must be changed.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "FFprobe failed to read file": {
-        "text": "FFprobe could not read the file, which may indicate file corruption, an unsupported codec, or a partial/corrupt transfer. Verify the file plays correctly in VLC or another media player, and check the source storage for transfer errors.",
-        "link": "/display/KB/FFprobe+Errors",
+        "text": "This indicates a serious problem with the file's metadata preventing it from being preserved in DPI. In most cases this indicates a badly encoded file, which must be re-encoded or re-acquired, as it cannot be ingested to DPI.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "Extension does not match": {
-        "text": "The file extension does not match the expected file_type in the CID Item record. Check that the file extension is correct (e.g., .mxf for MXF files) and that the CID Item record's file_type field is accurate.",
-        "link": "/display/KB/File+Type+Errors",
+    "Filesize does not match BlackPearl object length": {
+        "text": "This indicates a different filesize locally to the filesize being reported by Black Pearl for the ingested object. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether the version previously ingested must be replaced with this version.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "MIMEtype is not permitted": {
-        "text": "The file's MIME type is not in the list of accepted formats. The pipeline currently processes video, audio, image, and application files. If the file should be accepted, check that its extension is registered in the accepted file types list.",
-        "link": "/display/KB/MIME+Type+Errors",
+        "text": "The file does not have an accepted MIMEtype - video, audio, image or document. In most cases this indicates a file fault, which may need to be re-encoded or re-acquired, as it cannot be ingested to DPI.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "Filename already has a CID Media record": {
-        "text": "A CID Media record already exists with this filename. This could indicate a duplicate ingest attempt. Check whether the file has already been processed, or whether a previous record needs to be cleaned up.",
-        "link": "/display/KB/Duplicate+Errors",
+        "text": "This indicates that this filename has already been ingest to DPI, and has received a CID media record. Please review if this file has been ingested already using DPI Browser. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "Skip object as previous part not yet ingested": {
-        "text": "This is part of a multi-part file set. The pipeline requires parts to be ingested in sequential order. The earlier part has not yet been ingested or is still in progress. Wait for the earlier part to complete processing.",
-        "link": "/display/KB/Multipart+Errors",
+    "Invalid <file_type> in Collect record": {
+        "text": "This indicates either a file type that is not accepted for ingest, or multiple file_type occurrences in the CID record. Please check the file_type and ensure only one is present and is one of our accepted file types.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "checksums do not match": {
-        "text": "The MD5 checksum of the file on disk does not match the checksum stored in Black Pearl (the tape archive). This indicates data corruption during transfer. The file will be automatically re-ingested. If the error persists, check the source file integrity.",
-        "link": "/display/KB/Checksum+Errors",
+    "Failed fixity check: checksums do not match": {
+        "text": "TThis indicates the MD5 checksum created for the file is different to the MD5 checksum that Black Pearl has stored for the file. This could be an ingest failure or a media management issue. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether there is a media management issue, or whether this indicates an ingest failure.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "Failed validation": {
-        "text": "The Black Pearl tape verification stage failed. This could be due to network issues between the ingest server and the tape archive, or a problem with data persistence. The file will be retried automatically.",
-        "link": "/display/KB/Validation+Errors",
+    "Cannot find record with": {
+        "text": "This indicates that the filename uses an Object Number that does not exist in CID. Check in CID to identify possible mistyping of Object Number. If no corresponding CID record can be found, file should be removed from Autoingest until further investigation can assign a correct Object Number.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "FFmpeg encoding failed": {
-        "text": "The FFmpeg proxy encoding step failed. This usually indicates an unsupported codec, a damaged source file, or the file requires special handling (e.g., unusual resolution, frame rate, or colour space). Check the file in a media player and contact DP team if it is a known format.",
-        "link": "/display/KB/Encoding+Errors",
+    "Cannot parse from filename": {
+        "text": "This indicates that the filename does not have the correct formatting, eg prefix does not match accepted prefixes.Change filename to correct these errors. A list of accepted prefixes is available at the Autoingest Service Overview.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "JPEG image not found": {
-        "text": "The JPEG extraction from the proxy video failed because the source JPEG image was not created. This typically cascades from an earlier encoding failure. Check the encoding logs for the root cause.",
-        "link": "/display/KB/Encoding+Errors",
+    "No BlackPearl ObjectList returned from BlackPearl API query": {
+        "text": "This indicates a problem has arisen with the Black Pearl ingest scripts. The file does not appear to have persisted to Black Pearl tape libraries. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "CID POST failed": {
-        "text": "The metadata update could not be written to the CID Media record. This is usually a temporary API error. The file should be retried automatically. If it persists, the payload may contain data that CID cannot accept (check the pipeline_events table for the XML payload).",
-        "link": "/display/KB/CID+API+Errors",
+    "Filename has already been ingested to DPI": {
+        "text": "TTis indicates a problem has arisen with the Black Pearl ingest scripts. An instance exists in the BlackPearl library that has the same filename. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
+    "No CID Media record found for this file": {
+        "text": "This indicates that a file that has been qualified as persisted does not have a CID media record. A CID media record may need manually creating. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
+    "File failed move into autoingest processing folder": {
+        "text": "This indicates a problem with the autoingest folder permissions. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
     "_default": {
-        "text": "No specific guidance is available for this error. Please contact the Digital Preservation team for assistance.",
-        "link": "",
+        "text": "Please visit the Autoingest User Guide for more information or raise a Service Desk ticket for your specific error.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
 }
 
@@ -96,11 +104,17 @@ def _extract_storage(file_path: str) -> str:
 def _match_guidance(error_message: str) -> dict:
     if not error_message:
         return GUIDANCE["_default"]
+
+    target_words = error_message.split()
+    target_iter = iter(target_words)
     for key, guidance in GUIDANCE.items():
         if key == "_default":
             continue
-        if key.lower() in error_message.lower():
+        search_words = key.split()
+        val = all(word in target_iter for word in search_words)
+        if val is True:
             return guidance
+
     return GUIDANCE["_default"]
 
 
