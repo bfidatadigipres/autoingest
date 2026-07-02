@@ -237,7 +237,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             context.log.warning(
                 f"No MediaInfo JSON data for {file_name} — advancing status."
             )
-            _advance_status(context, db, file_id, file_name, tic, "metadata_updated")
+            _advance_status(context, db, file_id, file_name, tic, "All stages complete")
             return Output(None, metadata={
                 "duration_sec": round(time.perf_counter() - tic, 3),
                 "preview": f"No JSON metadata: {file_name}",
@@ -251,7 +251,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             context.log.warning(
                 f"No ExifTool data for {file_name} — advancing status."
             )
-            _advance_status(context, db, file_id, file_name, tic, "metadata_updated")
+            _advance_status(context, db, file_id, file_name, tic, "All stages complete")
             return Output(None, metadata={
                 "duration_sec": round(time.perf_counter() - tic, 3),
                 "preview": f"No EXIF metadata: {file_name}",
@@ -263,9 +263,9 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
     else:
         context.log.info(
             f"MIME type '{mime_type}' for {file_name} — no technical metadata to update. "
-            "Advancing to metadata_updated."
+            "Advancing to All stages complete."
         )
-        _advance_status(context, db, file_id, file_name, tic, "metadata_updated")
+        _advance_status(context, db, file_id, file_name, tic, "All stages complete")
         return Output(None, metadata={
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"No applicable metadata for mime_type={mime_type}: {file_name}",
@@ -319,7 +319,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         f"Metadata from {payload_source} written to CID media record {media_priref}"
     )
     _advance_status(
-        context, db, file_id, file_name, tic, "metadata_updated",
+        context, db, file_id, file_name, tic, "All stages complete",
         extra={
             "cid_update_time_sec": cid_update_time,
             "media_priref": media_priref,
