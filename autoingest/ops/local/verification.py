@@ -325,7 +325,7 @@ def _set_validation_status(db: Any, file_id: int, status: str, error: str) -> No
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE app.file_catalogue SET file_status = %s, error = %s, updated_at = NOW() WHERE id = %s",
+                "UPDATE app.file_catalogue SET file_status = %s, error_message = %s, updated_at = NOW() WHERE id = %s",
                 (status, error, file_id),
             )
 
