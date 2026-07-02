@@ -37,7 +37,7 @@
             <th>Proxy</th>
             <th>Created</th>
             <th>Updated</th>
-            <th></th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody id="tableBody">
@@ -83,9 +83,13 @@ function renderTable(files) {
     for (var i = 0; i < files.length; i++) {
         var f = files[i];
         var statusClass =
+            f.file_status === "metadata_updated" ? "status-ok" :
             f.file_status === "complete" ? "status-ok" :
+            f.file_status === "encoding_complete" ? "status-ok" :
             f.file_status === "Failed assessment" ? "status-fail" :
+            f.file_status === "failed" ? "status-fail" :
             f.file_status === "Error" ? "status-error" :
+            f.file_status && f.file_status.toLowerCase().indexOf("fail") !== -1 ? "status-error" :
             "status-pending";
         html +=
             '<tr>' +
@@ -104,6 +108,7 @@ function renderTable(files) {
             '<td>' + esc(f.updated_at) + '</td>' +
             '<td>' +
                 '<button class="btn-retry" onclick="refreshFile(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Reset for re-ingest">↻</button>' +
+                '<button class="btn-reset" onclick="validatorReset(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Reset validation state">↺</button>' +
                 '<button class="btn-delete" onclick="deleteFile(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Delete from database">✕</button>' +
             '</td>' +
             '</tr>';
@@ -156,6 +161,26 @@ async function deleteFile(id, name) {
     }
     btn.disabled = false;
     btn.textContent = "✕";
+}
+
+async function validatorReset(id, name) {
+    if (!confirm('Reset validation state for "' + name + '"?\n\nThis returns the file to pre-verification state. bp_job_id is retained.')) return;
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+        var resp = await fetch("/api/validator-reset/" + id, { method: "POST" });
+        var result = await resp.json();
+        if (result.success) {
+            loadFiles();
+        } else {
+            alert("Error: " + result.error);
+        }
+    } catch (e) {
+        alert("Request failed");
+    }
+    btn.disabled = false;
+    btn.textContent = "↺";
 }
 
 async function loadStats() {

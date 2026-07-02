@@ -191,6 +191,62 @@ def api_refresh(file_id):
     })
 
 
+@bp.route("/api/validator-reset/<int:file_id>", methods=["POST"])
+def api_validator_reset(file_id):
+    db = _db()
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT file_name FROM app.file_catalogue WHERE id = %s",
+                (file_id,),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        return jsonify({"success": False, "error": "File not found"}), 404
+
+    file_name = row[0]
+
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE app.file_catalogue
+                SET file_status     = 'File cleared for ingest',
+                    error_message   = NULL,
+                    tape_verified   = NULL,
+                    validated       = NULL,
+                    bp_etag         = NULL,
+                    bp_length       = NULL,
+                    bp_version_id   = NULL,
+                    proxy_created   = NULL,
+                    source_deletion = NULL,
+                    updated_at      = NOW()
+                WHERE id = %s
+            """, (file_id,))
+
+    try:
+        db.record_pipeline_event(
+            run_id="manual",
+            job_name="viewer",
+            op_name="validator_reset",
+            event_type="manual_validator_reset",
+            status="success",
+            metadata={
+                "file_id": file_id,
+                "file_name": file_name,
+                "timestamp": str(datetime.now())[:19],
+            },
+            message=f"Manual validator reset: '{file_name}' (id={file_id}) returned to pre-verification state",
+        )
+    except Exception:
+        pass
+
+    return jsonify({
+        "success": True,
+        "message": f"'{file_name}' reset to pre-verification state. bp_job_id retained.",
+    })
+
+
 @bp.route("/api/stats")
 def api_stats():
     db = _db()
