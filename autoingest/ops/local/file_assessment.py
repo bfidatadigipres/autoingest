@@ -131,7 +131,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
             do_ingest = False
         if not file_type_match and ftype:
             context.log.warning(f"Extension {filetype} does not match file type in record")
-            errors.append(f"Extension does not match <{file_type}> in record")
+            errors.append(f"Extension does not match <{filetype}> in record")
             do_ingest = False
         elif not file_type_match and not ftype:
             context.log.info(f"File exension does not match CID Item file_type: {ftype}")
