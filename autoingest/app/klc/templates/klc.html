@@ -212,8 +212,6 @@ function showTooltip(ev, errorText, guidanceText, linkUrl) {
     html += '</div>';
     el.innerHTML = html;
     el.style.display = "block";
-    el.onmouseenter = function() { clearTimeout(tooltipLeave); };
-    el.onmouseleave = hideTooltip;
 
     var rect = ev.target.getBoundingClientRect();
     var top = rect.bottom + window.scrollY + 6;
@@ -228,7 +226,7 @@ function hideTooltip() {
     tooltipLeave = setTimeout(function() {
         var el = document.getElementById("tooltip");
         if (el) el.style.display = "none";
-    }, 150);
+    }, 300);
 }
 
 document.getElementById("searchInput").addEventListener("input", function() {
