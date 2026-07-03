@@ -225,7 +225,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         cid_toc = time.perf_counter()
         cid_update_time = round(cid_toc - cid_tic, 3)
     else:
-        context.log.warning(f"Failed to push metadata to header tags in rec {media_priref}:\n{payload}")
+        context.log.warning(f"Failed to push metadata to header tags in rec {media_priref}:\n{payload_data}")
         cid_update_time = 0
 
     mime_type = (mime_type or "").lower()
