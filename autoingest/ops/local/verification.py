@@ -69,7 +69,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE app.file_catalogue "
-                    "SET file_status = 'File cleared for ingest', error_message = "BlackPearl JOB ID absent", "
+                    "SET file_status = 'File cleared for ingest', error_message = 'BlackPearl JOB ID absent', "
                     "updated_at = NOW() WHERE id = %s",
                     (file_info[0],),
                 )
