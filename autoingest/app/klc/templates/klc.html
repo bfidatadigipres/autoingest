@@ -91,19 +91,6 @@ function matchGuidance(errorText) {
     return guidance["_default"] || {text: "", link: ""};
 }
 
-function buildTooltip(errorText, g) {
-    var tip = '<div class="tooltip-inner">';
-    tip += '<div class="tooltip-header">Error Details</div>';
-    tip += '<div class="tooltip-body">' + esc(errorText) + '</div>';
-    if (g && g.text) {
-        tip += '<div class="tooltip-guidance">' + esc(g.text) + '</div>';
-    }
-    if (g && g.link) {
-        tip += '<a href="' + esc(g.link) + '" target="_blank" rel="noopener" class="tooltip-link">More info &rarr;</a>';
-    }
-    tip += '</div>';
-    return tip;
-}
 
 async function loadFiles() {
     var search = document.getElementById("searchInput").value;
@@ -159,9 +146,10 @@ function renderTable(files) {
         if (errorText) {
             errorCell =
                 '<span class="error-icon" '
-                + 'onmouseenter="showTooltip(event, \'' + escAttr(errorText) + '\', \'' + escAttr(g.text || "") + '\', \'' + escAttr(g.link || "") + '\')" '
-                + 'onmouseleave="hideTooltip()">'
-                + '&#9888; ' + esc(errorText.substring(0, 60))
+                + 'data-error="' + escAttr(errorText) + '" '
+                + 'data-guidance="' + escAttr(g.text || "") + '" '
+                + 'data-link="' + escAttr(g.link || "") + '">'
+                + '&#9888; ' + esc(errorText.substring(0, 100))
                 + '</span>';
         }
 
@@ -228,6 +216,16 @@ function hideTooltip() {
         if (el) el.style.display = "none";
     }, 300);
 }
+
+document.getElementById("tableBody").addEventListener("mouseover", function(ev) {
+    var span = ev.target.closest(".error-icon");
+    if (!span) { hideTooltip(); return; }
+    clearTimeout(tooltipLeave);
+    showTooltip(ev, span.dataset.error, span.dataset.guidance, span.dataset.link);
+});
+document.getElementById("tableBody").addEventListener("mouseout", function(ev) {
+    if (ev.target.closest(".error-icon")) hideTooltip();
+});
 
 document.getElementById("searchInput").addEventListener("input", function() {
     clearTimeout(searchTimeout);
