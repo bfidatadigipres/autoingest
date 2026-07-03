@@ -49,7 +49,7 @@ GUIDANCE = {
         "text": "The file does not have an accepted MIMEtype - video, audio, image or document. In most cases this indicates a file fault, which may need to be re-encoded or re-acquired, as it cannot be ingested to DPI.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "Filename already has a CID Media record": {
+    "Filename already has a CID Media record:": {
         "text": "This indicates that this filename has already been ingest to DPI, and has received a CID media record. Please review if this file has been ingested already using DPI Browser. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
