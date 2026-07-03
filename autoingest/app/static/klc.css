@@ -260,6 +260,12 @@ tbody tr:hover { background: #f0f4ff; }
     text-decoration: none;
 }
 
+.error-link {
+    color: inherit;
+    text-decoration: none;
+}
+.error-link:hover { text-decoration: underline; }
+
 .btn:hover { background: #d0d4de; }
 
 .footer { font-size: 11px; color: #aaa; margin-top: 12px; text-align: right; }
