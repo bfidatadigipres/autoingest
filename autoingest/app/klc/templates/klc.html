@@ -149,8 +149,9 @@ function renderTable(files) {
                 + 'data-error="' + escAttr(errorText) + '" '
                 + 'data-guidance="' + escAttr(g.text || "") + '" '
                 + 'data-link="' + escAttr(g.link || "") + '">'
+                + '<a href="' + escAttr(g.link || "") + '" target="_blank" rel="noopener" class="error-link">'
                 + '&#9888; ' + esc(errorText.substring(0, 100))
-                + '</span>';
+                + '</a></span>';
         }
 
         html +=
@@ -193,9 +194,6 @@ function showTooltip(ev, errorText, guidanceText, linkUrl) {
     html += '<div class="tooltip-body">' + errorText + '</div>';
     if (guidanceText) {
         html += '<div class="tooltip-guidance">' + guidanceText + '</div>';
-    }
-    if (linkUrl) {
-        html += '<a href="' + linkUrl + '" target="_blank" rel="noopener" class="tooltip-link">More info &rarr;</a>';
     }
     html += '</div>';
     el.innerHTML = html;
