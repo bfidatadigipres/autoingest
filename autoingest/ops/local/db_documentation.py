@@ -50,6 +50,23 @@ def create_catalogue_record(context: OpExecutionContext) -> Output:
     file_status = record.get("file_status", "")
     record_id = record["id"]
 
+    if file_status == "cataloguing":
+        context.log.info(f"File {file_name} is already being catalogued. Skipping.")
+        return Output(None, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Already cataloguing: {file_name}",
+        })
+    if file_status != "checksummed":
+        context.log.warning(
+            f"File {file_name} has status '{file_status}' — expected 'checksummed'. Skipping."
+        )
+        return Output(None, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Skipped: status={file_status}",
+        })
+
+    _set_cataloguing_status(db, record_id)
+
     context.log.info(f"Creating catalogue record for {file_name} (status: {file_status})")
 
     basic_metadata = [
@@ -76,6 +93,7 @@ def create_catalogue_record(context: OpExecutionContext) -> Output:
         context.log.info(f"Catalogue record {action}: ID {rid} for {file_name}")
     except Exception as exc:
         context.log.warning(f"Failed to create record for {file_name}: {exc}")
+        _rollback_cataloguing_status(db, record_id)
         duration_sec = round(time.perf_counter() - tic, 3)
         return Output(None, metadata={"duration_sec": duration_sec, "preview": f"DB upsert failed: {file_name}"})
     db_insert_toc = time.perf_counter()
@@ -211,3 +229,23 @@ def create_catalogue_record(context: OpExecutionContext) -> Output:
         pass
 
     return Output(record_id_out, metadata=metadata)
+
+
+def _set_cataloguing_status(db, record_id: int) -> None:
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app.file_catalogue SET file_status = 'cataloguing', "
+                "error_message = NULL, updated_at = NOW() WHERE id = %s",
+                (record_id,),
+            )
+
+
+def _rollback_cataloguing_status(db, record_id: int) -> None:
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app.file_catalogue SET file_status = 'checksummed', "
+                "updated_at = NOW() WHERE id = %s",
+                (record_id,),
+            )
