@@ -100,8 +100,8 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     audio_format        TEXT,
     framerate           TEXT,
     audio_ch_total      TEXT,
-    audio_count         INT,
-    video_count         INT,
+    audio_count         TEXT,
+    video_count         TEXT,
     height              TEXT, -- 40
     width               TEXT,
     colorpsace          TEXT,
