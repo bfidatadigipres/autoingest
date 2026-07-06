@@ -47,11 +47,11 @@ def generate_checksum(context: OpExecutionContext) -> Output:
 
     context.log.info(f"Generating MD5 checksum for {file_name}")
     _set_encoding_status(db, file_id)
-
     md5_tic = time.perf_counter()
     md5 = utils.create_md5_65536(file_path)
     md5_toc = time.perf_counter()
 
+    context.log.info(f"Generating XXHash checksum for {file_name}")
     xxh_tic = time.perf_counter()
     xxhash_val = utils.create_xxhash_65536(file_path)
     xxh_toc = time.perf_counter()
