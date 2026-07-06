@@ -33,7 +33,7 @@ import autoingest.resources.utils as utils
 # Global vars
 LOG_PATH = os.environ["LOG_PATH"]
 CONTROL_JSON = os.environ["CONTROL_JSON"]
-INGEST_CONFIG = os.path.join(os.environ["CODE_DEPENDS"], "black_pearl/dpi_ingests.yaml")
+INGEST_CONFIG = os.environ["INGEST_SIZE"]
 
 # Setup logging
 LOGGER = logging.getLogger(
