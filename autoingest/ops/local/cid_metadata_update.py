@@ -171,6 +171,12 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
         "MediaInfo pbcore 0": row[11] or ""
     }
 
+    if file_status == "updating_cid":
+        context.log.info(f"File {file_name} is already being updated. Skipping.")
+        return Output(None, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Already updating CID: {file_name}",
+        })
     if file_status != "complete":
         context.log.info(
             f"File {file_name} has status '{file_status}' — expected 'complete'. Skipping."
@@ -207,6 +213,8 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"CID API down: {file_name}",
         })
+
+    _set_updating_status(db, file_id)
 
     # Add to header tags
     payload_data = ""
@@ -595,7 +603,8 @@ def _set_error_and_log(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE app.file_catalogue SET error_message = %s, updated_at = NOW() "
+                "UPDATE app.file_catalogue SET file_status = 'complete', "
+                "error_message = %s, updated_at = NOW() "
                 "WHERE id = %s",
                 (error, file_id),
             )
@@ -624,6 +633,16 @@ def _set_error_and_log(
         )
     except Exception:
         pass
+
+
+def _set_updating_status(db, file_id: int) -> None:
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app.file_catalogue SET file_status = 'updating_cid', "
+                "error_message = NULL, updated_at = NOW() WHERE id = %s",
+                (file_id,),
+            )
 
 
 def _advance_status(

@@ -47,14 +47,20 @@ def generate_checksum(context: OpExecutionContext) -> Output:
 
     context.log.info(f"Generating MD5 checksum for {file_name}")
     _set_encoding_status(db, file_id)
-    md5_tic = time.perf_counter()
-    md5 = utils.create_md5_65536(file_path)
-    md5_toc = time.perf_counter()
+    md5 = xxhash_val = None
+    try:
+        md5_tic = time.perf_counter()
+        md5 = utils.create_md5_65536(file_path)
+        md5_toc = time.perf_counter()
 
-    context.log.info(f"Generating XXHash checksum for {file_name}")
-    xxh_tic = time.perf_counter()
-    xxhash_val = utils.create_xxhash_65536(file_path)
-    xxh_toc = time.perf_counter()
+        context.log.info(f"Generating XXHash checksum for {file_name}")
+        xxh_tic = time.perf_counter()
+        xxhash_val = utils.create_xxhash_65536(file_path)
+        xxh_toc = time.perf_counter()
+    except Exception:
+        _rollback_checksum_status(db, file_id)
+        context.log.error(f"Checksum generation failed for {file_name}")
+        raise
 
     checksum_date = str(datetime.now())[:10]
     md5_time = round(md5_toc - md5_tic, 3)
@@ -128,5 +134,15 @@ def _set_encoding_status(db, file_id: int) -> None:
             cur.execute(
                 "UPDATE app.file_catalogue SET file_status = 'generating_checksum', "
                 "error_message = NULL, updated_at = NOW() WHERE id = %s",
+                (file_id,),
+            )
+
+
+def _rollback_checksum_status(db, file_id: int) -> None:
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app.file_catalogue SET file_status = 'assessed', "
+                "updated_at = NOW() WHERE id = %s",
                 (file_id,),
             )
