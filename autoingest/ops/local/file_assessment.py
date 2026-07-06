@@ -202,7 +202,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
 
     if filesize > 1099511627776:
         returns["put_type"] = "Blob"
-        autoingest_path = f"autoingest/processing/{donor.lower()}/blobbed/"
+        autoingest_path = f"autoingest/processing/{donor.lower()}/blob/"
     else:
         returns["put_type"] = "Group"
         autoingest_path = f"autoingest/processing/{donor.lower()}/"
