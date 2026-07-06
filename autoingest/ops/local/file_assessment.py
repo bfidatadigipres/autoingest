@@ -323,28 +323,6 @@ def get_data_from_path(fpath: str) -> Tuple[str, bool, bool]:
     return source, solo_reel, screencraft
 
 
-def check_accepted_file_type(fpath: str) -> bool:
-    formt: str = utils.get_metadata("Video", "Format", fpath)
-
-    if any(x in fpath for x in ["qnap_11", "qnap_10"]):
-        if fpath.endswith((".tar", ".TAR", ".mkv", ".MKV")):
-            return True
-        elif "ProRes" in str(formt):
-            return True
-    if any(x in fpath for x in ["qnap_06", "qnap_03", "qnap_07"]):
-        if fpath.endswith((".mkv", ".MKV", ".tar", ".TAR")):
-            return True
-        elif "ProRes" in str(formt):
-            return True
-    if any(x in fpath for x in ["bp_nas/film", "EditShare-Director", "bp_nas/digital"]):
-        if fpath.endswith((".tar", ".TAR", ".mkv", ".MKV")):
-            return True
-        elif "ProRes" in str(formt):
-            return True
-
-    return False
-
-
 def check_mime_type(fpath: str) -> str:
     mime = utils.sort_ext(fpath)
     if not mime:
