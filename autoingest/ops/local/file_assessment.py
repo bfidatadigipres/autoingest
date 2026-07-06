@@ -98,7 +98,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
     if filesize <= 1099511627776:
         over_tb_accepted = False
     else:
-        over_tb_accepted = check_accepted_file_type(str(file_path))
+        over_tb_accepted = True
 
     bucket, bucket_list = bp.get_buckets(donor, over_tb_accepted)
     if not bucket:
