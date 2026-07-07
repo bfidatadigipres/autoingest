@@ -62,8 +62,8 @@ def move_to_ingest_folder(
     bucket_list: list[str],
 ) -> list[str]:
     """
-    Runs while loop and moves upto 2TB folder size
-    End when 2TB reached or files run out
+    Runs while loop and moves upto 1TB folder size
+    End when 1TB reached or files run out
     """
     remove_list = []
     print("Move to ingest folder found....")
@@ -244,7 +244,7 @@ def main():
             fname = os.path.split(folderpth)[1]
             days_old = check_folder_age(fname)
             logger.info("Folder %s is %s days old", folder, days_old)
-            if days_old >= 1:
+            if days_old >= 0: # 1
                 logger.info(
                     "Ingest folder over %s days old - moving to Black Pearl ingest bucket %s.",
                     days_old,
