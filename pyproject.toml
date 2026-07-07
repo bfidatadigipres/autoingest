@@ -1,6 +1,6 @@
 [project]
 name = "autoingest"
-requires-python = "==3.13.*"
+requires-python = ">=3.13"
 version = "0.1.0"
 dependencies = [
     "dagster",
@@ -23,7 +23,7 @@ dependencies = [
     "pandas>=2.0",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "dagster-webserver",
     "pytest",
