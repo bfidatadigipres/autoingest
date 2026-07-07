@@ -98,16 +98,13 @@ class WorkflowDatabase:
                 )
 
     def update_bp_job_id(
-        self, filename: str, job_id: str, put_type: str = "Group"
+        self, filename: str, job_id: str
     ) -> bool:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE app.file_catalogue "
-                    "SET bp_job_id = %s, put_type = %s "
-                    "WHERE file_name = %s "
-                    "  AND (bp_job_id IS NULL OR bp_job_id = '')",
-                    (job_id, put_type, filename),
+                    "UPDATE app.file_catalogue SET bp_job_id = %s WHERE file_name = %s",
+                    (job_id, filename),
                 )
                 return cur.rowcount > 0
 

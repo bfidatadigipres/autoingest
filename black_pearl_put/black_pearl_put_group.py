@@ -472,7 +472,7 @@ def update_job_id_postgres(new_fpath: str) -> list[str]:
 
     db = _get_db()
     for file in file_list:
-        if not db.update_bp_job_id(file, job_id, put_type="Group"):
+        if not db.update_bp_job_id(file, job_id):
             failed_write.append(file)
 
     return failed_write

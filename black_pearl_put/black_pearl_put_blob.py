@@ -139,7 +139,7 @@ def main():
             toc = time.perf_counter()
             checksum_put_time = (toc - tic) // 60
             LOGGER.info(
-                "** Total time in minutes for PUT WITH BP hash validation: %s",
+                "** Total time in minutes for Blobbed PUT with internal hash validation: %s",
                 checksum_put_time,
             )
 
@@ -149,11 +149,8 @@ def main():
                 LOGGER.info(
                     "Job %s registered for completion notification at %s", put_job_id, confirmation
                 )
-                LOGGER.info(
-                    "Job list retrieved for Black Pearl PUT, moving file into new folder: %s",
-                    put_job_id,
-                )
                 validate_path = os.path.join(fullpath, os.environ.get("VALIDATION"), f"{put_job_id}/")
+                LOGGER.info("Moving file into new folder: %s", validate_path)
                 try:
                     os.makedirs(validate_path, exist_ok=False)
                     shutil.move(fpath, os.path.join(validate_path, fname))
@@ -164,12 +161,12 @@ def main():
 
                 # Write job id to each file name in folder
                 if os.path.isfile(os.path.join(validate_path, fname)):
-                    fail_list = update_job_id_postgres(validate_path, fname)
+                    fail_list = update_job_id_postgres(put_job_id, fname)
                     if len(fail_list) > 0:
                         for fail in fail_list:
                             LOGGER.warning("%s - PostgreSQL row for filename was not updated with job ID: %s", fail, put_job_id)
                     else:
-                        LOGGER.info("PostgreSQL file %s row in JOB %s updated", fname, put_job_id)
+                        LOGGER.info("PostgreSQL file row %s updated with job_id %s", fname, put_job_id)
                 else:
                     LOGGER.warning("File %s failed to move file to validate path: Manual move and update of BP Job ID needed:\n%s\nJoB ID:%s", fname, validate_path, put_job_id)
 
@@ -193,17 +190,16 @@ def _get_db() -> WorkflowDatabase:
     )
 
 
-def update_job_id_postgres(new_fpath: str, file: str) -> list[str]:
+def update_job_id_postgres(job_id: str, file: str) -> list[str]:
     """
     Read new renamed folder contents
     and update to postgreSQL database
     """
 
-    job_id = os.path.basename(new_fpath)
     failed_write: list[str] = []
 
     db = _get_db()
-    if not db.update_bp_job_id(file, job_id, put_type="Blob"):
+    if not db.update_bp_job_id(file, job_id):
         failed_write.append(file)
 
     return failed_write

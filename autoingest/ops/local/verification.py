@@ -151,7 +151,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         os.makedirs(download_folder, exist_ok=True)
         download_path = os.path.join(download_folder, file)
         dl_tic = time.perf_counter()
-        download_id = bp.download_blobbed_object(file, download_path, file_info[18])
+        download_id = bp.download_blobbed_object(file, download_folder, file_info[18])
         dl_toc = time.perf_counter()
         context.log.info(f"Confirmed download: {download_id} ({round(dl_toc - dl_tic, 1)}s)")
 
