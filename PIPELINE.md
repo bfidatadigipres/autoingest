@@ -101,7 +101,7 @@ autoingest/
 │   │       ├── __init__.py       Blueprint factory
 │   │       ├── routes.py         /klc, /api/klc/files, /api/klc/stats, /api/klc/guidance
 │   │       ├── templates/
-│   │       │   └── klc.html      14-column table, search, filters, error tooltips
+│   │       │   └── klc.html              9-column table, search, filters, error tooltips
 │   │       └── static/
 │   │           └── klc.css       (in main static/ folder)
 │   │
@@ -156,7 +156,14 @@ autoingest/
  │                      │    ingest_celery_job       │  [CELERY — checksum q]  │
  │                      │                            │                         │
  │                      │  generate_checksum ────────│──►  assessed → checksum │
+ │                      │    · Guard: skip if        │    (or generating_      │
+ │                      │      generating_checksum   │     checksum on retry)  │
+ │                      │    · Claim: assessed →     │                         │
+ │                      │      generating_checksum   │                         │
  │                      │    · MD5 + XXHash32        │                         │
+ │                      │    · Rollback: generating_ │                         │
+ │                      │      checksum → assessed   │                         │
+ │                      │      on failure            │                         │
  │                      └────────────────────────────┘                         │
  │                                     │                                       │
  │                            catalogue_chain_sensor                           │
@@ -167,14 +174,19 @@ autoingest/
  │     │              catalogue_local_job                 │  [DATA15]          │
  │     │                                                  │                    │
  │     │  create_catalogue_record ────────────────────────│──► File cleared    │
- │     │    · DB upsert (all metadata committed)          │    for ingest      │
+ │     │    · Guard: skip if cataloguing or               │    for ingest      │
+ │     │      status ≠ checksummed                        │                    │
+ │     │    · Claim: checksummed → cataloguing            │                    │
+ │     │    · DB upsert (all metadata committed)          │                    │
  │     │    · File moved: /ingest/ → /processing/<donor>/ │                    │
+ │     │    · Rollback: cataloguing → checksummed         │                    │
+ │     │      on upsert failure                           │                    │
  │     └──────────────────────────────────────────────────┘                    │
  │                                     │                                       │
  └─────────────────────────────────────┼───────────────────────────────────────┘
                                        │
-                           [ Black Pearl PUT — external ]
-                           File moved to /validate/<bp_job_id>/
+                    [ Black Pearl PUT — external ]
+                    File moved to /validation/<bp_job_id>/
                                        │
  ┌─────────────────────────────────────┼───────────────────────────────────────┐
  │                          VALIDATION PHASE                                   │
@@ -206,7 +218,7 @@ autoingest/
  │        │    · Guard: skip if status != verified                   │         │
  │        │    · Guard: skip if already encoding (stale tasks)       │         │
  │        │    · Claim: verified → encoding                          │         │
- │        │    · Navigate to /validate/<bp_job_id>/ source file      │         │
+ │        │    · Navigate to /validation/<bp_job_id>/ source file    │         │
  │        │    · SKIP: non-video → encoding_complete                 │         │
  │        │    · SKIP: non-BFI → encoding_complete                   │         │
  │        │    · MediaInfo probes (height, width, DAR, PAR, audio)   │         │
@@ -251,14 +263,20 @@ autoingest/
  │                  │       cleanup_local_job             │  [DATA15]          │
  │                  │                                     │                    │
  │                  │  check_and_delete_source ───────────│                    │
+ │                  │    · Guard: skip if deleting_source │                    │
+ │                  │      or status ≠ encoding_complete  │                    │
+ │                  │    · Claim: encoding_complete →     │                    │
+ │                  │      deleting_source                │                    │
  │                  │    · CID append: proxy filenames    │                    │
  │                  │      (access_rendition.mp4,         │                    │
  │                  │       access_rendition.largeimage,  │                    │
  │                  │       access_rendition.thumbnail)   │                    │
  │                  │    · Delete source from             │                    │
- │                  │      /validate/<bp_job_id>/         │                    │
+ │                  │      /validation/<bp_job_id>/       │                    │
  │                  │    · Remove empty bp_job_id folder  │                    │
  │                  │    · Sets proxy_created = TRUE      │                    │
+ │                  │    · Rollback: deleting_source →    │                    │
+ │                  │      encoding_complete on failure   │                    │
  │                  │    · Success → complete             │                    │
  │                  └─────────────────────────────────────┘                    │
  │                                     │                                       │
@@ -270,11 +288,16 @@ autoingest/
  │             │         metadata_update_local_job             │  [DATA15]     │
  │             │                                               │               │
  │             │  update_cid_metadata ─────────────────────────│               │
+ │             │    · Guard: skip if updating_cid              │               │
+ │             │      or status ≠ complete                     │               │
+ │             │    · Claim: complete → updating_cid           │               │
  │             │    · Read mdata_full_json / mdata_exif from DB│               │
  │             │    · Build XML payload from FIELDS dictionary │               │
  │             │    · POST to CID media record (updaterecord)  │               │
  │             │    · Sets updated_to_cid = TRUE               │               │
  │             │    · Sets total_ingest_time_sec               │               │
+ │             │    · Rollback: updating_cid → complete        │               │
+ │             │      on failure                               │               │
  │             │    · Success → metadata_updated               │               │
  │             │                                               │               │
  │             │              On failure:                      │               │

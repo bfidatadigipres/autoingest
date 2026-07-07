@@ -149,7 +149,12 @@ Redis must be bound to `0.0.0.0` and firewalls must allow TCP 6379 from both the
 
 ### Pipeline viewer
 
-The project includes a Flask-based file viewer at `autoingest/app/` that shows the `file_catalogue` table with auto-refresh, status badges, and a "Refresh Request" button to re-queue files for ingest. Also hosts the KLC viewer on the same port under `/klc`.
+The project includes a Flask-based file viewer at `autoingest/app/` that shows the `file_catalogue` table with auto-refresh, status badges, and per-row action buttons (⚠ Actions column) to:
+- **↻ Re-ingest** — reset a file to `No Status` and move it back to the watch folder for re-processing
+- **↺ Validator reset** — return a file to pre-verification state (`File cleared for ingest`), keeping `bp_job_id` but clearing tape checksums/version ID
+- **✕ Delete** — remove the database row entirely
+
+Also hosts the KLC viewer on the same port under `/klc`.
 
 ```bash
 pip install flask
@@ -170,11 +175,11 @@ Opens on `http://localhost:5050` (and `/klc` for the KLC viewer). Pages auto-ref
 
 A read-only Flask Blueprint at `/klc` designed for KLC colleagues to review file progress. Features:
 
-- **14-column table** — File Name, Status, Error, Storage, Size in GB, Media Type, Pixel height/width, MD5 checksum, File/Video/Audio codec, Framerate, Last updated
+- **9-column table** — File Name, Status, Error, Storage, Size in GB, Media Type, MD5 checksum, File format, Last updated
 - **Search** by file name, status, or error message (debounced 350ms)
 - **Storage filter** — dropdown for qnap_01 through qnap_11 paths (prefix-matched to support subpaths)
 - **Error filter** — show files with errors, without errors, or all
-- **Error tooltips** — hover over ⚠ to see full error text, matched guidance (from a built-in 14-pattern lookup), and a "More info →" link to Confluence
+- **Error tooltips** — hover over ⚠ to see full error text with matched guidance from a built-in pattern lookup; the error text itself is a clickable link to the relevant Confluence guidance page (opens in new tab)
 - **Dark theme** — `#444` page background, `#666` brand bar with BFI logo, white bold title, yellow Refresh button, Service Desk link
 - **No write operations** — read-only viewer, no refresh/delete buttons
 
