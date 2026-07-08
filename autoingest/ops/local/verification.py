@@ -169,6 +169,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             ingest_retry_needed = True
             deletion_needed = True
 
+        context.log.info(f"Generating MD5 for downloaded file: {download_path}")
         download_hash = utils.create_md5_65536(download_path)
         if download_hash.lower() == file_info[22].lower():
             context.log.info(f"Checksums match between source file and downloaded:\n{download_hash} - Downloaded\n{file_info[22]} - Source file")
