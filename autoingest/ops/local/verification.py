@@ -146,14 +146,18 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             results["bp_length"] = bp_length
 
     else:
-        context.log.info("Blobbed file identified. Downloading for MD5 verification")
         download_folder = os.path.join(root, "downloads/")
+        context.log.info(f"Blobbed file identified. Downloading for MD5 verification: {download_folder}")
         os.makedirs(download_folder, exist_ok=True)
         dl_tic = time.perf_counter()
         download_id = bp.download_blobbed_object(file, download_folder, file_info[18])
         dl_toc = time.perf_counter()
         context.log.info(f"Confirmed download: {download_id} ({round(dl_toc - dl_tic, 1)}s)")
         download_path = os.path.join(download_folder, file)
+        if not os.path.exists(download_path):
+            context.log.warning(f"Exiting. File failed to download: {download_path}")
+            _set_validation_status(db, file_info[0], "File cleared for ingest", "")
+            return Output({}, metadata={"duration_sec": round(time.perf_counter() - dl_toc, 3)})
 
         filesize = os.stat(download_path).st_size
         if filesize == file_info[20]:
