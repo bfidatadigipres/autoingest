@@ -427,15 +427,10 @@ def get_duration(filepath: str) -> Optional[str]:
 
 def create_md5_65536(fpath: str) -> Optional[str]:
     """
-    Hashlib md5 generation, return as 32 character hexdigest
+    Hashlib MD5 generation using file_digest, return as 32 character hexdigest
     """
     try:
-        hash_md5 = hashlib.md5()
-        with open(fpath, "rb") as fname:
-            for chunk in iter(lambda: fname.read(65536), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
-
+        return hashlib.file_digest(open(fpath, "rb"), "md5").hexdigest()
     except Exception as err:
         print(f"{fpath} - Unable to generate MD5 checksum")
         print(err)
@@ -449,7 +444,7 @@ def create_xxhash_65536(fpath: str) -> Optional[str]:
     try:
         x = xxhash.xxh32()
         with open(fpath, 'rb') as fname:
-            for chunk in iter(lambda: fname.read(65536), b""):
+            for chunk in iter(lambda: fname.read(4_194_304), b""):
                 x.update(chunk)
         return x.hexdigest()
 
