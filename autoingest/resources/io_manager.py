@@ -31,8 +31,8 @@ class PostgresIOManager(IOManager):
                 )
 
     def load_input(self, context: InputContext) -> object:
-        run_id = context.run_id
         upstream = context.upstream_output
+        run_id = upstream.run_id
         step_key = upstream.step_key
         output_name = upstream.output_name
 
