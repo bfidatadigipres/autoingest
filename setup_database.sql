@@ -193,3 +193,24 @@ INSERT INTO app.file_type_config (file_extension, file_type_label, processing_pr
         '{"create_proxy": true, "proxy_scale": "640:-2", "create_thumbnail": true}',
         '{"min_file_size": 1024, "check_streams": true}')
 ON CONFLICT (file_extension) DO NOTHING;
+
+-- ============================================================
+-- TABLE 4: io_manager_store
+-- Persistent intermediate op-output storage for Celery workers.
+-- Replaces the default fs_io_manager (local-disk-based) so that
+-- every encoding worker can read / write outputs via shared
+-- PostgreSQL, regardless of which machine the step lands on.
+-- Data is pickled BYTEA; cleanup after 4 months.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS app.io_manager_store (
+    id              SERIAL PRIMARY KEY,
+    run_id          VARCHAR(255) NOT NULL,
+    step_key        VARCHAR(255) NOT NULL,
+    output_name     VARCHAR(255) NOT NULL DEFAULT 'result',
+    value           BYTEA NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(run_id, step_key, output_name)
+);
+
+CREATE INDEX idx_io_run_step   ON app.io_manager_store(run_id, step_key);
+CREATE INDEX idx_io_created_at ON app.io_manager_store(created_at);

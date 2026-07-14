@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from dagster import op, OpExecutionContext
 
+from autoingest.resources.io_manager import cleanup_io_manager_store
+
 
 @op(required_resource_keys={"workflow_db"})
 def sweep_completed_files(context: OpExecutionContext) -> None:
@@ -27,3 +29,9 @@ def sweep_completed_files(context: OpExecutionContext) -> None:
         db.update_file_status(file_id, file_status="complete", source_deletion=True)
 
     context.log.info(f"Sweep complete: {len(rows)} files cleaned up")
+
+    try:
+        deleted = cleanup_io_manager_store(db)
+        context.log.info(f"IO manager store cleanup: {deleted} rows removed")
+    except Exception as exc:
+        context.log.warning(f"IO manager store cleanup skipped: {exc}")

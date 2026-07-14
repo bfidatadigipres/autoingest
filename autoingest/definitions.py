@@ -2,6 +2,7 @@ from dagster import Definitions
 
 from autoingest.resources.database import workflow_database
 from autoingest.resources.encoding import encoding_config
+from autoingest.resources.io_manager import postgres_io_manager
 
 from autoingest.jobs.ingest_jobs import (
     ingest_local_job,
@@ -55,5 +56,6 @@ defs = Definitions(
     resources={
         "workflow_db": workflow_database,
         "encoding_config": encoding_config,
+        "io_manager": postgres_io_manager,
     },
 )
