@@ -34,7 +34,7 @@ class PostgresIOManager(IOManager):
         upstream = context.upstream_output
         run_id = upstream.run_id
         step_key = upstream.step_key
-        output_name = upstream.output_name
+        output_name = upstream.name
 
         with self._db.get_connection() as conn:
             with conn.cursor() as cur:
