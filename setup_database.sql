@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     image_time_sec      DOUBLE PRECISION,
     verify_time_sec     DOUBLE PRECISION,
     total_ingest_time_sec DOUBLE PRECISION,
-    mdata_exit          TEXT
+    mdata_exif          TEXT
 );
 
 CREATE INDEX idx_ft_status      ON app.file_catalogue(file_status);
