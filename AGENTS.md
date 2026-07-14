@@ -42,7 +42,7 @@ autoingest/
 │   │       └── source_deletion.py       # CID update, source file deletion
 │   └── resources/
 │       ├── database.py          # WorkflowDatabase (psycopg2)
-│       ├── encoding.py          # FFmpeg paths, thread count
+│       ├── encoding.py          # FFmpeg paths
 │       ├── utils.py             # ~30 shared utilities (checksums, MIME, MediaInfo, CID helpers)
 │       ├── adlib.py             # Adlib v3.7 REST client (tenacity retries)
 │       ├── bp_utils.py          # Black Pearl (ds3 SDK) client

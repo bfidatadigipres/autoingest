@@ -303,7 +303,6 @@ Variables marked **Required** will raise a `KeyError` at import time if missing.
 | `CELERY_RESULT_BACKEND` | No | `redis://localhost:6379/1` | `celery_config.py` | Redis result backend |
 | `FFMPEG_PATH` | No | `/usr/bin/ffmpeg` | `resources/encoding.py` | FFmpeg binary path |
 | `FFPROBE_PATH` | No | `/usr/bin/ffprobe` | `resources/encoding.py` | ffprobe binary path |
-| `ENCODING_THREAD_COUNT` | No | `0` (auto) | `resources/encoding.py` | FFmpeg thread count |
 | `PROXY_OUTPUT_PATH` | No | `/mnt/proxy` | `resources/encoding.py` | Proxy file output directory |
 | `WATCH_FOLDER_PATHS` | No | `""` | `sensors/watch_folder.py` | Comma-separated ingest watch directories |
 | `VALIDATION_FOLDER_PATHS` | No | `""` | `sensors/validation_folder.py` | Comma-separated validation watch directories |

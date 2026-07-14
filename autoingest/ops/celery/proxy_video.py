@@ -1,4 +1,5 @@
 import os
+import socket
 import time
 import autoingest.resources.utils as utils
 import autoingest.resources.proxy_utils as ut
@@ -120,9 +121,9 @@ def encode_proxy_mp4(
             if confirm_finished:
                 os.remove(output_path)
 
+        worker = socket.gethostname()
         context.log.info(
-            f"Encoding proxy MP4: {file_path} -> {output_path} "
-            f"(threads: {cfg.thread_count})"
+            f"[{worker}] Encoding proxy MP4: {file_path} -> {output_path}"
         )
 
         height = ut.get_height(file_path)

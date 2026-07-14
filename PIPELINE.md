@@ -81,7 +81,7 @@ autoingest/
 │   │
 │   ├── resources/                Shared utilities and external service clients
 │   │   ├── database.py           WorkflowDatabase — psycopg2, ALLOWED_FIELDS
-│   │   ├── encoding.py           EncodingConfig — FFmpeg path, thread count, proxy output
+│   │   ├── encoding.py           EncodingConfig — FFmpeg path, proxy output
 │   │   ├── utils.py              ~30 shared functions — checksums, MIME, Mediainfo, CID
 │   │   ├── adlib.py              Adlib v3.7 REST client — CID CRUD (tenacity retries)
 │   │   ├── bp_utils.py           Black Pearl ds3 SDK — tape archive client

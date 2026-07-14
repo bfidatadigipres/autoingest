@@ -15,7 +15,7 @@ from autoingest.jobs.validation_jobs import (
     cleanup_local_job,
     metadata_update_local_job,
 )
-from autoingest.jobs.cleanup_job import cleanup_job
+from autoingest.jobs.cleanup_job import cleanup_job, cleanup_schedule
 
 from autoingest.sensors.watch_folder import watch_folder_sensor
 from autoingest.sensors.validation_folder import validation_folder_sensor
@@ -53,6 +53,7 @@ defs = Definitions(
         cleanup_chain_sensor,
         metadata_update_chain_sensor,
     ],
+    schedules=[cleanup_schedule],
     resources={
         "workflow_db": workflow_database,
         "encoding_config": encoding_config,

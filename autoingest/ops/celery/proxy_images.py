@@ -1,4 +1,5 @@
 import os
+import socket
 import time
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,7 @@ def generate_images(
         source_image = file_info["file_path"]
 
     context.log.info(f"Mime type is {mime} and source image is {source_image}")
+    context.log.info(f"[{socket.gethostname()}] Creating proxy large image and thumbnail for {file_name}")
 
     largeimage_path = None
     thumbnail_path = None

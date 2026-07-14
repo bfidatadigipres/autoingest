@@ -1,3 +1,4 @@
+import socket
 import time
 from pathlib import Path
 import autoingest.resources.utils as utils
@@ -45,7 +46,8 @@ def generate_checksum(context: OpExecutionContext) -> Output:
         context.log.info(f"Skipping checksum generation — file not cleared for ingest: {file_name}")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    context.log.info(f"Generating MD5 checksum for {file_name}")
+    worker = socket.gethostname()
+    context.log.info(f"[{worker}] Generating MD5 checksum for {file_name}")
     _set_encoding_status(db, file_id)
     md5 = xxhash_val = None
     try:
