@@ -22,7 +22,7 @@ STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.js
 CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
 DPI_BUCKETS = os.environ.get("DPI_BUCKET")
-CID_API = os.environ.get("CID_API3")
+CID_API = get_current_api()
 
 ACCEPTED_EXT: Final = [
     "avi",
@@ -664,3 +664,23 @@ def move_file(from_path: str, to_path: str) -> Optional[List[Union[bool, str]]]:
         return [False, f"FAIL: File did not move to {from_path}"]
     if os.path.isfile(to_path):
         return [True, f"SUCCESS: File moved to new path {to_path}"]
+
+
+def get_current_api()
+    """
+    Check document to see which API
+    pointing to Axiell CID LIVE dB
+    """
+
+    try:
+        with open(CONTROL_JSON) as control:
+            j: dict[str, str] = json.load(control)
+            if j["current_api"]:
+                api_key = j["current_api"]
+                return os.environ.get(api_key)
+            else:
+                print("No API key found in control json")
+                return None
+    except FileNotFoundError:
+        print(f"Control JSON file not found: {CONTROL_JSON}")
+        return None

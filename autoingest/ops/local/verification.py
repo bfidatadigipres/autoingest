@@ -11,7 +11,7 @@ from typing import Any, Optional
 from dagster import op, Out, Output, OpExecutionContext
 
 JSON_PATH = os.path.join(os.environ.get("LOG_PATH", ""), "black_pearl/")
-CID_API = os.environ.get("CID_API3")
+CID_API = utils.get_current_api()
 
 
 @op(

@@ -11,7 +11,7 @@ from dagster import op, OpExecutionContext, Output
 from ...resources import utils
 from ...resources import adlib
 
-CID_API = os.environ.get("CID_API3")
+CID_API = utils.get_current_api()
 
 FIELDS = [
     {"container.duration": ["Duration_String1", "Duration  "]},

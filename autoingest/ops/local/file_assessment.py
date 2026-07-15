@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Union
 from dagster import op, Out, Output, OpExecutionContext
 
-CID_API = os.environ.get("CID_API3")
+CID_API = utils.get_current_api()
 
 
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
