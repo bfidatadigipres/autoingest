@@ -124,6 +124,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
                 context.log.info(f"Removed empty BP job folder: {bp_folder}")
                 json_file = os.path.join(JSON_PATH, f"{bp_folder}.json")
                 if os.path.isfile(json_file):
+                    os.chmod(json_file, 0o777)
                     shutil.move(json_file, COMP_PATH)
             except OSError as exc:
                 context.log.warning(f"Could not remove BP job folder: {bp_folder} — {exc}")
