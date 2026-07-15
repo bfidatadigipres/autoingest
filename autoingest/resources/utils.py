@@ -357,7 +357,7 @@ def exif_data(dpath: str) -> Optional[list[str]]:
     return exif_metadata
 
 
-def check_ffprobe_exit(fpath: str) -> Union[int, bool]:
+def check_ffprobe_exit(fpath: str) -> Optional[int]:
     """
     Get return code for read attempt
     """
@@ -368,7 +368,7 @@ def check_ffprobe_exit(fpath: str) -> Union[int, bool]:
         return code.returncode
     except Exception as err:
         print(err)
-    return False
+    return None
 
 
 def get_mediaconch(dpath: str, policy: str) -> bool:
