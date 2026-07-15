@@ -22,7 +22,6 @@ STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.js
 CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
 DPI_BUCKETS = os.environ.get("DPI_BUCKET")
-CID_API = get_current_api()
 
 ACCEPTED_EXT: Final = [
     "avi",
@@ -461,6 +460,7 @@ def fetch_item_priref(ob_num: str) -> str:
     ob_num = ob_num.strip()
     search = f"object_number='{ob_num}'"
     print(f"Search used against CID Collect dB: {search}")
+    CID_API = get_current_api()
     try:
         record = adlib.retrieve_record(CID_API, "collect", search, "1")[1]
     except Exception as err:
@@ -488,6 +488,7 @@ def check_file_has_media_rec(
     """
     search = f"imagen.media.original_filename='{fname}'"
     print(f"Search used against CID Media dB: {search}")
+    CID_API = get_current_api()
     try:
         hits = adlib.retrieve_record(CID_API, "media", search, "0")[0]
     except Exception as err:
@@ -563,6 +564,7 @@ def cid_media_append(priref: str, data: list[str]) -> Optional[bool]:
     payload_mid = "".join(data)
     payload_end = f"</record></recordList></adlibXML>"
     payload = payload_head + payload_mid + payload_end
+    CID_API = get_current_api()
 
     try:
         rec = adlib.post(CID_API, payload, "media", "updaterecord")
