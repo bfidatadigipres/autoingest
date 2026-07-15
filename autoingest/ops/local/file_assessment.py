@@ -247,7 +247,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
                     autoingest_path = %s,
                     file_path = %s,
                     updated_at = NOW()
-                WHERE id = %s
+                WHERE file_name = %s
             """, (
                 returns.get("file_status", "Failed assessment"),
                 returns.get("do_ingest", "FALSE"),
@@ -269,7 +269,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
                 returns.get("put_type", ""),
                 returns.get("autoingest_path", ""),
                 returns.get("file_path", str(file_path)),
-                claimed_id,
+                filename,
             ))
 
     toc = time.perf_counter()
