@@ -53,9 +53,9 @@ def generate_images(
             "proxy_thumb_path": "",
         }, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"Already generating images: {file_name}"})
 
-    if file_status != "encoded":
+    if file_status not in ("encoded", "encoding_complete"):
         context.log.info(
-            f"File {file_name} has status '{file_status}' — expected 'encoded'. Skipping."
+            f"File {file_name} has status '{file_status}' — expected 'encoded' or 'encoding_complete'. Skipping."
         )
         return Output({
             "file_id": file_id,

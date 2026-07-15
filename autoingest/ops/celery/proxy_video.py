@@ -75,6 +75,14 @@ def encode_proxy_mp4(
 
         if mime_type != "video":
             context.log.info("MIME type is not Video and cannot be transcoded...")
+            cfg = context.resources.encoding_config
+            output_dir = Path(cfg.proxy_output_path)
+            if ingest_month:
+                output_folder = str(output_dir / ingest_month)
+            else:
+                output_folder = str(output_dir)
+            os.makedirs(output_folder, exist_ok=True)
+            proxy_base = os.path.join(output_folder, filename_stem)
             db.update_file_status(file_id, file_status="encoding_complete")
             duration_sec = round(time.perf_counter() - tic, 3)
             return Output({
@@ -82,7 +90,7 @@ def encode_proxy_mp4(
                 "file_path": file_path,
                 "source": source,
                 "mime_type": mime_type,
-                "proxy_video_path": "",
+                "proxy_video_path": proxy_base,
                 "proxy_size": "",
             }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (non-video): {filename}"})
 

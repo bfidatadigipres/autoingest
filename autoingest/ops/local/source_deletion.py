@@ -86,6 +86,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
             cid_update_time = round(cid_toc - cid_tic, 3)
             if not success:
                 context.log.error(f"Proxy file names failed to write to Media priref {media_priref}")
+                _rollback_deleting_status(db, file_id)
                 duration_sec = round(time.perf_counter() - tic, 3)
                 return Output(None, metadata={"duration_sec": duration_sec, "preview": f"CID update failed for file {file_id}"})
             context.log.info(f"Proxy filenames updated to CID Media record: {media_priref}")
