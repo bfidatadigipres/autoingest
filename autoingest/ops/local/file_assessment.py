@@ -262,7 +262,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
                 returns.get("bp_bucket", ""),
                 str(returns.get("bucket_list", "")),
                 returns.get("cid_file_type", ""),
-                returns.get("cid_item_priref", ""),
+                returns.get("cid_item_priref"),
                 returns.get("cid_ob_num", ""),
                 returns.get("incomplete_scan", "UNKNOWN"),
                 returns.get("screencraft_arch", "UNKNOWN"),
