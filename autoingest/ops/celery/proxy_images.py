@@ -81,7 +81,7 @@ def generate_images(
         duration_sec = round(time.perf_counter() - tic, 3)
         return Output({
             "file_id": file_info.get("file_id"),
-            "proxy_video_path": proxy_path,
+            "proxy_video_path": "",
             "proxy_image_path": "",
             "proxy_thumb_path": "",
         }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (non-BFI): {source}"})
