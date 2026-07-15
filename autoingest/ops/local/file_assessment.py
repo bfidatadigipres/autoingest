@@ -15,7 +15,7 @@ CID_API = utils.get_current_api()
 @op(required_resource_keys={"workflow_db"}, config_schema={"file_path": str}, out=Out(dict))
 def assess_filename(context: OpExecutionContext) -> Output:
     tic = time.perf_counter()
-
+    context.log.info(CID_API)
     file_path = Path(context.op_config["file_path"])
     if not file_path:
         context.log.info("No files found at this time.")
