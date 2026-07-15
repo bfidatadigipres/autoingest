@@ -221,7 +221,7 @@ def encode_proxy_mp4(
         context.log.info("Updating Proxy Video data to dB")
         db.update_file_status(
             file_id,
-            proxy_video_path=str(output_path),
+            proxy_video_path=str(output_path).rsplit(".")[0],
             proxy_size=proxy_size,
             ffmpeg_command=ffmpeg_call_neat,
             encode_time_sec=ffmpeg_time,
