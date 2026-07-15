@@ -29,7 +29,7 @@ GUIDANCE = {
         "text": "This indicates poorly formed filename with incorrect Object Number syntax, eg using hyphens rather than underscores. Correct any obvious Object Number syntax issues and remove and incorrect characters or extensions.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "Extension does not match in record": {
+    "Extension does not match record file_type": {
         "text": "This indicates a mismatch between the file_type in the CID record and the file extensions. In some cases this can indicate the wrong Object Number use in the filename. Most commonly the file_type in the CID record must be changed.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
@@ -61,7 +61,7 @@ GUIDANCE = {
         "text": "TThis indicates the MD5 checksum created for the file is different to the MD5 checksum that Black Pearl has stored for the file. This could be an ingest failure or a media management issue. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether there is a media management issue, or whether this indicates an ingest failure.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
-    "Cannot find record with": {
+    "Cannot find record!": {
         "text": "This indicates that the filename uses an Object Number that does not exist in CID. Check in CID to identify possible mistyping of Object Number. If no corresponding CID record can be found, file should be removed from Autoingest until further investigation can assign a correct Object Number.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
