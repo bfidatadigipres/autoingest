@@ -666,7 +666,7 @@ def move_file(from_path: str, to_path: str) -> Optional[List[Union[bool, str]]]:
         return [True, f"SUCCESS: File moved to new path {to_path}"]
 
 
-def get_current_api()
+def get_current_api():
     """
     Check document to see which API
     pointing to Axiell CID LIVE dB
