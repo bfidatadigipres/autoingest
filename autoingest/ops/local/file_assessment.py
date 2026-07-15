@@ -217,7 +217,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
     returns["bucket_list"] = bucket_list
     returns["mime_type"] = mime_type
     returns["cid_file_type"] = ftype
-    returns["cid_item_priref"] = priref
+    returns["cid_item_priref"] = priref or None
     returns["cid_ob_num"] = object_number
     returns["source"] = donor
     returns["autoingest_path"] = autoingest_path
