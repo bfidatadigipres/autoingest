@@ -469,8 +469,8 @@ def get_image_xml(track: list[str]) -> list[dict[str, str]]:
         "Encoding Process, encoding_process",
         "Exif Byte Order, exif_byte_order",
         "File Type, file_type",
-        "Exif Image Height, height",
-        "Exif Image Width, width",
+        "Image Height, height",
+        "Image Width, width",
         "Orientation, orientation",
         "Resolution Unit, resolution_unit",
         "Software, software",
@@ -487,7 +487,7 @@ def get_image_xml(track: list[str]) -> list[dict[str, str]]:
             continue
         for d in data:
             exif_field, cid_field = d.split(", ")
-            if exif_field == field.strip():
+            if exif_field == field.strip() or exif_field in field.strip():
                 image_dict.append({f"image.{cid_field}": value.strip()})
 
     return image_dict
