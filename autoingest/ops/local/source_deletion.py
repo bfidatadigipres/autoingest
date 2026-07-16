@@ -115,14 +115,16 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
             context.log.warning(f"Source file already gone: {source_path}")
             db.update_file_status(file_id, file_status="complete", source_deletion=True, error_message=None)
 
-        bp_folder = source_path.parent
+        bp_folder_path = source_path.parent
+        bp_folder = os.path.basename(str(bp_folder_path))
         try:
             next(bp_folder.iterdir())
         except StopIteration:
             try:
-                bp_folder.rmdir()
-                context.log.info(f"Removed empty BP job folder: {bp_folder}")
+                bp_folder_path.rmdir()
+                context.log.info(f"Removed empty BP job folder: {bp_folder_path}")
                 json_file = os.path.join(JSON_PATH, f"{bp_folder}.json")
+                context.log.info(f"Attempting to move JSON to completed path: {json_file}")
                 if os.path.isfile(json_file):
                     os.chmod(json_file, 0o777)
                     shutil.move(json_file, COMP_PATH)
