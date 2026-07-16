@@ -84,21 +84,20 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                 continue
 
             try:
-                size_1 = file_path.stat().st_size
-                time.sleep(2)
-                size_2 = file_path.stat().st_size
-                if size_1 != size_2 or size_1 == 0:
+                st = file_path.stat()
+                age_sec = time.time() - st.st_mtime
+                if age_sec < 5 or st.st_size == 0:
                     skipped_size += 1
                     context.log.info(
                         f"Skipping in-flight file: {file_path.name} "
-                        f"(size changed {size_1}→{size_2})"
+                        f"(modified {age_sec:.1f}s ago, size={st.st_size})"
                     )
                     continue
             except OSError as exc:
                 context.log.warning(f"OS error checking {file_path.name}: {exc}")
                 continue
 
-            context.log.info(f"New file detected: {file_path.name} ({size_1} bytes)")
+            context.log.info(f"New file detected: {file_path.name} ({st.st_size} bytes)")
             new_files.append(file_key)
 
     context.log.info(
