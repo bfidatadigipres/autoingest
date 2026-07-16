@@ -37,7 +37,7 @@ def generate_checksum(context: OpExecutionContext) -> Output:
 
     if file_status == "generating_checksum":
         context.log.info(f"File {file_name} is already being checksummed. Skipping.")
-        return Output(None, metadata={
+        return Output({}, metadata={
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Already checksumming: {file_name}",
         })

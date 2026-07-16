@@ -235,12 +235,8 @@ class TestGenerateChecksumGuard:
             resources={"workflow_db": db},
             op_config={"file_path": "/fake/path.mkv"},
         )
-        # The op returns Output(None, ...) for skip cases; Dagster type-checks
-        # this against the Out(dict) declaration and raises.  The log message
-        # confirms the guard fired correctly.
-        import pytest as _pytest
-        with _pytest.raises(Exception):
-            generate_checksum(ctx)
+        result = generate_checksum(ctx)
+        assert result.value == {}
 
 
 class TestCreateCatalogueRecordGuard:

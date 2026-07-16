@@ -15,6 +15,8 @@ from autoingest.resources.utils import accepted_file_type
     required_resource_keys={"workflow_db"},
 )
 def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
+    tick_start = time.perf_counter()
+
     watch_paths = os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
     watch_paths = [p.strip() for p in watch_paths if p.strip()]
 
@@ -54,12 +56,15 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     seen_files = cursor_files - retryable
 
+    TICK_DEADLINE_SEC = 55
+
     new_files = []
     current_files = set()
     total_scanned = 0
     skipped_extension = 0
     skipped_not_file = 0
     skipped_size = 0
+    timed_out = False
 
     for watch_path in watch_paths:
         watch_dir = Path(watch_path)
@@ -69,6 +74,10 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
         for file_path in watch_dir.rglob("*"):
             total_scanned += 1
+
+            if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
+                timed_out = True
+                break
 
             if not file_path.is_file():
                 skipped_not_file += 1
@@ -99,6 +108,13 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
             context.log.info(f"New file detected: {file_path.name} ({st.st_size} bytes)")
             new_files.append(file_key)
+
+        if timed_out:
+            context.log.warning(
+                f"Tick time limit ({TICK_DEADLINE_SEC}s) reached — "
+                f"{total_scanned} items scanned, remaining files deferred to next tick"
+            )
+            break
 
     context.log.info(
         f"Scan complete — scanned {total_scanned}, "
