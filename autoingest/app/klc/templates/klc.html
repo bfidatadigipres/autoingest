@@ -191,9 +191,9 @@ function showTooltip(ev, errorText, guidanceText, linkUrl) {
     }
     var html = '<div class="tooltip-inner">';
     html += '<div class="tooltip-header">Error Details</div>';
-    html += '<div class="tooltip-body">' + errorText + '</div>';
+    html += '<div class="tooltip-body">' + esc(errorText) + '</div>';
     if (guidanceText) {
-        html += '<div class="tooltip-guidance">' + guidanceText + '</div>';
+        html += '<div class="tooltip-guidance">' + esc(guidanceText) + '</div>';
     }
     html += '</div>';
     el.innerHTML = html;
