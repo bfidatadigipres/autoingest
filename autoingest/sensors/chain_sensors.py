@@ -104,6 +104,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
             if last_attempt is not None and (now - last_attempt) < RETRY_INTERVAL_SECONDS:
                 continue
 
+            run_key = f"{op_name}-{file_id}-{last_attempt or 0}"
             context.log.info(
                 f"{sensor_name}: launching {op_name} for file_id={file_id} "
                 f"({Path(file_path).name})"
@@ -111,7 +112,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
             )
             new_requests.append(
                 RunRequest(
-                    run_key=f"{op_name}-{file_id}-{now}",
+                    run_key=run_key,
                     run_config={
                         "ops": {
                             op_name: {
