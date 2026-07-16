@@ -130,7 +130,8 @@ body {
 }
 
 .table-wrapper {
-    max-height: 70vh;
+    height: calc(100vh - 200px);
+    max-height: calc(100vh - 200px);
     overflow: auto;
     border: 1px solid #d0d4de;
     border-radius: 6px;
