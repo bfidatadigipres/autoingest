@@ -49,6 +49,12 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Already deleting source: {file_name}",
         })
+    if file_status == "complete":
+        context.log.info(f"File {file_name} is already complete. Skipping.")
+        return Output(None, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Already complete: {file_name}",
+        })
     if file_status != "encoding_complete":
         context.log.warning(
             f"File {file_name} has status '{file_status}' — expected 'encoding_complete'. Skipping."
@@ -117,19 +123,20 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
 
         bp_folder_path = source_path.parent
         bp_folder = os.path.basename(str(bp_folder_path))
-        try:
-            next(bp_folder_path.iterdir())
-        except StopIteration:
+        if bp_folder_path.exists():
             try:
-                bp_folder_path.rmdir()
-                context.log.info(f"Removed empty BP job folder: {bp_folder_path}")
-                json_file = os.path.join(JSON_PATH, f"{bp_folder}.json")
-                context.log.info(f"Attempting to move JSON to completed path: {json_file}")
-                if os.path.isfile(json_file):
-                    os.chmod(json_file, 0o777)
-                    shutil.move(json_file, COMP_PATH)
-            except OSError as exc:
-                context.log.warning(f"Could not remove BP job folder: {bp_folder} — {exc}")
+                next(bp_folder_path.iterdir())
+            except StopIteration:
+                try:
+                    bp_folder_path.rmdir()
+                    context.log.info(f"Removed empty BP job folder: {bp_folder_path}")
+                    json_file = os.path.join(JSON_PATH, f"{bp_folder}.json")
+                    context.log.info(f"Attempting to move JSON to completed path: {json_file}")
+                    if os.path.isfile(json_file):
+                        os.chmod(json_file, 0o777)
+                        shutil.move(json_file, COMP_PATH)
+                except OSError as exc:
+                    context.log.warning(f"Could not remove BP job folder: {bp_folder} — {exc}")
 
     except Exception:
         _rollback_deleting_status(db, file_id)
