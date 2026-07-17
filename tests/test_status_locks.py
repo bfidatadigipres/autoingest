@@ -164,7 +164,7 @@ class TestEncodeProxyMp4Guard:
             op_config={"file_path": "/fake/path.mkv"},
         )
         result = encode_proxy_mp4(ctx)
-        assert result.value is None
+        assert result.value == {}
 
     def test_skips_when_not_verified(self):
         from autoingest.ops.celery.proxy_video import encode_proxy_mp4
@@ -178,7 +178,7 @@ class TestEncodeProxyMp4Guard:
             op_config={"file_path": "/fake/path.mkv"},
         )
         result = encode_proxy_mp4(ctx)
-        assert result.value is None
+        assert result.value == {}
 
 
 class TestGenerateImagesGuard:

@@ -41,7 +41,7 @@ def encode_proxy_mp4(
 
     if file_status == "encoding":
         context.log.info(f"File {filename} is already being encoded. Skipping.")
-        return Output(None, metadata={
+        return Output({}, metadata={
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Already encoding: {filename}",
         })
@@ -50,7 +50,7 @@ def encode_proxy_mp4(
         context.log.warning(
             f"File {filename} has status '{file_status}' — expected 'verified'. Skipping."
         )
-        return Output(None, metadata={
+        return Output({}, metadata={
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Skipped: status={file_status}",
         })
