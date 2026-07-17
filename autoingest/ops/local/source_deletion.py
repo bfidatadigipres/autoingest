@@ -118,7 +118,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
         bp_folder_path = source_path.parent
         bp_folder = os.path.basename(str(bp_folder_path))
         try:
-            next(bp_folder.iterdir())
+            next(bp_folder_path.iterdir())
         except StopIteration:
             try:
                 bp_folder_path.rmdir()
