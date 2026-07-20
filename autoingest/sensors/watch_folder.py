@@ -75,21 +75,19 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         ingest_folders = [x for x in os.listdir(watch_dir) if os.path.isdir(os.path.join(watch_dir, x))]
         for folder in ingest_folders:
             folder_path = os.path.join(watch_dir, folder)
-            for file_path in folder_path.rglob("*"):
+            files = [x for x in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, x))]
+            for file in files:
+                file_key = os.path.join(folder_path, file)
+                file_path = Path(file_key)
                 total_scanned += 1
 
                 if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
                     timed_out = True
                     break
-
-                if not file_path.is_file():
-                    skipped_not_file += 1
-                    continue
                 if not accepted_file_type(file_path.suffix.lstrip(".")):
                     skipped_extension += 1
                     continue
 
-                file_key = str(file_path)
                 current_files.add(file_key)
 
                 if file_key in seen_files:
