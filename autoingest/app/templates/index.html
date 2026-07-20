@@ -11,8 +11,16 @@
 <div class="header">
     <h1>BFI National Archive — autoingest</h1>
     <div class="button-bar">
-        <button onclick="location.reload()" class="btn" title="Reload page">⟳ Refresh</button>
+        <div class="filter-group">
+            <input type="text" id="searchInput" placeholder="Search file name / status / error&hellip;" autocomplete="off">
+            <select id="errorFilter">
+                <option value="">All files</option>
+                <option value="yes">With errors</option>
+                <option value="no">Without errors</option>
+            </select>
+        </div>
         <button id="btnProgress" class="btn" onclick="toggleProgress()">View Progress</button>
+        <button onclick="location.reload()" class="btn" title="Reload page">⟳ Refresh</button>
         {% if confluence_url %}
         <a href="{{ confluence_url }}" target="_blank" rel="noopener" class="btn">Instructions</a>
         {% endif %}
@@ -49,6 +57,7 @@
 
 <script>
 let showProgressOnly = false;
+let searchTimeout = null;
 
 function toggleProgress() {
     showProgressOnly = !showProgressOnly;
@@ -59,7 +68,16 @@ function toggleProgress() {
 }
 
 async function loadFiles() {
-    var url = showProgressOnly ? "/api/files?status=progress" : "/api/files";
+    var params = new URLSearchParams();
+    if (showProgressOnly) params.set("status", "progress");
+    var search = document.getElementById("searchInput").value.trim();
+    if (search) params.set("search", search);
+    var hasError = document.getElementById("errorFilter").value;
+    if (hasError) params.set("has_error", hasError);
+
+    var qs = params.toString();
+    var url = qs ? "/api/files?" + qs : "/api/files";
+
     try {
         var resp = await fetch(url);
         var files = await resp.json();
@@ -83,9 +101,10 @@ function renderTable(files) {
     for (var i = 0; i < files.length; i++) {
         var f = files[i];
         var statusClass =
-            f.file_status === "metadata_updated" ? "status-ok" :
+            f.file_status === "All stages complete" ? "status-ok" :
             f.file_status === "complete" ? "status-ok" :
             f.file_status === "encoding_complete" ? "status-ok" :
+            f.file_status === "verified" ? "status-ok" :
             f.file_status === "Failed assessment" ? "status-fail" :
             f.file_status === "failed" ? "status-fail" :
             f.file_status === "Error" ? "status-error" :
@@ -197,6 +216,12 @@ async function loadStats() {
 loadFiles();
 loadStats();
 setInterval(loadStats, 60000);
+
+document.getElementById("searchInput").addEventListener("input", function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(loadFiles, 350);
+});
+document.getElementById("errorFilter").addEventListener("change", loadFiles);
 </script>
 
 </body>

@@ -14,7 +14,26 @@ body {
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 h1 { font-size: 18px; font-weight: 600; margin-bottom: 10px; color: #1a1a2e; }
-.button-bar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.button-bar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+.filter-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.filter-group input {
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    width: 260px;
+}
+.filter-group select {
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    background: #fff;
+}
 .btn {
     display: inline-block;
     padding: 6px 14px;
@@ -74,9 +93,9 @@ tr:hover td { background: #f8f8ff; }
     font-weight: 500;
     white-space: nowrap;
 }
-.status-ok { background: #d4edda; color: #155724; }
-.status-fail { background: #f8d7da; color: #721c24; }
-.status-error { background: #fff3cd; color: #856404; }
+.status-ok    { background: #d4edda; color: #155724; }
+.status-fail  { background: #fff3cd; color: #856404; }
+.status-error { background: #f8d7da; color: #721c24; }
 .status-pending { background: #cce5ff; color: #004085; }
 
 .btn-retry {

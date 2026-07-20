@@ -36,28 +36,54 @@ def index():
 @bp.route("/api/files")
 def api_files():
     db = _db()
-    status_filter = request.args.get("status", "")
+    status_filter = request.args.get("status", "").strip()
+    search = request.args.get("search", "").strip()
+    has_error = request.args.get("has_error", "").strip()
+
+    conditions = []
+    params = []
+
+    if search:
+        like = f"%{search}%"
+        conditions.append(
+            "(file_name ILIKE %s OR file_status ILIKE %s OR error_message ILIKE %s)"
+        )
+        params.extend([like, like, like])
+
+    if has_error == "yes":
+        conditions.append("error_message IS NOT NULL AND error_message != ''")
+    elif has_error == "no":
+        conditions.append("(error_message IS NULL OR error_message = '')")
+        # Error-free files restricted to last 72 hours.
+        conditions.append("updated_at >= NOW() - INTERVAL '72 hours'")
+
+    if status_filter == "progress":
+        conditions.append("file_status != 'complete'")
+
+    # Apply 72-hour window by default, but bypass it when:
+    #   - searching the full history, or
+    #   - viewing all unresolved errors regardless of age.
+    if not search and has_error != "yes":
+        conditions.append("updated_at >= NOW() - INTERVAL '72 hours'")
+
+    where_clause = ""
+    if conditions:
+        where_clause = "WHERE " + " AND ".join(conditions)
+
+    query = f"""
+        SELECT id, file_name, file_status, source, file_size,
+               mime_type, error_message, tape_verified, proxy_created,
+               created_at, updated_at
+        FROM app.file_catalogue
+        {where_clause}
+        ORDER BY updated_at DESC
+        LIMIT %s
+    """
+    params.append(1000)
+
     with db.get_connection() as conn:
         with conn.cursor() as cur:
-            if status_filter == "progress":
-                cur.execute("""
-                    SELECT id, file_name, file_status, source, file_size,
-                           mime_type, error_message, tape_verified, proxy_created,
-                           created_at, updated_at
-                    FROM app.file_catalogue
-                    WHERE file_status != 'complete'
-                    ORDER BY created_at DESC
-                    LIMIT 200
-                """)
-            else:
-                cur.execute("""
-                    SELECT id, file_name, file_status, source, file_size,
-                           mime_type, error_message, tape_verified, proxy_created,
-                           created_at, updated_at
-                    FROM app.file_catalogue
-                    ORDER BY created_at DESC
-                    LIMIT 200
-                """)
+            cur.execute(query, params)
             columns = [desc[0] for desc in cur.description]
             rows = [dict(zip(columns, row)) for row in cur.fetchall()]
 
