@@ -170,7 +170,7 @@ def encode_proxy_mp4(
         twelve_channel = ut.check_for_twelve_channel_audio(file_path)
 
         context.log.info(f"""
-            Metadata extracted: {height}x{width}, DAR {dar}, PAR {par}, \
+            Metadata extracted: {width}x{height}, DAR {dar}, PAR {par}, \
             Aspect {aspect}, Duration {duration}, VS {vs}, Audio: {audio} - Stream default {stream_default} \
             - Stream count {stream_count} - FL/FR {fl_fr} - Twelve channel {twelve_channel} \
             Mixed audio dict: {mixed_dict}.
