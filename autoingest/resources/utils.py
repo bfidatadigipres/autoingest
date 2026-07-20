@@ -333,7 +333,7 @@ def sort_ext(ext: str) -> Optional[str]:
 
     ext = ext.lower()
     for key, val in mime_type.items():
-        if str(ext) in str(val):
+        if str(ext) == str(val):
             return key
 
 
