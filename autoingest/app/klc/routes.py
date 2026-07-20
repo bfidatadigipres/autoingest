@@ -112,6 +112,19 @@ def _db():
     return current_app.config["db"]
 
 
+def _format_size(size_bytes):
+    if not size_bytes:
+        return ""
+    size = int(size_bytes)
+    if size >= 1073741824:
+        return f"{size / 1073741824:.1f} GB"
+    if size >= 1048576:
+        return f"{size / 1048576:.1f} MB"
+    if size >= 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size} B"
+
+
 def _extract_storage(file_path: str) -> str:
     if not file_path:
         return ""
@@ -206,11 +219,7 @@ def api_files():
     for row in raw_rows:
         r = dict(zip(columns, row))
         r["storage"] = _extract_storage(r.get("file_path") or "")
-        r["file_size_gb"] = (
-            f"{int(r['file_size']) / 1_073_741_824:.2f}"
-            if r.get("file_size")
-            else ""
-        )
+        r["file_size_fmt"] = _format_size(r.get("file_size"))
         r["checksum_md5_short"] = r.get("checksum_md5") or ""
         if r.get("updated_at"):
             r["updated_at"] = r["updated_at"].strftime("%Y-%m-%d %H:%M")

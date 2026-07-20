@@ -52,7 +52,7 @@
             <th>Status</th>
             <th>Error</th>
             <th>Storage</th>
-            <th>Size in GB</th>
+            <th>File Size</th>
             <th>Media Type</th>
             <th>MD5 checksum</th>
             <th>File format</th>
@@ -160,7 +160,7 @@ function renderTable(files) {
             '<td><span class="status ' + statusClass + '">' + esc(f.file_status) + '</span></td>' +
             '<td class="error-cell">' + errorCell + '</td>' +
             '<td>' + esc(f.storage) + '</td>' +
-            '<td class="num">' + esc(f.file_size_gb) + '</td>' +
+            '<td class="num">' + esc(f.file_size_fmt) + '</td>' +
             '<td>' + esc(f.mime_type) + '</td>' +
             '<td class="mono">' + esc(f.checksum_md5_short) + '</td>' +
             '<td>' + esc(f.file_fmt) + '</td>' +
