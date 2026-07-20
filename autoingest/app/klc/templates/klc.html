@@ -101,7 +101,7 @@ async function loadFiles() {
     if (search) params.set("search", search);
     if (storage) params.set("storage", storage);
     if (hasError) params.set("has_error", hasError);
-    params.set("limit", "200");
+    params.set("limit", "1000");
 
     try {
         var resp = await fetch("/klc/api/files?" + params.toString());

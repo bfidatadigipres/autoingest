@@ -154,7 +154,7 @@ def api_files():
     search = request.args.get("search", "").strip()
     storage = request.args.get("storage", "").strip()
     has_error = request.args.get("has_error", "").strip()
-    limit = min(int(request.args.get("limit", "200")), 1000)
+    limit = min(int(request.args.get("limit", "1000")), 1000)
 
     conditions = []
     params = []
@@ -172,8 +172,14 @@ def api_files():
 
     if has_error == "yes":
         conditions.append("error_message IS NOT NULL AND error_message != ''")
+        # Show all unresolved errors regardless of age.
     elif has_error == "no":
         conditions.append("(error_message IS NULL OR error_message = '')")
+        # Files without errors are only shown if updated within the last 72 hours.
+        conditions.append("updated_at >= NOW() - INTERVAL '72 hours'")
+    else:
+        # Default view: files updated in the last 72 hours.
+        conditions.append("updated_at >= NOW() - INTERVAL '72 hours'")
 
     where_clause = ""
     if conditions:
