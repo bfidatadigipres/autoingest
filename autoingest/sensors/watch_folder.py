@@ -72,42 +72,45 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             context.log.warning(f"Watch folder does not exist: {watch_path}")
             continue
 
-        for file_path in watch_dir.rglob("*"):
-            total_scanned += 1
+        ingest_folders = [x for x in os.listdir(watch_dir) if os.path.isdir(os.path.join(watch_dir, x))]
+        for folder in ingest_folders:
+            folder_path = os.path.join(watch_dir, folder)
+            for file_path in folder_path.rglob("*"):
+                total_scanned += 1
 
-            if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
-                timed_out = True
-                break
+                if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
+                    timed_out = True
+                    break
 
-            if not file_path.is_file():
-                skipped_not_file += 1
-                continue
-            if not accepted_file_type(file_path.suffix.lstrip(".")):
-                skipped_extension += 1
-                continue
-
-            file_key = str(file_path)
-            current_files.add(file_key)
-
-            if file_key in seen_files:
-                continue
-
-            try:
-                st = file_path.stat()
-                age_sec = time.time() - st.st_mtime
-                if age_sec < 5 or st.st_size == 0:
-                    skipped_size += 1
-                    context.log.info(
-                        f"Skipping in-flight file: {file_path.name} "
-                        f"(modified {age_sec:.1f}s ago, size={st.st_size})"
-                    )
+                if not file_path.is_file():
+                    skipped_not_file += 1
                     continue
-            except OSError as exc:
-                context.log.warning(f"OS error checking {file_path.name}: {exc}")
-                continue
+                if not accepted_file_type(file_path.suffix.lstrip(".")):
+                    skipped_extension += 1
+                    continue
 
-            context.log.info(f"New file detected: {file_path.name} ({st.st_size} bytes)")
-            new_files.append(file_key)
+                file_key = str(file_path)
+                current_files.add(file_key)
+
+                if file_key in seen_files:
+                    continue
+
+                try:
+                    st = file_path.stat()
+                    age_sec = time.time() - st.st_mtime
+                    if age_sec < 5 or st.st_size == 0:
+                        skipped_size += 1
+                        context.log.info(
+                            f"Skipping in-flight file: {file_path.name} "
+                            f"(modified {age_sec:.1f}s ago, size={st.st_size})"
+                        )
+                        continue
+                except OSError as exc:
+                    context.log.warning(f"OS error checking {file_path.name}: {exc}")
+                    continue
+
+                context.log.info(f"New file detected: {file_path.name} ({st.st_size} bytes)")
+                new_files.append(file_key)
 
         if timed_out:
             context.log.warning(

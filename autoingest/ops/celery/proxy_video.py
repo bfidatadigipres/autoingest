@@ -35,13 +35,27 @@ def encode_proxy_mp4(
 
     if not row:
         context.log.error(f"No DB record found for {filename}")
-        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+        return Output({
+            "file_id": None,
+            "file_path": file_path,
+            "source": "",
+            "mime_type": "",
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     file_id, file_status, mime_type, source, ingest_month, bp_job_id = row
 
     if file_status == "encoding":
         context.log.info(f"File {filename} is already being encoded. Skipping.")
-        return Output({}, metadata={
+        return Output({
+            "file_id": file_id,
+            "file_path": file_path,
+            "source": source,
+            "mime_type": mime_type,
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }, metadata={
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Already encoding: {filename}",
         })
@@ -50,7 +64,14 @@ def encode_proxy_mp4(
         context.log.warning(
             f"File {filename} has status '{file_status}' — expected 'verified'. Skipping."
         )
-        return Output({}, metadata={
+        return Output({
+            "file_id": file_id,
+            "file_path": file_path,
+            "source": source,
+            "mime_type": mime_type,
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }, metadata={
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Skipped: status={file_status}",
         })

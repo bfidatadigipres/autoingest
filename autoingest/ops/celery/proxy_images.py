@@ -17,7 +17,18 @@ def generate_images(
     file_info: dict[str, Any],
 ) -> Output:
     tic = time.perf_counter()
-    proxy_path = file_info["proxy_video_path"]
+    proxy_path = file_info.get("proxy_video_path", "")
+    if not proxy_path:
+        context.log.warning("No proxy video path available. Skipping image generation.")
+        return Output({
+            "file_id": file_info.get("file_id"),
+            "proxy_video_path": "",
+            "proxy_image_path": "",
+            "proxy_thumb_path": "",
+        }, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"No proxy path — skipping: {file_info.get('file_path', 'unknown')}",
+        })
     root = os.path.split(proxy_path)[0]
     filename_stem = Path(proxy_path).stem
     file_id = file_info.get("file_id")
