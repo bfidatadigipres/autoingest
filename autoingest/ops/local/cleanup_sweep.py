@@ -16,7 +16,7 @@ def sweep_completed_files(context: OpExecutionContext) -> None:
                 WHERE tape_verified = TRUE
                   AND proxy_created = TRUE
                   AND (source_deletion IS NULL)
-                  AND file_status != 'complete'
+                  AND file_status = 'metadata_updated'
                 """
             )
             rows = cur.fetchall()
