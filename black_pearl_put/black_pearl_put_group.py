@@ -447,6 +447,7 @@ def pth_rename(folderpth: str, validate_path: str, job_list: list[str]) -> Optio
 
     new_folderpth = os.path.join(validate_path, foldername)
     os.rename(folderpth, new_folderpth)
+    os.chmod(new_folderpth, 0o777)
     return new_folderpth
 
 

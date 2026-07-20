@@ -154,6 +154,7 @@ def main():
                 try:
                     os.makedirs(validate_path, exist_ok=False)
                     shutil.move(fpath, os.path.join(validate_path, fname))
+                    os.chmod(os.path.join(validate_path, fname), 0o777)
                 except OSError as err:
                     LOGGER.warning("Error with making validate path and moving file in: %s", validate_path)
                     LOGGER.warning("Manual move of file %s required, and manual update of BP JOB ID: %s", fname, put_job_id)
