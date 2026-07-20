@@ -244,7 +244,7 @@ def main():
             fname = os.path.split(folderpth)[1]
             days_old = check_folder_age(fname)
             logger.info("Folder %s is %s days old", folder, days_old)
-            if days_old >= 0: # 1
+            if days_old >= 1:
                 logger.info(
                     "Ingest folder over %s days old - moving to Black Pearl ingest bucket %s.",
                     days_old,
