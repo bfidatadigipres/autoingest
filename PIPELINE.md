@@ -139,8 +139,8 @@ autoingest/
  ├─────────────────────────────────────────────────────────────────────────────┤
  │                                                                             │
  │  ┌──────────────────┐     watch_folder_sensor (30s poll)                    │
- │  │  /ingest/<donor>/ │────────────────┐                                     │
- │  │   (watch folders) │                ▼                                     │
+ │  │ /ingest/<donor>/ │────────────────┐                                      │
+ │  │  (watch folders) │                ▼                                      │
  │  └──────────────────┘     ┌──────────────────────┐                          │
  │                           │   ingest_local_job   │  [DATA15 — local]        │
  │                           │                      │                          │
@@ -263,8 +263,8 @@ autoingest/
  │        │              • Clean up partial proxy/JPEG/images        │         │
  │        └──────────────────────────────────────────────────────────┘         │
  │                                     │                                       │
-│                            cleanup_status_sensor                             │
-│                            (watches: encoding_complete)                     │
+ │                            cleanup_status_sensor                            │
+ │                            (watches: encoding_complete)                     │
  │                                     │                                       │
  │                                     ▼                                       │
  │                  ┌─────────────────────────────────────┐                    │
