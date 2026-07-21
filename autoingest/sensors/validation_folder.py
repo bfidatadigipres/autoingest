@@ -7,6 +7,7 @@ from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorSt
 from autoingest.jobs.validation_jobs import verify_local_job
 
 RETRY_INTERVAL_SECONDS = 300
+MAX_QUEUED_PER_STAGE = 200  # skip tick when more files are waiting for validation
 
 
 @sensor(
@@ -40,6 +41,30 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
     )
 
     db = context.resources.workflow_db
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM app.file_catalogue "
+                    "WHERE file_status = 'File cleared for ingest'"
+                )
+                waiting = cur.fetchone()[0]
+    except Exception as exc:
+        context.log.warning(f"Queue-depth check failed, proceeding anyway: {exc}")
+        waiting = 0
+
+    if waiting > MAX_QUEUED_PER_STAGE:
+        context.log.info(
+            f"validation_folder_sensor: skipping tick — {waiting} files queued "
+            f"for validation, exceeds limit of {MAX_QUEUED_PER_STAGE}"
+        )
+        return []
+
+    context.log.info(
+        f"validation_folder_sensor: queue depth OK — {waiting} files waiting "
+        f"(limit {MAX_QUEUED_PER_STAGE})"
+    )
+
     now = int(time.time())
 
     new_requests = []

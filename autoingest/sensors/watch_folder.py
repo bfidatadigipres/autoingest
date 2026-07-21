@@ -8,6 +8,9 @@ from autoingest.jobs.ingest_jobs import ingest_local_job
 from autoingest.resources.utils import accepted_file_type
 
 
+MAX_PIPELINE_DEPTH = 200  # skip tick when more files than this are in-flight
+
+
 @sensor(
     job=ingest_local_job,
     minimum_interval_seconds=30,
@@ -23,6 +26,35 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     if not watch_paths:
         context.log.warning("WATCH_FOLDER_PATHS is empty — no folders to watch.")
         return []
+
+    # Gate: skip tick if too many files are already in the pipeline.
+    # Finished statuses are excluded so we only count files still being processed.
+    db = context.resources.workflow_db
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM app.file_catalogue "
+                    "WHERE file_status NOT IN ("
+                    "'encoding_complete', 'complete', 'metadata_updated'"
+                    ")"
+                )
+                active_count = cur.fetchone()[0]
+    except Exception as exc:
+        context.log.warning(f"Pipeline depth check failed, proceeding anyway: {exc}")
+        active_count = 0
+
+    if active_count > MAX_PIPELINE_DEPTH:
+        context.log.info(
+            f"watch_folder_sensor: skipping tick — {active_count} files already "
+            f"in pipeline, exceeds limit of {MAX_PIPELINE_DEPTH}"
+        )
+        return []
+
+    context.log.info(
+        f"watch_folder_sensor: pipeline depth OK — {active_count} active files "
+        f"(limit {MAX_PIPELINE_DEPTH})"
+    )
 
     cursor_files = set()
     if context.cursor:

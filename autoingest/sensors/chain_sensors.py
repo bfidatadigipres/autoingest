@@ -14,6 +14,7 @@ from autoingest.jobs.validation_jobs import (
 )
 
 RETRY_INTERVAL_SECONDS = 300  # re-trigger stuck files after 5 minutes
+MAX_QUEUED_PER_STAGE = 200   # skip tick when more files than this are waiting at this stage
 
 
 STATUS_FIELD_QUERY = {
@@ -89,6 +90,13 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                         (status,),
                     )
                 rows = cur.fetchall()
+
+        if len(rows) > MAX_QUEUED_PER_STAGE:
+            context.log.info(
+                f"{sensor_name}: skipping tick — {len(rows)} files queued "
+                f"for status '{status}', exceeds limit of {MAX_QUEUED_PER_STAGE}"
+            )
+            return []
 
         current_ids = {row[0] for row in rows}
         now = int(time.time())
