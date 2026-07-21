@@ -13,20 +13,8 @@
     <div class="button-bar">
         <div class="filter-group">
             <input type="text" id="searchInput" placeholder="Search file name / status / error&hellip;" autocomplete="off">
-            <select id="errorFilter">
-                <option value="">All files</option>
-                <option value="yes">With errors</option>
-                <option value="no">Without errors</option>
-            </select>
         </div>
-        <button id="btnProgress" class="btn" onclick="toggleProgress()">View Progress</button>
         <button onclick="location.reload()" class="btn" title="Reload page">⟳ Refresh</button>
-        {% if confluence_url %}
-        <a href="{{ confluence_url }}" target="_blank" rel="noopener" class="btn">Instructions</a>
-        {% endif %}
-        {% if service_desk_url %}
-        <a href="{{ service_desk_url }}" target="_blank" rel="noopener" class="btn">Service Desk</a>
-        {% endif %}
     </div>
     <div id="stats" class="stats-bar">Loading&hellip;</div>
 </div>
@@ -56,24 +44,12 @@
 <div id="lastUpdate" class="footer"></div>
 
 <script>
-let showProgressOnly = false;
 let searchTimeout = null;
-
-function toggleProgress() {
-    showProgressOnly = !showProgressOnly;
-    var btn = document.getElementById("btnProgress");
-    btn.textContent = showProgressOnly ? "Show All" : "View Progress";
-    btn.classList.toggle("active", showProgressOnly);
-    loadFiles();
-}
 
 async function loadFiles() {
     var params = new URLSearchParams();
-    if (showProgressOnly) params.set("status", "progress");
     var search = document.getElementById("searchInput").value.trim();
     if (search) params.set("search", search);
-    var hasError = document.getElementById("errorFilter").value;
-    if (hasError) params.set("has_error", hasError);
 
     var qs = params.toString();
     var url = qs ? "/api/files?" + qs : "/api/files";
@@ -221,7 +197,6 @@ document.getElementById("searchInput").addEventListener("input", function() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(loadFiles, 350);
 });
-document.getElementById("errorFilter").addEventListener("change", loadFiles);
 </script>
 
 </body>

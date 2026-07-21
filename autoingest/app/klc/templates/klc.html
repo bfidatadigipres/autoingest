@@ -13,6 +13,9 @@
     <span class="brand-title">BFI National Archive — Autoingest Dashboard</span>
     <div class="brand-actions">
         <button onclick="location.reload()" class="btn-refresh">Refresh</button>
+        {% if confluence_url %}
+        <a href="{{ confluence_url }}" target="_blank" rel="noopener" class="btn-servicedesk">Instructions</a>
+        {% endif %}
         {% if service_desk_url %}
         <a href="{{ service_desk_url }}" target="_blank" rel="noopener" class="btn-servicedesk">Service Desk</a>
         {% endif %}
