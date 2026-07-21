@@ -228,22 +228,6 @@ def search_file(search_term: str):
             return [dict(zip(columns, row)) for row in cur.fetchall()]
 
 
-def fetch_recent_files(limit: int = 2000):
-    db = get_db()
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT id, file_name, file_status, source, file_size,
-                       mime_type, error_message, updated_at,
-                       {_STORAGE_SQL} AS storage
-                FROM app.file_catalogue
-                ORDER BY updated_at DESC
-                LIMIT %s
-            """, (limit,))
-            columns = [desc[0] for desc in cur.description]
-            return [dict(zip(columns, row)) for row in cur.fetchall()]
-
-
 def fetch_file_events(file_name: str):
     db = get_db()
     with db.get_connection() as conn:

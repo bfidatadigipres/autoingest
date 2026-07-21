@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
-from autoingest.dashboard.queries import (
-    search_file, fetch_file_events, fetch_recent_files,
-)
+from autoingest.dashboard.queries import search_file, fetch_file_events
 from autoingest.dashboard.charts import file_timing_bar
 
 
@@ -17,64 +15,8 @@ def _format_size(size_bytes):
     return f"{size} B"
 
 
-def _status_class(status: str) -> str:
-    if status in ("All stages complete", "complete", "encoding_complete",
-                  "verified", "metadata_updated"):
-        return "🟢"
-    if status in ("Failed assessment", "failed", "Error") or (
-        status and "fail" in status.lower()
-    ):
-        return "🔴"
-    if status and "error" in status.lower():
-        return "🔴"
-    return "🔵"
-
-
 def render():
-    # ── Recent files table (top) ──
-    st.header("Recent Files")
-    st.caption("Last 2,000 files processed (by update time)."
-               " Use the search box below for historical lookups.")
-
-    recent = fetch_recent_files(2000)
-    if recent:
-        df_recent = pd.DataFrame(recent)
-        df_recent["status_disp"] = df_recent["file_status"].apply(_status_class)
-        df_recent["size_fmt"] = df_recent["file_size"].apply(_format_size)
-        df_recent["updated_at"] = df_recent["updated_at"].apply(
-            lambda t: str(t)[:19] if t else ""
-        )
-        df_recent["error_short"] = df_recent["error_message"].apply(
-            lambda e: (e[:60] + "..." if len(e) > 60 else e)
-            if e else ""
-        )
-        st.dataframe(
-            df_recent[[
-                "status_disp", "file_name", "file_status",
-                "storage", "source", "size_fmt", "mime_type",
-                "error_short", "updated_at",
-            ]],
-            column_config={
-                "status_disp": st.column_config.Column("", width="small"),
-                "file_name": "File Name",
-                "file_status": "Status",
-                "storage": "Storage",
-                "source": "Source",
-                "size_fmt": "Size",
-                "mime_type": "MIME",
-                "error_short": "Error",
-                "updated_at": "Updated",
-            },
-            width="stretch",
-            hide_index=True,
-        )
-    else:
-        st.info("No files in the catalogue.")
-
-    st.divider()
-
-    # ── File Lookup search (below) ──
-    st.subheader("File Lookup")
+    st.header("File Lookup")
     search = st.text_input(
         "Search by file name",
         placeholder="N_10897500_01of01...",
