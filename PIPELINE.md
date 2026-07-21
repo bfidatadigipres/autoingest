@@ -47,6 +47,8 @@ autoingest/
 │   │   ├── validation_folder.py  → triggers verify_local_job (30s poll)
 │   │   └── chain_sensors.py      → 5 status-driven sensors (ingest→checksum→catalogue→
 │   │                                  encoding→cleanup→metadata_update)
+│   │                                  · MAX_QUEUED_PER_STAGE = 200 gate per stage
+│   │                                  · cleanup_status_sensor
 │   │
 │   ├── jobs/                     Assembled from graphs — wired to executors
 │   │   ├── ingest_jobs.py        ingest_local_job, ingest_celery_job, catalogue_local_job
@@ -72,7 +74,7 @@ autoingest/
 │   │   │   ├── verification.py        verify_tape_copy — BP tape check, CID media create
 │   │   │   ├── source_deletion.py     check_and_delete_source — CID append, source delete
 │   │   │   ├── cid_metadata_update.py update_cid_metadata — MediaInfo/Exif enrichment
-│   │   │   └── cleanup_sweep.py       sweep_completed_files — periodic deletion sweep
+│   │   │   └── cleanup_sweep.py       sweep_completed_files — periodic sweep + pipeline events
 │   │   │
 │   │   └── celery/               Ops tagged for Celery encoding workers
 │   │       ├── checksum.py            generate_checksum — MD5 + XXHash32
@@ -91,26 +93,32 @@ autoingest/
 │   ├── app/                      Flask apps (viewer + KLC dashboard)
 │   │   ├── __init__.py           App factory — registers both Blueprints
 │   │   ├── __main__.py           Entry point (python -m autoingest.app, port 5050)
-│   │   ├── routes.py             Existing viewer — /api/files, /api/stats, /api/refresh, /api/delete
+│   │   ├── routes.py             Action-needed viewer — stuck + error files, search,
+│   │   │                         LIMIT 1000
 │   │   ├── static/
-│   │   │   ├── style.css         Existing viewer styles
+│   │   │   ├── style.css         Viewer styles (status-colours match KLC)
 │   │   │   └── klc.css           KLC viewer — dark theme, tooltips, filter bar
 │   │   ├── templates/
 │   │   │   └── index.html        Existing viewer template
 │   │   └── klc/                  KLC File Progress Viewer (read-only, port 5050)
 │   │       ├── __init__.py       Blueprint factory
-│   │       ├── routes.py         /klc, /api/klc/files, /api/klc/stats, /api/klc/guidance
+│   │       ├── routes.py         /klc, /api/files (72h window, error bypass,
+│   │       │                      1000 rows), /api/stats, /api/guidance
 │   │       ├── templates/
-│   │       │   └── klc.html              9-column table, search, filters, error tooltips
+│   │       │   └── klc.html              9-column table, search, filters, error tooltips,
+│   │       │                              adaptive File Size, Instructions button
 │   │       └── static/
 │   │           └── klc.css       (in main static/ folder)
 │   │
 │   └── dashboard/                Streamlit Pipeline Monitor (port 8501)
 │       ├── __init__.py
 │       ├── config.py             DB connection, refresh interval env vars
-│       ├── queries.py            16 SQL query functions for all tabs
-│       ├── charts.py             7 Plotly chart builders
-│       ├── file_view.py          File Lookup tab — search, runs, timings, raw events
+│       ├── queries.py            SQL queries (storage 24h breakdown, encode perf,
+│       │                          throughput by storage, error distribution)
+│       ├── charts.py             Plotly chart builders (storage stacked bar,
+│       │                          storage-coloured histogram, throughput line)
+│       ├── file_view.py          File Lookup tab — single-file search, runs,
+│       │                          timings, raw pipeline events
 │       └── app.py                Entry point — 5-tab layout, sidebar summaries
 │
 └── tests/                        pytest test suite
@@ -255,8 +263,8 @@ autoingest/
  │        │              • Clean up partial proxy/JPEG/images        │         │
  │        └──────────────────────────────────────────────────────────┘         │
  │                                     │                                       │
- │                            cleanup_chain_sensor                             │
- │                            (watches: encoding_complete)                     │
+│                            cleanup_status_sensor                             │
+│                            (watches: encoding_complete)                     │
  │                                     │                                       │
  │                                     ▼                                       │
  │                  ┌─────────────────────────────────────┐                    │
@@ -393,3 +401,35 @@ autoingest/
 | `worker_disable_rate_limits` | `True` | Skip rate limit overhead |
 | `result_expires` | 3600 | Discard results after 1 hour |
 | `task_ignore_result` | `True` | Skip result persistence |
+
+---
+
+## Sensor Queue-Gating
+
+All sensors include skip gates to prevent flooding the run queue:
+
+| Sensor | Gate | Threshold |
+|---|---|---|
+| `chain_sensors.py` (all 5) | Query count of files at target status; skip tick if > 200 | `MAX_QUEUED_PER_STAGE = 200` |
+| `watch_folder.py` | Query active pipeline files (excluding finished); skip tick if > 200 | `MAX_PIPELINE_DEPTH = 200` |
+| `validation_folder.py` | Query files with `File cleared for ingest` status; skip tick if > 200 | `MAX_QUEUED_PER_STAGE = 200` |
+
+All gates wrap the DB query in try/except so a connection failure never crashes the sensor.
+
+## Run Coordinator Configuration
+
+`dagster.yaml` uses `QueuedRunCoordinator` with:
+
+| Setting | Value |
+|---|---|
+| `max_concurrent_runs` | 120 |
+| `tag_concurrency_limits` | Per-job cap of 20 (`applyLimitPerUniqueValue: true` on `dagster/job` tag) |
+
+This prevents any single job type from consuming all concurrent run slots, ensuring fast jobs (ingest, catalogue, cleanup) are never starved by slow ones (encoding).
+
+## Key Resource Modules
+
+| Module | Key features |
+|---|---|
+| `bp_utils.py` | Shared `_get_client()` factory (avoids creating multiple ds3 clients per tick); tenacity `@_bp_retry` decorator on all read-only Black Pearl API calls (3 attempts, 1s/2s/4s backoff on 5xx errors) |
+| `cleanup_sweep.py` | `sweep_completed_files` records two pipeline events per run: (1) search criteria at start, (2) sweep summary at end with per-file deletion details. This makes deletions searchable in the Streamlit dashboard's File Lookup tab. |

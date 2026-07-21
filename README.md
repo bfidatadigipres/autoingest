@@ -154,7 +154,7 @@ The project includes a Flask-based file viewer at `autoingest/app/` that shows t
 - **↺ Validator reset** — return a file to pre-verification state (`File cleared for ingest`), keeping `bp_job_id` but clearing tape checksums/version ID
 - **✕ Delete** — remove the database row entirely
 
-Also hosts the KLC viewer on the same port under `/klc`.
+The viewer shows **files that need operator attention**: stuck files (status ≠ `All stages complete`, inactive for 24+ hours) and any files with error messages. A search input lets you filter by filename, status, or error text. Buttons for Instructions and Service Desk have been moved to the KLC dashboard (see below).
 
 ```bash
 pip install flask
@@ -175,15 +175,13 @@ Opens on `http://localhost:5050` (and `/klc` for the KLC viewer). Pages auto-ref
 
 A read-only Flask Blueprint at `/klc` designed for KLC colleagues to review file progress. Features:
 
-- **9-column table** — File Name, Status, Error, Storage, Size in GB, Media Type, MD5 checksum, File format, Last updated
-- **Search** by file name, status, or error message (debounced 350ms)
+- **9-column table** — File Name, Status, Error, Storage, File Size (adaptive GB/MB/KB), Media Type, MD5 checksum, File format, Last updated
+- **72-hour default window** — shows files updated in the last 72 hours; the **Errors** dropdown bypasses this to surface all unresolved errors regardless of age
+- **Search** by file name, status, or error message (debounced 350ms); searches the full database history
 - **Storage filter** — dropdown for qnap_01 through qnap_11 paths (prefix-matched to support subpaths)
-- **Error filter** — show files with errors, without errors, or all
 - **Error tooltips** — hover over ⚠ to see full error text with matched guidance from a built-in pattern lookup; the error text itself is a clickable link to the relevant Confluence guidance page (opens in new tab)
-- **Dark theme** — `#444` page background, `#666` brand bar with BFI logo, white bold title, yellow Refresh button, Service Desk link
+- **Dark theme** — `#444` page background, `#666` brand bar with BFI logo, white bold title, yellow Refresh button, Instructions and Service Desk links
 - **No write operations** — read-only viewer, no refresh/delete buttons
-
-Env vars: `SERVICE_DESK_URL` (enables Service Desk button), `KLC_HELP_URL` (base URL for error guidance links).
 
 ### Pipeline Dashboard (Streamlit)
 
@@ -191,9 +189,9 @@ A Streamlit-based monitoring dashboard at `autoingest/dashboard/` with 5 tabs:
 
 | Tab | Contents |
 |---|---|
-| Overview | 6 metric cards (files today, completed, errored, GB processed, avg encode, avg total), status distribution bar chart, source pie chart, recent activity table |
-| Performance | Encode time histogram, stage timing bar chart, timing summary table, top-20 slowest encodes |
-| Throughput | Files + GB per hour (7 days), per day (30 days), total ingest latency box plot |
+| Overview | 6 metric cards (files today, completed, errored, GB processed, avg encode, avg total), per-storage 24h stacked bar chart (green=complete, blue=processing per-status) |
+| Performance | Encode time histogram coloured by storage, stage timing bar chart, timing summary table, top-20 slowest encodes |
+| Throughput | Files + GB per hour (7 days) aggregate graph, per-storage breakdown via dropdown selector |
 | Errors | Error distribution bar chart, files-with-errors table (100 most recent) |
 | File Lookup | Search by file name → file details, all pipeline runs with run IDs, per-stage timing bar chart, raw pipeline_events JSON dump |
 
