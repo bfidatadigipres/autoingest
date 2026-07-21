@@ -25,10 +25,7 @@ with tabs[0]:
                f"{pd.Timestamp.now().strftime('%H:%M:%S')}")
 
     today = queries.fetch_today_totals()
-    status_counts = queries.fetch_status_counts()
-    source_counts = queries.fetch_source_counts()
-    recent_events = queries.fetch_recent_events(50)
-    mime_counts = queries.fetch_mime_counts()
+    storage_status = queries.fetch_storage_status_24h()
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Files today", today[0] if today else 0)
@@ -38,26 +35,13 @@ with tabs[0]:
     c5.metric("Avg encode", f"{today[4] / 60:.1f} min" if today and today[4] else "—")
     c6.metric("Avg total", f"{today[5] / 60:.1f} min" if today and today[5] else "—")
 
-    col_left, col_right = st.columns(2)
-    with col_left:
-        st.plotly_chart(charts.status_bar(status_counts), use_container_width=True)
-    with col_right:
-        st.plotly_chart(charts.source_pie(source_counts), use_container_width=True)
-
-    st.subheader("Recent Activity")
-    if recent_events:
-        df_recent = pd.DataFrame(recent_events)
-        df_recent["created_at"] = df_recent["created_at"].apply(
-            lambda t: str(t)[:19] if t else ""
-        )
-        df_recent["duration"] = df_recent["duration"].apply(
-            lambda d: f"{float(d):.1f}s" if d else ""
-        )
-        st.dataframe(
-            df_recent[["op_name", "job_name", "status", "duration", "created_at"]],
+    if storage_status:
+        st.plotly_chart(
+            charts._storage_stacked_bar(storage_status),
             use_container_width=True,
-            hide_index=True,
         )
+    else:
+        st.info("No files processed in the last 24 hours.")
 
     if st.button("Force refresh", key="refresh_overview"):
         st.rerun()
@@ -71,8 +55,14 @@ with tabs[1]:
     encode_data = queries.fetch_encode_performance()
     stage_data = queries.fetch_stage_timings()
 
-    st.plotly_chart(charts.encode_histogram(encode_data), use_container_width=True)
-    st.plotly_chart(charts.stage_timing_bar(stage_data), use_container_width=True)
+    st.plotly_chart(
+        charts.encode_histogram(encode_data),
+        use_container_width=True,
+    )
+    st.plotly_chart(
+        charts.stage_timing_bar(stage_data),
+        use_container_width=True,
+    )
 
     st.subheader("Stage Timing Summary")
     if stage_data:
@@ -105,22 +95,33 @@ with tabs[1]:
 
 with tabs[2]:
     throughput_hour = queries.fetch_throughput_by_hour()
-    throughput_day = queries.fetch_throughput_by_day()
-    latency_data = queries.fetch_latency_distribution()
 
     st.plotly_chart(
-        charts.throughput_line(throughput_hour, "hour"),
+        charts.throughput_line(throughput_hour),
         use_container_width=True,
     )
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.plotly_chart(
-            charts.throughput_line(throughput_day, "day"),
-            use_container_width=True,
+    # Per-storage breakdown via dropdown
+    if throughput_hour:
+        df_tp = pd.DataFrame(throughput_hour)
+        storages = sorted(
+            s for s in df_tp["storage"].dropna().unique() if s
         )
-    with col_b:
-        st.plotly_chart(charts.latency_box(latency_data), use_container_width=True)
+        if storages:
+            selected = st.selectbox(
+                "Break down by storage",
+                options=["— All storages —"] + storages,
+                key="throughput_storage",
+            )
+            if selected != "— All storages —":
+                st.plotly_chart(
+                    charts.throughput_line(throughput_hour, storage=selected),
+                    use_container_width=True,
+                )
+        else:
+            st.info("No per-storage data available.")
+    else:
+        st.info("No throughput data for the last 7 days.")
 
     if st.button("Force refresh", key="refresh_tp"):
         st.rerun()
@@ -168,21 +169,14 @@ with st.sidebar:
 
     st.divider()
 
-    today_status = queries.fetch_today_totals()
-    all_status = queries.fetch_status_counts()
-
-    st.subheader("Status Summary")
-    status_df = pd.DataFrame(all_status, columns=["Status", "Count"])
+    st.subheader("Status Summary (all time)")
+    status_df = pd.DataFrame(
+        queries.fetch_status_counts(), columns=["Status", "Count"]
+    )
     st.dataframe(status_df, use_container_width=True, hide_index=True)
 
     st.subheader("Source Summary")
-    source_df = pd.DataFrame(queries.fetch_source_counts(), columns=["Source", "Count"])
+    source_df = pd.DataFrame(
+        queries.fetch_source_counts(), columns=["Source", "Count"]
+    )
     st.dataframe(source_df, use_container_width=True, hide_index=True)
-
-    raw_events = queries.fetch_recent_events(10)
-    if raw_events:
-        st.subheader("Latest Events")
-        for e in raw_events[:5]:
-            st.caption(
-                f"{str(e['created_at'])[:19]} | {e['op_name']} | {e.get('status', '')}"
-            )

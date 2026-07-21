@@ -1,6 +1,9 @@
 from autoingest.dashboard.config import get_db
 
 
+_STORAGE_SQL = "SUBSTRING(file_path FROM '/mnt/(.+?)/autoingest/')"
+
+
 def fetch_status_counts():
     db = get_db()
     with db.get_connection() as conn:
@@ -9,6 +12,27 @@ def fetch_status_counts():
                 "SELECT file_status, COUNT(*) FROM app.file_catalogue "
                 "GROUP BY file_status ORDER BY COUNT(*) DESC"
             )
+            return cur.fetchall()
+
+
+def fetch_storage_status_24h():
+    """
+    Returns (storage, file_status, count) for files updated in the last 24 hours.
+    Storages with zero matching files are inferred by the absence of rows.
+    """
+    db = get_db()
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT {_STORAGE_SQL} AS storage,
+                       file_status,
+                       COUNT(*) AS count
+                FROM app.file_catalogue
+                WHERE updated_at >= NOW() - INTERVAL '24 hours'
+                  AND file_path LIKE '/mnt/%/autoingest/%'
+                GROUP BY storage, file_status
+                ORDER BY storage, file_status
+            """)
             return cur.fetchall()
 
 
@@ -73,10 +97,11 @@ def fetch_encode_performance():
     db = get_db()
     with db.get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT file_name, encode_time_sec, ffmpeg_command,
                        file_size, proxy_size,
-                       height, width, mime_type, source
+                       height, width, mime_type, source,
+                       {_STORAGE_SQL} AS storage
                 FROM app.file_catalogue
                 WHERE encode_time_sec IS NOT NULL
                 ORDER BY encode_time_sec DESC
@@ -111,14 +136,15 @@ def fetch_throughput_by_hour():
     db = get_db()
     with db.get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT DATE_TRUNC('hour', updated_at) AS hour,
                        COUNT(*) AS files,
-                       COALESCE(SUM(file_size), 0) AS bytes_processed
+                       COALESCE(SUM(file_size), 0) AS bytes_processed,
+                       {_STORAGE_SQL} AS storage
                 FROM app.file_catalogue
                 WHERE updated_at >= CURRENT_DATE - INTERVAL '7 days'
-                GROUP BY hour
-                ORDER BY hour
+                GROUP BY hour, storage
+                ORDER BY hour, storage
             """)
             columns = [desc[0] for desc in cur.description]
             return [dict(zip(columns, row)) for row in cur.fetchall()]
@@ -198,6 +224,22 @@ def search_file(search_term: str):
                 "ORDER BY updated_at DESC LIMIT 20",
                 (like,),
             )
+            columns = [desc[0] for desc in cur.description]
+            return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def fetch_recent_files(limit: int = 2000):
+    db = get_db()
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT id, file_name, file_status, source, file_size,
+                       mime_type, error_message, updated_at,
+                       {_STORAGE_SQL} AS storage
+                FROM app.file_catalogue
+                ORDER BY updated_at DESC
+                LIMIT %s
+            """, (limit,))
             columns = [desc[0] for desc in cur.description]
             return [dict(zip(columns, row)) for row in cur.fetchall()]
 
