@@ -50,8 +50,8 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
                 )
                 waiting = cur.fetchone()[0]
     except Exception as exc:
-        context.log.warning(f"Queue-depth check failed, proceeding anyway: {exc}")
-        waiting = 0
+        context.log.warning(f"Queue-depth check failed, skipping tick: {exc}")
+        return []
 
     if waiting > MAX_QUEUED_PER_STAGE:
         context.log.info(

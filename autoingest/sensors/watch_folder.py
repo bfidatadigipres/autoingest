@@ -41,8 +41,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                 )
                 active_count = cur.fetchone()[0]
     except Exception as exc:
-        context.log.warning(f"Pipeline depth check failed, proceeding anyway: {exc}")
-        active_count = 0
+        context.log.warning(f"Pipeline depth check failed, skipping tick: {exc}")
+        return []
 
     if active_count > MAX_PIPELINE_DEPTH:
         context.log.info(

@@ -1,5 +1,4 @@
 import json
-import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -13,7 +12,6 @@ from autoingest.jobs.validation_jobs import (
     metadata_update_local_job,
 )
 
-RETRY_INTERVAL_SECONDS = 300  # re-trigger stuck files after 5 minutes
 MAX_QUEUED_PER_STAGE = 200   # skip tick when more files than this are waiting at this stage
 
 
@@ -61,18 +59,18 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
         required_resource_keys={"workflow_db"},
     )
     def _sensor_fn(context: SensorEvaluationContext) -> list[RunRequest]:
-        # Cursor format: {file_id: last_attempt_epoch_seconds, ...}
-        cursor: dict[int, int] = {}
+        # Cursor: sorted list of file_ids already submitted for this stage.
+        submitted_ids: set[int] = set()
         if context.cursor:
             try:
                 raw = json.loads(context.cursor)
-                if isinstance(raw, dict):
-                    cursor = {int(k): int(v) for k, v in raw.items()}
-                elif isinstance(raw, list):
-                    # Upgrade old set-style cursor: mark as long-expired so retry fires immediately
-                    cursor = {int(v): 0 for v in raw}
+                if isinstance(raw, list):
+                    submitted_ids = {int(v) for v in raw}
+                elif isinstance(raw, dict):
+                    # Upgrade old timestamp cursor — keep keys, drop timestamps.
+                    submitted_ids = {int(k) for k in raw}
             except (json.JSONDecodeError, TypeError, ValueError):
-                cursor = {}
+                submitted_ids = set()
 
         db = context.resources.workflow_db
         with db.get_connection() as conn:
@@ -98,44 +96,36 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
             )
             return []
 
+        # Prune cursor: drop file_ids that have moved past this status.
         current_ids = {row[0] for row in rows}
-        now = int(time.time())
-
-        # Drop file_ids that changed status since last tick
-        stale = {fid for fid in cursor if fid not in current_ids}
-        for fid in stale:
-            del cursor[fid]
+        submitted_ids &= current_ids
 
         new_requests = []
         for file_id, file_path in rows:
-            last_attempt = cursor.get(file_id)
-            if last_attempt is not None and (now - last_attempt) < RETRY_INTERVAL_SECONDS:
+            if file_id in submitted_ids:
                 continue
 
-            run_key = f"{op_name}-{file_id}-{last_attempt or 0}"
+            run_key = f"{op_name}-{file_id}"
             context.log.info(
                 f"{sensor_name}: launching {op_name} for file_id={file_id} "
                 f"({Path(file_path).name})"
-                + (f" (retry, {now - last_attempt}s since last attempt)" if last_attempt else "")
             )
             new_requests.append(
                 RunRequest(
                     run_key=run_key,
                     run_config={
                         "ops": {
-                            op_name: {
-                                "config": {"file_path": file_path}
-                            }
+                            op_name: {"config": {"file_path": file_path}}
                         }
                     },
                 )
             )
-            cursor[file_id] = now
+            submitted_ids.add(file_id)
 
         if new_requests:
             context.log.info(f"{sensor_name}: launching {len(new_requests)} run(s)")
 
-        context.update_cursor(json.dumps(cursor))
+        context.update_cursor(json.dumps(sorted(submitted_ids)))
         return new_requests
 
     return _sensor_fn
