@@ -38,7 +38,7 @@ with tabs[0]:
     if storage_status:
         st.plotly_chart(
             charts._storage_stacked_bar(storage_status),
-            use_container_width=True,
+            width="stretch",
         )
     else:
         st.info("No files processed in the last 24 hours.")
@@ -57,11 +57,11 @@ with tabs[1]:
 
     st.plotly_chart(
         charts.encode_histogram(encode_data),
-        use_container_width=True,
+        width="stretch",
     )
     st.plotly_chart(
         charts.stage_timing_bar(stage_data),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.subheader("Stage Timing Summary")
@@ -70,7 +70,7 @@ with tabs[1]:
         df_stage["avg_sec"] = df_stage["avg_sec"].apply(lambda v: f"{float(v):.1f}" if v else "")
         df_stage["min_sec"] = df_stage["min_sec"].apply(lambda v: f"{float(v):.1f}" if v else "")
         df_stage["max_sec"] = df_stage["max_sec"].apply(lambda v: f"{float(v):.1f}" if v else "")
-        st.dataframe(df_stage, use_container_width=True, hide_index=True)
+        st.dataframe(df_stage, width="stretch", hide_index=True)
 
     st.subheader("Slowest Encodes")
     if encode_data:
@@ -83,7 +83,7 @@ with tabs[1]:
         )
         st.dataframe(
             df_enc[["file_name", "encode_min", "size_gb", "height", "width", "source"]].head(20),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -98,7 +98,7 @@ with tabs[2]:
 
     st.plotly_chart(
         charts.throughput_line(throughput_hour),
-        use_container_width=True,
+        width="stretch",
     )
 
     # Per-storage breakdown via dropdown
@@ -116,7 +116,7 @@ with tabs[2]:
             if selected != "— All storages —":
                 st.plotly_chart(
                     charts.throughput_line(throughput_hour, storage=selected),
-                    use_container_width=True,
+                    width="stretch",
                 )
         else:
             st.info("No per-storage data available.")
@@ -133,7 +133,7 @@ with tabs[3]:
     error_counts = queries.fetch_error_distribution()
     error_files = queries.fetch_files_with_errors(100)
 
-    st.plotly_chart(charts.error_bar(error_counts), use_container_width=True)
+    st.plotly_chart(charts.error_bar(error_counts), width="stretch")
 
     st.subheader("Files with Errors")
     if error_files:
@@ -143,7 +143,7 @@ with tabs[3]:
         )
         st.dataframe(
             df_err[["file_name", "file_status", "error_message", "mime_type", "source", "updated_at"]],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -173,10 +173,10 @@ with st.sidebar:
     status_df = pd.DataFrame(
         queries.fetch_status_counts(), columns=["Status", "Count"]
     )
-    st.dataframe(status_df, use_container_width=True, hide_index=True)
+    st.dataframe(status_df, width="stretch", hide_index=True)
 
     st.subheader("Source Summary")
     source_df = pd.DataFrame(
         queries.fetch_source_counts(), columns=["Source", "Count"]
     )
-    st.dataframe(source_df, use_container_width=True, hide_index=True)
+    st.dataframe(source_df, width="stretch", hide_index=True)

@@ -3,23 +3,32 @@ import plotly.graph_objects as go
 import pandas as pd
 
 
-# Ingested / green
+# Complete / green
 _COMPLETE_STATUSES = {
     "All stages complete", "complete", "encoding_complete", "verified",
     "metadata_updated",
 }
-# Error / red — handled by checking for error_message presence
-# Everything else: processing / blue
+
+# Palette of distinct blue shades for processing statuses
+_PROCESSING_BLUES = [
+    "#1f77b4", "#4a90d9", "#6fa8dc", "#2980b9",
+    "#5dade2", "#85c1e9", "#2e86c1", "#3498db",
+    "#5499c7", "#7fb3d8", "#3c8dbc", "#a9cce3",
+]
 
 
 def _status_colour_map(df: pd.DataFrame) -> dict:
-    """Return a dict mapping each status string to a colour category."""
+    """Return a dict mapping each status string to a hex colour."""
+    processing_statuses = sorted(
+        s for s in df["file_status"].unique()
+        if s not in _COMPLETE_STATUSES
+    )
     mapping = {}
-    for s in df["file_status"].unique():
-        if s in _COMPLETE_STATUSES:
+    for i, s in enumerate(processing_statuses):
+        mapping[s] = _PROCESSING_BLUES[i % len(_PROCESSING_BLUES)]
+    for s in _COMPLETE_STATUSES:
+        if s in df["file_status"].unique():
             mapping[s] = "#27ae60"   # green
-        else:
-            mapping[s] = "#3498db"   # blue
     return mapping
 
 

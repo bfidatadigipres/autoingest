@@ -65,7 +65,7 @@ def render():
                 "error_short": "Error",
                 "updated_at": "Updated",
             },
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     else:
@@ -148,7 +148,7 @@ def render():
         df_runs = pd.DataFrame(run_data)
         st.dataframe(
             df_runs[["Run ID", "Stages", "Status"]],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -169,12 +169,12 @@ def render():
         df_timing = pd.DataFrame(timing_data)
         st.dataframe(
             df_timing[["op", "duration", "status", "run_id"]],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
         fig = file_timing_bar(events)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     st.divider()
     st.subheader("Raw Pipeline Events")
