@@ -37,7 +37,7 @@ STATUS_FIELD_QUERY = {
     "encoding_complete": {
         "job": cleanup_local_job,
         "op": "check_and_delete_source",
-        "sensor_name": "cleanup_chain_sensor",
+        "sensor_name": "cleanup_status_sensor",
     },
     "complete": {
         "job": metadata_update_local_job,
@@ -144,5 +144,5 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
 ingest_chain_sensor = _make_status_sensor("assessed", STATUS_FIELD_QUERY["assessed"])
 catalogue_chain_sensor = _make_status_sensor("checksummed", STATUS_FIELD_QUERY["checksummed"])
 encoding_chain_sensor = _make_status_sensor("verified", STATUS_FIELD_QUERY["verified"])
-cleanup_chain_sensor = _make_status_sensor("encoding_complete", STATUS_FIELD_QUERY["encoding_complete"])
+cleanup_status_sensor = _make_status_sensor("encoding_complete", STATUS_FIELD_QUERY["encoding_complete"])
 metadata_update_chain_sensor = _make_status_sensor("complete", STATUS_FIELD_QUERY["complete"])

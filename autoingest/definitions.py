@@ -23,7 +23,7 @@ from autoingest.sensors.chain_sensors import (
     ingest_chain_sensor,
     catalogue_chain_sensor,
     encoding_chain_sensor,
-    cleanup_chain_sensor,
+    cleanup_status_sensor,
     metadata_update_chain_sensor,
 )
 
@@ -50,7 +50,7 @@ defs = Definitions(
         ingest_chain_sensor,
         catalogue_chain_sensor,
         encoding_chain_sensor,
-        cleanup_chain_sensor,
+        cleanup_status_sensor,
         metadata_update_chain_sensor,
     ],
     schedules=[cleanup_schedule],
