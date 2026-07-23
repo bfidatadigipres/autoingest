@@ -184,7 +184,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         os.remove(download_path)
         os.rmdir(download_folder)
 
-    bp_version = bp.get_version_id(file)
+    bp_version = bp.get_version_id(file, bp_bucket)
     if len(bp_version) > 30:
         results["bp_version_id"] = bp_version
         context.log.info(f"Version ID for the file found: {bp_version}")
