@@ -13,6 +13,7 @@ from autoingest.jobs.validation_jobs import (
 )
 
 MAX_QUEUED_PER_STAGE = 80   # skip tick when more files than this are waiting at this stage
+MAX_NEW_PER_TICK = 50       # per-tick launch cap in drain mode
 
 
 STATUS_FIELD_QUERY = {
@@ -20,11 +21,15 @@ STATUS_FIELD_QUERY = {
         "job": ingest_celery_job,
         "op": "generate_checksum",
         "sensor_name": "ingest_chain_sensor",
+        "active_limit": 80,
+        "active_gate_statuses": ("generating_checksum",),
     },
     "checksummed": {
         "job": catalogue_local_job,
         "op": "create_catalogue_record",
         "sensor_name": "catalogue_chain_sensor",
+        "active_limit": 80,
+        "active_gate_statuses": ("cataloguing",),
     },
     "verified": {
         "job": encoding_celery_job,
@@ -39,11 +44,15 @@ STATUS_FIELD_QUERY = {
         "job": cleanup_local_job,
         "op": "check_and_delete_source",
         "sensor_name": "cleanup_status_sensor",
+        "active_limit": 80,
+        "active_gate_statuses": ("deleting_source",),
     },
     "complete": {
         "job": metadata_update_local_job,
         "op": "update_cid_metadata",
         "sensor_name": "metadata_update_chain_sensor",
+        "active_limit": 80,
+        "active_gate_statuses": ("updating_cid",),
     },
 }
 
@@ -93,12 +102,13 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                 rows = cur.fetchall()
 
         max_queued = conf.get("max_queued", MAX_QUEUED_PER_STAGE)
+        drain_mode = False
         if len(rows) > max_queued:
             context.log.info(
-                f"{sensor_name}: skipping tick — {len(rows)} files queued "
+                f"{sensor_name}: drain mode — {len(rows)} files queued "
                 f"for status '{status}', exceeds limit of {max_queued}"
             )
-            return []
+            drain_mode = True
 
         # Active-pipeline gate: count files already consuming compute
         # and skip launching if at or above the active limit.
@@ -125,8 +135,9 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
         current_ids = {row[0] for row in rows}
         submitted_ids &= current_ids
 
-        per_tick_cap = None
-        if active_limit:
+        if drain_mode:
+            per_tick_cap = MAX_NEW_PER_TICK
+        elif active_limit:
             per_tick_cap = max(active_limit - active_count, 0)
             if per_tick_cap == 0:
                 context.log.info(
@@ -134,6 +145,8 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                     f"limit={active_limit}"
                 )
                 return []
+        else:
+            per_tick_cap = None
 
         new_requests = []
         for file_id, file_path in rows:

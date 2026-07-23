@@ -201,8 +201,9 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     )
 
     # ── Phase 5: Gate check (ingest stages only) ─────────────
-    # Only count files in the pre-BP-PUT ingest pipeline so slow
-    # encoding/validation never blocks new file discovery.
+    # Only count files actively in the pre-BP-PUT ingest pipeline.
+    # 'File cleared for ingest' is excluded — it means catalogue
+    # is done and the file is waiting for external BP PUT.
 
     try:
         with db.get_connection() as conn:
@@ -211,7 +212,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                     "SELECT COUNT(*) FROM app.file_catalogue "
                     "WHERE file_status IN ("
                     "'No Status', 'assessed', 'checksummed', "
-                    "'cataloguing', 'File cleared for ingest'"
+                    "'cataloguing'"
                     ")"
                 )
                 ingest_count = cur.fetchone()[0]
@@ -223,15 +224,13 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     if ingest_count > MAX_INGEST_DEPTH:
         context.log.info(
-            f"watch_folder_sensor: skipping new launches — "
+            f"watch_folder_sensor: drain mode — "
             f"{ingest_count} files in ingest pipeline, "
-            f"exceeds limit of {MAX_INGEST_DEPTH}"
+            f"launching at reduced rate"
         )
-        context.update_cursor(json.dumps(sorted(submitted_paths)))
-        return []
 
     context.log.info(
-        f"watch_folder_sensor: ingest depth OK — "
+        f"watch_folder_sensor: ingest depth — "
         f"{ingest_count} files (limit {MAX_INGEST_DEPTH})"
     )
 

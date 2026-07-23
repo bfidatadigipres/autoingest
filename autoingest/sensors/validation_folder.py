@@ -194,15 +194,13 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
 
     if queued_count > MAX_QUEUED_PER_STAGE:
         context.log.info(
-            f"validation_folder_sensor: skipping tick — "
+            f"validation_folder_sensor: drain mode — "
             f"{queued_count} files queued for validation, "
-            f"exceeds limit of {MAX_QUEUED_PER_STAGE}"
+            f"launching at reduced rate"
         )
-        context.update_cursor(json.dumps(cursor))
-        return []
 
     context.log.info(
-        f"validation_folder_sensor: queue depth OK — "
+        f"validation_folder_sensor: queue depth — "
         f"{queued_count} files (limit {MAX_QUEUED_PER_STAGE})"
     )
 
