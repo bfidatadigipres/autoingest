@@ -113,24 +113,76 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         f"size-unstable={skipped_size}, found={len(current_files)}"
     )
 
-    # ── Phase 2: DB lookup for deduplication ─────────────────
-    # PostgreSQL is the source of truth. A file needs processing iff:
-    #   · No DB row exists for its file_path, OR
-    #   · Existing row has status in RETRYABLE_STATUSES
+    # ── Phase 2: Load and prune cursor ───────────────────────
+    # Cursor stores paths that have been launched but not yet
+    # confirmed by DB — sensor memory between ticks.
+
+    submitted_paths: set[str] = set()
+    if context.cursor:
+        try:
+            raw = json.loads(context.cursor)
+            if isinstance(raw, list):
+                submitted_paths = set(raw)
+        except (json.JSONDecodeError, TypeError):
+            submitted_paths = set()
+
+    cursor_initial = len(submitted_paths)
+
+    # Prune: remove paths for files no longer on disk (moved away
+    # by catalogue after processing).
+    stale_on_disk = submitted_paths - set(current_files.keys())
+    submitted_paths -= stale_on_disk
+    if stale_on_disk:
+        context.log.info(
+            f"Cursor: removed {len(stale_on_disk)} paths no longer on disk"
+        )
+
+    # ── Phase 3: DB batch lookup ─────────────────────────────
+    # Cross-reference both disk files and cursor entries against
+    # DB to determine what truly needs processing.
+
+    all_disk_paths = set(current_files.keys())
+    lookup_paths = all_disk_paths | submitted_paths
 
     existing_statuses: dict[str, str] = {}
     try:
-        existing_statuses = db.batch_lookup_file_statuses(
-            set(current_files.keys())
-        )
+        if lookup_paths:
+            existing_statuses = db.batch_lookup_file_statuses(lookup_paths)
     except Exception as exc:
         context.log.warning(
             f"DB batch lookup failed, proceeding with empty lookup: {exc}"
         )
 
+    # Prune cursor: remove paths that now have DB records.
+    # This means the op processed the file between the last launch
+    # and this tick — the DB is now authoritative for those files.
+    cursor_with_db = {p for p in submitted_paths if p in existing_statuses}
+    submitted_paths -= cursor_with_db
+    if cursor_with_db:
+        context.log.info(
+            f"Cursor: removed {len(cursor_with_db)} paths now in DB"
+        )
+
+    context.log.info(
+        f"Cursor state: {len(submitted_paths)} pending "
+        f"(initial={cursor_initial}, pruned_disk={len(stale_on_disk)}, "
+        f"pruned_db={len(cursor_with_db)})"
+    )
+
+    # ── Phase 4: Candidate filter ─────────────────────────────
+    # A file needs processing iff:
+    #   · NOT already launched (not in submitted_paths), AND
+    #   · No DB row, OR DB row with retryable status
+
     candidates = []
-    skipped_existing = 0
+    skipped_cursor = 0
+    skipped_db = 0
+
     for file_key in current_files:
+        if file_key in submitted_paths:
+            skipped_cursor += 1
+            continue
+
         db_status = existing_statuses.get(file_key)
         if db_status is None:
             candidates.append(file_key)
@@ -141,14 +193,14 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                 f"(status={db_status})"
             )
         else:
-            skipped_existing += 1
+            skipped_db += 1
 
     context.log.info(
-        f"DB dedup: {len(candidates)} new/retry candidates, "
-        f"{skipped_existing} skipped (already known to DB)"
+        f"Dedup: {len(candidates)} candidates, "
+        f"skipped: cursor={skipped_cursor} db={skipped_db}"
     )
 
-    # ── Phase 3: Gate check (ingest stages only) ─────────────
+    # ── Phase 5: Gate check (ingest stages only) ─────────────
     # Only count files in the pre-BP-PUT ingest pipeline so slow
     # encoding/validation never blocks new file discovery.
 
@@ -175,13 +227,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             f"{ingest_count} files in ingest pipeline, "
             f"exceeds limit of {MAX_INGEST_DEPTH}"
         )
-        context.update_cursor(json.dumps({
-            "tick_ts": int(time.time()),
-            "files_on_disk": len(current_files),
-            "candidates_found": len(candidates),
-            "launched": 0,
-            "gate_blocked": True,
-        }))
+        context.update_cursor(json.dumps(sorted(submitted_paths)))
         return []
 
     context.log.info(
@@ -189,7 +235,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         f"{ingest_count} files (limit {MAX_INGEST_DEPTH})"
     )
 
-    # ── Phase 4: Launch RunRequests ───────────────────────────
+    # ── Phase 6: Launch RunRequests ───────────────────────────
 
     run_requests = []
     launched = 0
@@ -201,9 +247,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             )
             break
         fname = Path(file_key).name
-        context.log.info(
-            f"New file detected: {fname}"
-        )
+        context.log.info(f"New file detected: {fname}")
         run_requests.append(
             RunRequest(
                 run_key=f"ingest-{fname}-{int(time.time())}",
@@ -216,19 +260,15 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                 },
             )
         )
+        submitted_paths.add(file_key)
         launched += 1
 
-    # ── Phase 5: Update cursor (metadata only) ────────────────
+    # ── Phase 7: Update cursor ────────────────────────────────
 
-    context.update_cursor(json.dumps({
-        "tick_ts": int(time.time()),
-        "files_on_disk": len(current_files),
-        "candidates_found": len(candidates),
-        "launched": launched,
-        "skipped_existing": skipped_existing,
-    }))
+    context.update_cursor(json.dumps(sorted(submitted_paths)))
     context.log.info(
-        f"Cursor updated — {launched} run(s) launched, "
+        f"Cursor updated — {launched} launched, "
+        f"{len(submitted_paths)} pending, "
         f"{len(current_files)} files on disk"
     )
     return run_requests
