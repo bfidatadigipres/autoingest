@@ -31,6 +31,9 @@ STATUS_FIELD_QUERY = {
         "op": "encode_proxy_mp4",
         "sensor_name": "encoding_chain_sensor",
         "statuses": ("verified",),
+        "max_queued": 80,
+        "active_limit": 80,
+        "active_gate_statuses": ("encoding", "generating_images"),
     },
     "encoding_complete": {
         "job": cleanup_local_job,
@@ -89,21 +92,60 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                     )
                 rows = cur.fetchall()
 
-        if len(rows) > MAX_QUEUED_PER_STAGE:
+        max_queued = conf.get("max_queued", MAX_QUEUED_PER_STAGE)
+        if len(rows) > max_queued:
             context.log.info(
                 f"{sensor_name}: skipping tick — {len(rows)} files queued "
-                f"for status '{status}', exceeds limit of {MAX_QUEUED_PER_STAGE}"
+                f"for status '{status}', exceeds limit of {max_queued}"
             )
             return []
+
+        # Active-pipeline gate: count files already consuming compute
+        # and skip launching if at or above the active limit.
+        active_limit = conf.get("active_limit")
+        active_count = 0
+        if active_limit:
+            active_statuses = conf.get("active_gate_statuses", ())
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM app.file_catalogue "
+                        "WHERE file_status IN %s",
+                        (active_statuses,),
+                    )
+                    active_count = cur.fetchone()[0]
+            if active_count >= active_limit:
+                context.log.info(
+                    f"{sensor_name}: skipping tick — {active_count} files "
+                    f"already active {active_statuses}, limit={active_limit}"
+                )
+                return []
 
         # Prune cursor: drop file_ids that have moved past this status.
         current_ids = {row[0] for row in rows}
         submitted_ids &= current_ids
 
+        per_tick_cap = None
+        if active_limit:
+            per_tick_cap = max(active_limit - active_count, 0)
+            if per_tick_cap == 0:
+                context.log.info(
+                    f"{sensor_name}: no launch room — {active_count} active, "
+                    f"limit={active_limit}"
+                )
+                return []
+
         new_requests = []
         for file_id, file_path in rows:
             if file_id in submitted_ids:
                 continue
+
+            if per_tick_cap is not None and len(new_requests) >= per_tick_cap:
+                context.log.info(
+                    f"{sensor_name}: per-tick cap reached "
+                    f"({per_tick_cap}), deferring remaining"
+                )
+                break
 
             run_key = f"{op_name}-{file_id}"
             context.log.info(
