@@ -184,13 +184,6 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         os.remove(download_path)
         os.rmdir(download_folder)
 
-    bp_version = bp.get_version_id(file)
-    if len(bp_version) > 30:
-        results["bp_version_id"] = bp_version
-        context.log.info(f"Version ID for the file found: {bp_version}")
-    else:
-        context.log.warning(f"Could not retrieve Version ID from BlackPearl for file {file}")
-
     mcheck = utils.check_file_has_media_rec(file)
     if mcheck is not False:
         context.log.info(
@@ -205,6 +198,11 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
     if not validation_pass:
         if deletion_needed is True:
+            bp_version = bp.get_version_id(file)
+            if len(bp_version) > 30:
+                context.log.info(f"Version ID for the file found: {bp_version}")
+            else:
+                context.log.warning(f"Could not retrieve Version ID from BlackPearl for file {file}")
             context.log.warning(f"{file} did not ingest cleanly into BlackPearl, so deleting file with version ID {bp_version}")
             delete_confirm = bp.delete_black_pearl_object(file, bp_version, file_info[18])
             if delete_confirm:
@@ -293,7 +291,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 "SET cid_media_priref = %s, tape_verified = TRUE, "
                 "file_status = 'verified', "
                 "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
-                "bp_version_id = %s, validated = %s, reference_num = %s, "
+                "validated = %s, reference_num = %s, "
                 "verify_time_sec = %s, "
                 "ingest_month = %s, "
                 "error_message = NULL, "
@@ -303,7 +301,6 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 str(results.get("persisted_ok", "")),
                 results.get("bp_etag", ""),
                 results.get("bp_length", ""),
-                results.get("bp_version_id", ""),
                 str(results.get("validated", "")),
                 file,
                 verify_elapsed,
