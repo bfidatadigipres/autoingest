@@ -126,10 +126,11 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                     active_count = cur.fetchone()[0]
             if active_count >= active_limit:
                 context.log.info(
-                    f"{sensor_name}: skipping tick — {active_count} files "
-                    f"already active {active_statuses}, limit={active_limit}"
+                    f"{sensor_name}: drain mode (active) — {active_count} "
+                    f"files already active {active_statuses}, "
+                    f"limit={active_limit}"
                 )
-                return []
+                drain_mode = True
 
         # Prune cursor: drop file_ids that have moved past this status.
         current_ids = {row[0] for row in rows}
