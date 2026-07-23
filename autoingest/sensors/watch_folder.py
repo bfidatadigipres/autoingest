@@ -88,7 +88,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     seen_files = cursor_files - retryable
 
-    TICK_DEADLINE_SEC = 55
+    TICK_DEADLINE_SEC = 300
 
     new_files = []
     current_files = set()
