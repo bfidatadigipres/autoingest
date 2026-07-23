@@ -184,6 +184,13 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         os.remove(download_path)
         os.rmdir(download_folder)
 
+    bp_version = bp.get_version_id(file)
+    if len(bp_version) > 30:
+        results["bp_version_id"] = bp_version
+        context.log.info(f"Version ID for the file found: {bp_version}")
+    else:
+        context.log.warning(f"Could not retrieve Version ID from BlackPearl for file {file}")
+
     mcheck = utils.check_file_has_media_rec(file)
     if mcheck is not False:
         context.log.info(
@@ -198,24 +205,30 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
     if not validation_pass:
         if deletion_needed is True:
-            bp_version = bp.get_version_id(file)
-            if len(bp_version) > 30:
+            if len(bp_version) < 30:
+                bp_version = bp.get_version_id_object(file)
                 context.log.info(f"Version ID for the file found: {bp_version}")
-            else:
-                context.log.warning(f"Could not retrieve Version ID from BlackPearl for file {file}")
-            context.log.warning(f"{file} did not ingest cleanly into BlackPearl, so deleting file with version ID {bp_version}")
-            delete_confirm = bp.delete_black_pearl_object(file, bp_version, file_info[18])
-            if delete_confirm:
-                context.log.info(f"Deletion confirmation: {delete_confirm}")
-                ingest_retry_needed = True
-            else:
-                if not bp.etag_deletion_confirmation(file, file_info[18]):
-                    context.log.info(f"Deletion confirmation received, etag absent for file {file}")
+            if len(bp_version) > 30:
+                context.log.warning(f"{file} did not ingest cleanly into BlackPearl, so deleting file with version ID {bp_version}")
+                delete_confirm = bp.delete_black_pearl_object(file, bp_version, file_info[18])
+                if delete_confirm:
+                    context.log.info(f"Deletion confirmation: {delete_confirm}")
                     ingest_retry_needed = True
                 else:
-                    context.log.warning(f"{file} - failed to delete from Black Pearl. Manual clean up needed")
-                    errors.append(f"Failed to delete BlackPearl file {file} - {bp_version}.")
-                    ingest_retry_needed = False
+                    if not bp.etag_deletion_confirmation(file, file_info[18]):
+                        context.log.info(f"Deletion confirmation received, etag absent for file {file}")
+                        ingest_retry_needed = True
+                    else:
+                        context.log.warning(f"{file} - failed to delete from Black Pearl. Manual clean up needed")
+                        errors.append(f"Failed to delete BlackPearl file {file} - {bp_version}.")
+                        ingest_retry_needed = False
+            else:
+                context.log.warning(f"Could not retrieve Version ID from BlackPearl for file {file}")
+                results["error_message"] = "Black Pearl file write failure - no version_id"
+                _record_verify_event(context, db, file, duration_sec, "reingest", results)
+                _set_validation_status(db, file_info[0], "validation_failure", results["error_message"])
+                return Output(results, metadata={"duration_sec": duration_sec, "file_name": file, "preview": f"Reingest: {file}"})
+
         if ingest_retry_needed is True:
             success_move, log = utils.move_file(file_path_str, file_info[3])
             duration_sec = round(time.perf_counter() - tic, 3)
@@ -291,7 +304,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 "SET cid_media_priref = %s, tape_verified = TRUE, "
                 "file_status = 'verified', "
                 "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
-                "validated = %s, reference_num = %s, "
+                "bp_version_id = %s, validated = %s, reference_num = %s, "
                 "verify_time_sec = %s, "
                 "ingest_month = %s, "
                 "error_message = NULL, "
@@ -301,6 +314,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 str(results.get("persisted_ok", "")),
                 results.get("bp_etag", ""),
                 results.get("bp_length", ""),
+                results.get("bp_version_id", ""),
                 str(results.get("validated", "")),
                 file,
                 verify_elapsed,

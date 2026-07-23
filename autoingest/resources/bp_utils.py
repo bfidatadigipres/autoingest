@@ -438,26 +438,35 @@ def get_version_id(ref_num: str, bucket: str) -> Optional[str]:
     result: ds3.HeadObjectResponse = CLIENT.head_object(resp)
     version_id = result.response.msg["version-id"]
     
-    if not version_id or len(version_id) == 0:
-        resp: ds3.GetObjectsWithFullDetailsSpectraS3Request = (
-            ds3.GetObjectsWithFullDetailsSpectraS3Request(
-                name=ref_num, include_physical_placement=True
-            )
+    return version_id
+
+
+def get_version_id_object(ref_num: str) -> Optional[str]:
+    """
+    Fallback method if version_id does not come from the HeadObject
+    """
+    from ds3 import ds3
+    CLIENT = ds3.createClientFromEnv()
+
+    resp: ds3.GetObjectsWithFullDetailsSpectraS3Request = (
+        ds3.GetObjectsWithFullDetailsSpectraS3Request(
+            name=ref_num, include_physical_placement=True
         )
-        result = CLIENT.get_objects_with_full_details_spectra_s3(resp)
-        obj = result.result
+    )
+    result = CLIENT.get_objects_with_full_details_spectra_s3(resp)
+    obj = result.result
 
-        if not obj:
-            return None
-        if not len(obj) == 1:
-            return None
+    if not obj:
+        return None
+    if not len(obj) == 1:
+        return None
 
-        try:
-            version_id: Optional[str] = obj["ObjectList"][0]["Blobs"]["ObjectList"][0][
-                "VersionId"
-            ]
-        except (IndexError, TypeError, KeyError):
-            version_id = None
+    try:
+        version_id: Optional[str] = obj["ObjectList"][0]["Blobs"]["ObjectList"][0][
+            "VersionId"
+        ]
+    except (IndexError, TypeError, KeyError):
+        version_id = None
 
     return version_id
 
