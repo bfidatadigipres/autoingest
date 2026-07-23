@@ -6,48 +6,12 @@ to one utility module
 """
 
 from __future__ import annotations
-
 import json
 import os
 from typing import Optional, Union, List, Dict, Any
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
-
 DPI_BUCKETS = os.environ.get("DPI_BUCKET", "")
 JSON_END = os.environ.get("JSON_END_POINT", "")
-
-
-def _get_client():
-    """
-    Returns a cached DS3 client instance, creating one on first call.
-    Avoids creating a new client (and fresh HTTP connections) on every
-    function invocation.
-    """
-    from ds3 import ds3
-    if not hasattr(_get_client, "_client"):
-        _get_client._client = ds3.createClientFromEnv()
-    return _get_client._client
-
-
-def _is_5xx_error(exception):
-    """
-    Check if a DS3 RequestFailed error is a 5xx server error.
-    These are transient and worth retrying.
-    """
-    from ds3.ds3network import RequestFailed
-    if isinstance(exception, RequestFailed):
-        return exception.http_error_code >= 500
-    return False
-
-
-# Retry decorator for read-only Black Pearl API operations.
-# Retries on 5xx server errors with exponential backoff (1s, 2s, 4s).
-_bp_retry = retry(
-    retry=retry_if_exception(_is_5xx_error),
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    reraise=True,
-)
 
 
 def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[str]]:
@@ -93,15 +57,14 @@ def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[
     return key_bucket, bucket_list
 
 
-@_bp_retry
 def check_no_bp_status(fname: str, bucket_list: list[str]) -> bool:
     """
     Look up filename in BP to avoid
     multiple ingests of files
     """
     from ds3 import ds3
-    CLIENT = _get_client()
-
+    CLIENT = ds3.createClientFromEnv()
+    
     exist_across_buckets: list[str] = []
     for bucket in bucket_list:
         try:
@@ -127,13 +90,12 @@ def check_no_bp_status(fname: str, bucket_list: list[str]) -> bool:
     return False
 
 
-@_bp_retry
 def get_job_status(job_id: str) -> tuple[str, str]:
     """
     Fetch job status for specific ID
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     cached = status = ""
 
@@ -151,14 +113,14 @@ def get_job_status(job_id: str) -> tuple[str, str]:
     return status, cached
 
 
-@_bp_retry
-def get_bp_md5(fname: str, bucket: str, _client=None) -> Optional[str]:
+def get_bp_md5(fname: str, bucket: str) -> Optional[str]:
+
     """
     Fetch BP checksum to compare
     to new local MD5
     """
     from ds3 import ds3
-    CLIENT = _client if _client is not None else _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     md5: str = ""
     query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
@@ -172,14 +134,14 @@ def get_bp_md5(fname: str, bucket: str, _client=None) -> Optional[str]:
         return md5.replace('"', "")
 
 
-@_bp_retry
-def get_bp_length(fname: str, bucket: str, _client=None) -> Optional[str]:
+def get_bp_length(fname: str, bucket: str) -> Optional[str]:
+
     """
     Fetch BP checksum to compare
     to new local MD5
     """
     from ds3 import ds3
-    CLIENT = _client if _client is not None else _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
 
     size: str = ""
@@ -194,7 +156,6 @@ def get_bp_length(fname: str, bucket: str, _client=None) -> Optional[str]:
         return size.replace('"', "")
 
 
-@_bp_retry
 def get_confirmation_length_md5(
     fname: str, bucket: str, bucket_list: list[str]
 ) -> Optional[tuple[Optional[Union[bool, str]], Optional[str], Optional[str]]]:
@@ -203,7 +164,7 @@ def get_confirmation_length_md5(
     avoiding full_details requests
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     flist: list[str] = [fname]
     try:
@@ -243,12 +204,11 @@ def get_confirmation_length_md5(
     else:
         return None, None, None
 
-    md5 = get_bp_md5(fname, bucket, _client=CLIENT)
-    length = get_bp_length(fname, bucket, _client=CLIENT)
+    md5 = get_bp_md5(fname, bucket)
+    length = get_bp_length(fname, bucket)
     return confirmed, md5, length
 
 
-@_bp_retry
 def get_object_list(
     fname: str,
 ) -> Optional[tuple[Union[bool, str], Optional[str], Optional[str]]]:
@@ -256,7 +216,7 @@ def get_object_list(
     Get all details to check file persisted
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     request = ds3.GetObjectsWithFullDetailsSpectraS3Request(
         name=f"{fname}", include_physical_placement=True
@@ -286,13 +246,12 @@ def get_object_list(
     return confirmed, md5, length
 
 
-@_bp_retry
 def get_object_list_items(fname: str) -> Optional[List[Dict[str, Any]]]:
     """
     Get all details to check file persisted
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     request = ds3.GetObjectsWithFullDetailsSpectraS3Request(
         name=f"{fname}", include_physical_placement=True
@@ -319,7 +278,7 @@ def put_directory(directory_pth: str, bucket: str) -> Optional[list[str]]:
     Retrieve job number and launch json notification
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
     HELPER = ds3Helpers.Helper(client=CLIENT)
 
     try:
@@ -344,7 +303,7 @@ def put_notification(job_id: str) -> str:
     Ensure job notification is sent to Isilon/ BP NAS
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     job_completed_registration = (
         CLIENT.put_job_completed_notification_registration_spectra_s3(
@@ -357,14 +316,13 @@ def put_notification(job_id: str) -> str:
     return job_completed_registration.result["NotificationEndPoint"]
 
 
-@_bp_retry
 def download_bp_object(fname: str, outpath: str, bucket: str) -> str:
     """
     Download the BP object from SpectraLogic
     tape library and save to outpath
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
     HELPER = ds3Helpers.Helper(client=CLIENT)
 
     if bucket == "":
@@ -383,14 +341,13 @@ def download_bp_object(fname: str, outpath: str, bucket: str) -> str:
     return get_job_id
 
 
-@_bp_retry
 def download_blobbed_object(fname: str, outpath: str, bucket: str) -> str:
     """
     Download the BP object from SpectraLogic
     tape library using single thread
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
     HELPER = ds3Helpers.Helper(client=CLIENT)
 
     if bucket == "":
@@ -415,7 +372,7 @@ def put_single_file(fpath: str, ref_num: str, bucket_name: str, check: bool = Fa
     Fine for < or > 1TB
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
     HELPER = ds3Helpers.Helper(client=CLIENT)
 
     file_size: int = os.path.getsize(fpath)
@@ -444,7 +401,7 @@ def delete_black_pearl_object(
     deletion of object
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     try:
         request = ds3.DeleteObjectRequest(bucket, ref_num, version_id=version)
@@ -455,13 +412,12 @@ def delete_black_pearl_object(
         return None
 
 
-@_bp_retry
 def etag_deletion_confirmation(ref_num: str, bucket: str) -> Optional[str]:
     """
     Get confirmation of deletion
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     resp = ds3.HeadObjectRequest(bucket, ref_num)
     result: ds3.HeadObjectResponse = CLIENT.head_object(resp)
@@ -471,7 +427,6 @@ def etag_deletion_confirmation(ref_num: str, bucket: str) -> Optional[str]:
     return etag
 
 
-@_bp_retry
 def get_version_id(ref_num: str) -> Optional[str]:
     """
     Call up Black Pearl ObjectList for each item
@@ -479,7 +434,7 @@ def get_version_id(ref_num: str) -> Optional[str]:
     ['ObjectList'][0]['Blobs']['ObjectList'][0]['VersionId']
     """
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     resp: ds3.GetObjectsWithFullDetailsSpectraS3Request = (
         ds3.GetObjectsWithFullDetailsSpectraS3Request(
@@ -503,7 +458,6 @@ def get_version_id(ref_num: str) -> Optional[str]:
     return version_id
 
 
-@_bp_retry
 def get_object_details(fname: str, bucket: str) -> Optional[List[Dict[str, Any]]]:
     """
     Less taxing way to check for multiple
@@ -518,7 +472,7 @@ def get_object_details(fname: str, bucket: str) -> Optional[List[Dict[str, Any]]
     """
 
     from ds3 import ds3
-    CLIENT = _get_client()
+    CLIENT = ds3.createClientFromEnv()
 
     r = ds3.GetObjectsDetailsSpectraS3Request(name=fname, bucket_id=bucket)
     result = CLIENT.get_objects_details_spectra_s3(r)
