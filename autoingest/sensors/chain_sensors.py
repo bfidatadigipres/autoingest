@@ -12,7 +12,7 @@ from autoingest.jobs.validation_jobs import (
     metadata_update_local_job,
 )
 
-MAX_QUEUED_PER_STAGE = 200   # skip tick when more files than this are waiting at this stage
+MAX_QUEUED_PER_STAGE = 80   # skip tick when more files than this are waiting at this stage
 
 
 STATUS_FIELD_QUERY = {

@@ -6,8 +6,12 @@ from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorSt
 
 from autoingest.jobs.validation_jobs import verify_local_job
 
+
 RETRY_INTERVAL_SECONDS = 300
-MAX_QUEUED_PER_STAGE = 200  # skip tick when more files are waiting for validation
+MAX_QUEUED_PER_STAGE = 80
+MAX_NEW_PER_TICK = 50
+ACTIVE_LIMIT = 80
+ACTIVE_GATE_STATUSES = ("validating", "verified")
 
 
 @sensor(
@@ -21,8 +25,61 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
     validate_paths = [p.strip() for p in validate_paths if p.strip()]
 
     if not validate_paths:
-        context.log.warning("VALIDATION_FOLDER_PATHS is empty — no folders to watch.")
+        context.log.warning(
+            "VALIDATION_FOLDER_PATHS is empty — no folders to watch."
+        )
         return []
+
+    db = context.resources.workflow_db
+    now = int(time.time())
+
+    # ── Phase 1: Scan validation directories ─────────────────
+    # Always scan, regardless of pipeline depth.
+
+    current_files: dict[str, str] = {}
+    total_subdirs = 0
+    skipped_ingest = 0
+    skipped_not_dir = 0
+    skipped_not_file = 0
+
+    for validate_path in validate_paths:
+        validate_dir = Path(validate_path)
+        if not validate_dir.exists():
+            context.log.warning(
+                f"Validation folder does not exist: {validate_path}"
+            )
+            continue
+
+        for subfolder in validate_dir.iterdir():
+            total_subdirs += 1
+
+            if not subfolder.is_dir():
+                skipped_not_dir += 1
+                continue
+            if subfolder.name.startswith("ingest_"):
+                skipped_ingest += 1
+                context.log.info(
+                    f"Skipping incomplete ingest folder: {subfolder.name}"
+                )
+                continue
+
+            for file_path in subfolder.iterdir():
+                if not file_path.is_file():
+                    skipped_not_file += 1
+                    continue
+
+                file_key = str(file_path)
+                current_files[file_key] = file_path.name
+
+    context.log.info(
+        f"Scan complete — subdirs={total_subdirs}, "
+        f"skipped: not-dir={skipped_not_dir} ingest={skipped_ingest} "
+        f"not-file={skipped_not_file}, found={len(current_files)}"
+    )
+
+    # ── Phase 2: Load and prune cursor ───────────────────────
+    # Cursor: {path: timestamp} — prevents re-launch within
+    # RETRY_INTERVAL_SECONDS and enables crash recovery retry.
 
     cursor: dict[str, int] = {}
     if context.cursor:
@@ -35,12 +92,92 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         except (json.JSONDecodeError, TypeError, ValueError):
             cursor = {}
 
+    cursor_initial = len(cursor)
+
+    # Prune: remove paths for files no longer on disk (deleted
+    # by cleanup step after successful verification+encoding).
+    stale_on_disk = {fp for fp in cursor if fp not in current_files}
+    for fp in stale_on_disk:
+        del cursor[fp]
+    if stale_on_disk:
+        context.log.info(
+            f"Cursor: removed {len(stale_on_disk)} paths no longer on disk"
+        )
+
+    # ── Phase 3: DB batch lookup ─────────────────────────────
+
+    all_disk_paths = set(current_files.keys())
+    lookup_paths = all_disk_paths | set(cursor.keys())
+
+    existing_statuses: dict[str, str] = {}
+    try:
+        if lookup_paths:
+            existing_statuses = db.batch_lookup_file_statuses(lookup_paths)
+    except Exception as exc:
+        context.log.warning(
+            f"DB batch lookup failed, proceeding with empty lookup: {exc}"
+        )
+
+    # Prune cursor: remove paths where DB status has moved past
+    # the verify stage (no longer "File cleared for ingest" or
+    # "validating"). Files at "validating" stay to enable crash
+    # recovery retry.
+    POST_VERIFY = {"File cleared for ingest", "validating"}
+    cursor_with_db = {
+        fp for fp in cursor
+        if fp in existing_statuses
+        and existing_statuses[fp] not in POST_VERIFY
+    }
+    for fp in cursor_with_db:
+        del cursor[fp]
+    if cursor_with_db:
+        context.log.info(
+            f"Cursor: removed {len(cursor_with_db)} paths past verify stage"
+        )
+
     context.log.info(
-        f"Sensor tick — {len(validate_paths)} validation folder(s), "
-        f"{len(cursor)} files in cursor"
+        f"Cursor state: {len(cursor)} pending "
+        f"(initial={cursor_initial}, pruned_disk={len(stale_on_disk)}, "
+        f"pruned_db={len(cursor_with_db)})"
     )
 
-    db = context.resources.workflow_db
+    # ── Phase 4: Active gate ─────────────────────────────────
+    # Count files already in the validation pipeline and skip
+    # launching if at or above the limit.
+
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM app.file_catalogue "
+                    "WHERE file_status IN %s",
+                    (ACTIVE_GATE_STATUSES,),
+                )
+                active_count = cur.fetchone()[0]
+    except Exception as exc:
+        context.log.warning(
+            f"Active-gate check failed, skipping new launches: {exc}"
+        )
+        active_count = ACTIVE_LIMIT + 1
+
+    if active_count >= ACTIVE_LIMIT:
+        context.log.info(
+            f"validation_folder_sensor: skipping tick — "
+            f"{active_count} files already active "
+            f"{ACTIVE_GATE_STATUSES}, limit={ACTIVE_LIMIT}"
+        )
+        context.update_cursor(json.dumps(cursor))
+        return []
+
+    context.log.info(
+        f"validation_folder_sensor: active gate OK — "
+        f"{active_count} active (limit {ACTIVE_LIMIT})"
+    )
+
+    # ── Phase 5: Queue gate ──────────────────────────────────
+    # Count files waiting at "File cleared for ingest" status
+    # and skip launching if above the queue limit.
+
     try:
         with db.get_connection() as conn:
             with conn.cursor() as cur:
@@ -48,107 +185,91 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
                     "SELECT COUNT(*) FROM app.file_catalogue "
                     "WHERE file_status = 'File cleared for ingest'"
                 )
-                waiting = cur.fetchone()[0]
+                queued_count = cur.fetchone()[0]
     except Exception as exc:
-        context.log.warning(f"Queue-depth check failed, skipping tick: {exc}")
-        return []
-
-    if waiting > MAX_QUEUED_PER_STAGE:
-        context.log.info(
-            f"validation_folder_sensor: skipping tick — {waiting} files queued "
-            f"for validation, exceeds limit of {MAX_QUEUED_PER_STAGE}"
+        context.log.warning(
+            f"Queue-depth check failed, skipping new launches: {exc}"
         )
+        queued_count = MAX_QUEUED_PER_STAGE + 1
+
+    if queued_count > MAX_QUEUED_PER_STAGE:
+        context.log.info(
+            f"validation_folder_sensor: skipping tick — "
+            f"{queued_count} files queued for validation, "
+            f"exceeds limit of {MAX_QUEUED_PER_STAGE}"
+        )
+        context.update_cursor(json.dumps(cursor))
         return []
 
     context.log.info(
-        f"validation_folder_sensor: queue depth OK — {waiting} files waiting "
-        f"(limit {MAX_QUEUED_PER_STAGE})"
+        f"validation_folder_sensor: queue depth OK — "
+        f"{queued_count} files (limit {MAX_QUEUED_PER_STAGE})"
     )
 
-    now = int(time.time())
+    # ── Phase 6: Candidate filter ────────────────────────────
+    # A file triggers verification iff:
+    #   · Not launched within RETRY_INTERVAL_SECONDS, AND
+    #   · DB status is "File cleared for ingest" (new), OR
+    #   · DB status is "validating" and we previously launched it
+    #     (crash recovery — stuck at validating)
 
-    new_requests = []
-    current_files: dict[str, str] = {}  # file_path → file_name
-    total_subdirs = 0
-    skipped_ingest = 0
-    skipped_not_dir = 0
-    skipped_not_file = 0
+    candidates = []
+    skipped_retry = 0
     skipped_not_ready = 0
 
-    for validate_path in validate_paths:
-        validate_dir = Path(validate_path)
-        if not validate_dir.exists():
-            context.log.warning(f"Validation folder does not exist: {validate_path}")
-            continue
-
-        for subfolder in validate_dir.iterdir():
-            total_subdirs += 1
-
-            if not subfolder.is_dir():
-                skipped_not_dir += 1
-                continue
-            if subfolder.name.startswith("ingest_"):
-                skipped_ingest += 1
-                context.log.info(f"Skipping incomplete ingest folder: {subfolder.name}")
-                continue
-
-            for file_path in subfolder.iterdir():
-                if not file_path.is_file():
-                    skipped_not_file += 1
-                    continue
-
-                file_key = str(file_path)
-                current_files[file_key] = file_path.name
-
-    # Prune cursor entries for files no longer on disk
-    stale = {fp for fp in cursor if fp not in current_files}
-    for fp in stale:
-        del cursor[fp]
-
     for file_key, file_name in current_files.items():
-        last_trigger = cursor.get(file_key)
-        if last_trigger is not None and (now - last_trigger) < RETRY_INTERVAL_SECONDS:
-            continue
+        last_launch = cursor.get(file_key)
 
-        # Check DB for current file_status
-        file_status = None
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT file_status FROM app.file_catalogue "
-                    "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
-                    (file_name,),
+        if last_launch is not None:
+            if (now - last_launch) < RETRY_INTERVAL_SECONDS:
+                skipped_retry += 1
+                continue
+
+        db_status = existing_statuses.get(file_key)
+
+        if db_status == "File cleared for ingest":
+            candidates.append(file_key)
+        elif db_status == "validating":
+            if last_launch is not None:
+                context.log.info(
+                    f"Retrying {file_name} — stuck at 'validating' for "
+                    f"{now - last_launch}s"
                 )
-                row = cur.fetchone()
-                if row:
-                    file_status = row[0]
-
-        # Only trigger if ready, or if stuck at 'validating' for re-trigger
-        if file_status == "File cleared for ingest":
-            pass
-        elif file_status == "validating" and last_trigger is not None:
-            # Stuck in validating from a crashed run — allow retrigger
-            context.log.info(
-                f"Retrying {file_name} — stuck at 'validating' for "
-                f"{now - last_trigger}s (possible crash recovery)"
-            )
-        elif file_status is None:
+                candidates.append(file_key)
+            else:
+                skipped_not_ready += 1
+        elif db_status is None:
             skipped_not_ready += 1
             context.log.info(
                 f"Skipping {file_name} — no DB record found"
             )
-            continue
         else:
             skipped_not_ready += 1
             context.log.info(
-                f"Skipping {file_name} — status is '{file_status}', "
+                f"Skipping {file_name} — status is '{db_status}', "
                 f"expected 'File cleared for ingest'"
             )
-            continue
 
+    context.log.info(
+        f"Dedup: {len(candidates)} candidates, "
+        f"skipped: retry-interval={skipped_retry} "
+        f"not-ready={skipped_not_ready}"
+    )
+
+    # ── Phase 7: Launch RunRequests ───────────────────────────
+
+    new_requests = []
+    launched = 0
+    for file_key in candidates:
+        if launched >= MAX_NEW_PER_TICK:
+            context.log.info(
+                f"Per-tick launch cap ({MAX_NEW_PER_TICK}) reached — "
+                f"{len(candidates) - launched} candidates deferred"
+            )
+            break
+        file_name = current_files[file_key]
         context.log.info(
-            f"Validation sensor: launching verify for {file_key}"
-            + (f" (retry, {now - last_trigger}s since last attempt)" if last_trigger else "")
+            f"Validation sensor: launching verify for {file_name}"
         )
         new_requests.append(
             RunRequest(
@@ -163,16 +284,14 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
             )
         )
         cursor[file_key] = now
+        launched += 1
 
-    context.log.info(
-        f"Scan complete — subdirs scanned={total_subdirs}, "
-        f"skipped: not-dir={skipped_not_dir} ingest={skipped_ingest} "
-        f"not-file={skipped_not_file} not-ready={skipped_not_ready}, "
-        f"files found={len(current_files)}, new={len(new_requests)}"
-    )
-
-    if new_requests:
-        context.log.info(f"Validation sensor: launching {len(new_requests)} run(s)")
+    # ── Phase 8: Update cursor ────────────────────────────────
 
     context.update_cursor(json.dumps(cursor))
+    context.log.info(
+        f"Cursor updated — {launched} launched, "
+        f"{len(cursor)} pending, "
+        f"{len(current_files)} files on disk"
+    )
     return new_requests
