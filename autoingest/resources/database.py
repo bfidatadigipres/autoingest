@@ -1,6 +1,5 @@
 import os
 import json
-from pathlib import Path
 from typing import Any
 
 import psycopg2
@@ -240,21 +239,18 @@ class WorkflowDatabase:
                     (file_id,),
                 )
 
-    def get_non_retryable_cursor_files(self, file_paths: set[str]) -> set[str]:
-        filenames = [Path(p).name for p in file_paths]
-        if not filenames:
-            return set()
-        placeholders = ", ".join(["%s"] * len(filenames))
+    def batch_lookup_file_statuses(self, file_paths: set[str]) -> dict[str, str]:
+        if not file_paths:
+            return {}
+        placeholders = ", ".join(["%s"] * len(file_paths))
         query = (
-            f"SELECT file_name FROM app.file_catalogue "
-            f"WHERE file_name IN ({placeholders}) "
-            f"AND file_status != 'No Status'"
+            f"SELECT file_path, file_status FROM app.file_catalogue "
+            f"WHERE file_path IN ({placeholders})"
         )
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(query, filenames)
-                done = {r[0] for r in cur.fetchall()}
-        return {p for p in file_paths if Path(p).name in done}
+                cur.execute(query, list(file_paths))
+                return {row[0]: row[1] for row in cur.fetchall()}
 
     def record_pipeline_event(
         self,
