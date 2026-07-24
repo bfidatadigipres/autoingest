@@ -8,8 +8,8 @@ from autoingest.jobs.ingest_jobs import ingest_local_job
 from autoingest.resources.utils import accepted_file_type
 
 
-MAX_INGEST_DEPTH = 80
-MAX_NEW_PER_TICK = 50
+MAX_INGEST_DEPTH = 30
+MAX_NEW_PER_TICK = 10
 TICK_DEADLINE_SEC = 300
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
 
