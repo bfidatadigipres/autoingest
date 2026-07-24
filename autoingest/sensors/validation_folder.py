@@ -12,7 +12,6 @@ MAX_NEW_PER_TICK = 50
 ACTIVE_LIMIT = 20
 ACTIVE_GATE_STATUSES = ("validating", "verified")
 CANDIDATE_LIMIT = 200
-TICK_DEADLINE_SEC = 50
 
 
 @sensor(
@@ -24,12 +23,12 @@ TICK_DEADLINE_SEC = 50
 def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     db = context.resources.workflow_db
     now = int(time.time())
-    tick_start = time.perf_counter()
 
     # ── Phase 1: DB-driven candidate discovery ─────────────────
     # Query the database for files ready for verification,
-    # reconstruct the validation path, and check file exists on disk.
-    # No filesystem directory scanning — the DB is the source of truth.
+    # reconstruct the validation path from stored fields.
+    # No filesystem checks — the verify_tape_copy op validates
+    # on-disk existence at runtime.
 
     current_files: dict[str, str] = {}
     db_rows: list[tuple[str, str, str]] = []
@@ -54,37 +53,18 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         )
         return []
 
-    skipped_missing = 0
-    timed_out = False
     for file_name, file_path, bp_job_id in db_rows:
-        if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
-            timed_out = True
-            break
         validation_path = (
             Path(file_path).parent.parent.parent.parent
             / "autoingest" / "validation" / bp_job_id / file_name
         )
         file_key = str(validation_path)
-        if validation_path.is_file():
-            current_files[file_key] = file_name
-        else:
-            skipped_missing += 1
-            context.log.info(
-                f"DB candidate not on disk: {file_name} "
-                f"(expected at {file_key})"
-            )
+        current_files[file_key] = file_name
 
     context.log.info(
         f"DB query returned {len(db_rows)} candidates, "
-        f"found={len(current_files)} on disk, "
-        f"skipped_missing={skipped_missing}"
-        f"{', TIMED OUT' if timed_out else ''}"
+        f"loaded {len(current_files)} paths"
     )
-    if timed_out:
-        context.log.warning(
-            f"Tick deadline ({TICK_DEADLINE_SEC}s) reached — "
-            f"remaining candidates deferred to next tick"
-        )
 
     # ── Phase 2: Load and prune cursor ───────────────────────
     # Cursor: {path: timestamp} — prevents re-launch within
