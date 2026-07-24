@@ -10,7 +10,7 @@ from autoingest.resources.utils import accepted_file_type
 
 MAX_INGEST_DEPTH = 30
 MAX_NEW_PER_TICK = 10
-TICK_DEADLINE_SEC = 300
+TICK_DEADLINE_SEC = 55
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
 
 
@@ -49,53 +49,54 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             continue
 
         try:
-            ingest_folders = [
-                x for x in os.listdir(watch_dir)
-                if os.path.isdir(os.path.join(watch_dir, x))
-            ]
-        except OSError:
-            continue
-
-        for folder in ingest_folders:
-            folder_path = os.path.join(watch_dir, folder)
-            try:
-                folder_items = os.listdir(folder_path)
-            except OSError:
-                continue
-
-            for file in folder_items:
-                file_key = os.path.join(folder_path, file)
-                file_path_obj = Path(file_key)
-                total_scanned += 1
-
-                if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
-                    timed_out = True
-                    break
-
-                if not file_path_obj.is_file():
-                    skipped_not_file += 1
-                    continue
-
-                try:
-                    st = file_path_obj.stat()
-                    age_sec = time.time() - st.st_mtime
-                    if age_sec < 5 or st.st_size == 0:
-                        skipped_size += 1
-                        context.log.info(
-                            f"Skipping in-flight file: {file_path_obj.name} "
-                            f"(modified {age_sec:.1f}s ago, size={st.st_size})"
-                        )
+            with os.scandir(watch_dir) as dir_iter:
+                for entry in dir_iter:
+                    if not entry.is_dir():
                         continue
-                except OSError as exc:
-                    context.log.warning(
-                        f"OS error checking {file_path_obj.name}: {exc}"
-                    )
-                    continue
+                    folder_path = entry.path
+                    try:
+                        with os.scandir(folder_path) as file_iter:
+                            for file_entry in file_iter:
+                                total_scanned += 1
 
-                current_files[file_key] = st.st_size
+                                if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
+                                    timed_out = True
+                                    break
 
-            if timed_out:
-                break
+                                if not file_entry.is_file():
+                                    skipped_not_file += 1
+                                    continue
+                                if not accepted_file_type(
+                                    Path(file_entry.name).suffix.lstrip(".")
+                                ):
+                                    skipped_extension += 1
+                                    continue
+
+                                try:
+                                    st = file_entry.stat()
+                                    age_sec = time.time() - st.st_mtime
+                                    if age_sec < 5 or st.st_size == 0:
+                                        skipped_size += 1
+                                        context.log.info(
+                                            f"Skipping in-flight file: {file_entry.name} "
+                                            f"(modified {age_sec:.1f}s ago, size={st.st_size})"
+                                        )
+                                        continue
+                                except OSError as exc:
+                                    context.log.warning(
+                                        f"OS error checking {file_entry.name}: {exc}"
+                                    )
+                                    continue
+
+                                current_files[file_entry.path] = st.st_size
+
+                    except OSError:
+                        continue
+
+                    if timed_out:
+                        break
+        except OSError:
+            pass
 
         if timed_out:
             context.log.warning(

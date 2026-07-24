@@ -12,6 +12,7 @@ MAX_NEW_PER_TICK = 50
 ACTIVE_LIMIT = 20
 ACTIVE_GATE_STATUSES = ("validating", "verified")
 CANDIDATE_LIMIT = 200
+TICK_DEADLINE_SEC = 50
 
 
 @sensor(
@@ -23,6 +24,7 @@ CANDIDATE_LIMIT = 200
 def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     db = context.resources.workflow_db
     now = int(time.time())
+    tick_start = time.perf_counter()
 
     # ── Phase 1: DB-driven candidate discovery ─────────────────
     # Query the database for files ready for verification,
@@ -53,7 +55,11 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         return []
 
     skipped_missing = 0
+    timed_out = False
     for file_name, file_path, bp_job_id in db_rows:
+        if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
+            timed_out = True
+            break
         validation_path = (
             Path(file_path).parent.parent.parent.parent
             / "autoingest" / "validation" / bp_job_id / file_name
@@ -72,7 +78,13 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         f"DB query returned {len(db_rows)} candidates, "
         f"found={len(current_files)} on disk, "
         f"skipped_missing={skipped_missing}"
+        f"{', TIMED OUT' if timed_out else ''}"
     )
+    if timed_out:
+        context.log.warning(
+            f"Tick deadline ({TICK_DEADLINE_SEC}s) reached — "
+            f"remaining candidates deferred to next tick"
+        )
 
     # ── Phase 2: Load and prune cursor ───────────────────────
     # Cursor: {path: timestamp} — prevents re-launch within
