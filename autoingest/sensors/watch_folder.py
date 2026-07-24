@@ -75,9 +75,6 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                 if not file_path_obj.is_file():
                     skipped_not_file += 1
                     continue
-                if not accepted_file_type(file_path_obj.suffix.lstrip(".")):
-                    skipped_extension += 1
-                    continue
 
                 try:
                     st = file_path_obj.stat()
