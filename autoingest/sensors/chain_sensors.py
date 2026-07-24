@@ -189,7 +189,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                 )
                 break
 
-            run_key = f"{op_name}-{file_id}"
+            run_key = f"{op_name}-{file_id}-{now}"
             context.log.info(
                 f"{sensor_name}: launching {op_name} for file_id={file_id} "
                 f"({Path(file_path).name})"
