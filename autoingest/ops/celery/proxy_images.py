@@ -8,6 +8,9 @@ import autoingest.resources.proxy_utils as ut
 from dagster import op, OpExecutionContext, Output
 
 
+REQUIRED_KEYS = ("file_id", "file_path", "mime_type", "source")
+
+
 @op(
     required_resource_keys={"workflow_db", "encoding_config"},
     tags={"dagster-celery/queue": "encoding"},
@@ -17,6 +20,24 @@ def generate_images(
     file_info: dict[str, Any],
 ) -> Output:
     tic = time.perf_counter()
+
+    missing = [k for k in REQUIRED_KEYS if k not in file_info or not file_info[k]]
+    if missing:
+        context.log.warning(
+            f"Input file_info is missing required keys: {missing}. "
+            "The upstream op may have skipped due to an unexpected file status. "
+            "No image generation performed."
+        )
+        return Output({
+            "file_id": file_info.get("file_id"),
+            "proxy_video_path": "",
+            "proxy_image_path": "",
+            "proxy_thumb_path": "",
+        }, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Skipped — incomplete input (missing: {missing})",
+        })
+
     proxy_path = file_info.get("proxy_video_path", "")
     if not proxy_path:
         context.log.warning("No proxy video path available. Skipping image generation.")
@@ -215,14 +236,13 @@ def generate_images(
         except Exception:
             pass
 
-        file_name = Path(file_info["file_path"]).name
         with db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE app.file_catalogue SET file_status = 'encoding_complete', "
                     "error_message = NULL, updated_at = NOW() "
-                    "WHERE file_name = %s",
-                    (file_name,),
+                    "WHERE id = %s",
+                    (file_id,),
                 )
 
         return Output({

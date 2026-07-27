@@ -47,34 +47,26 @@ def encode_proxy_mp4(
     file_id, file_status, mime_type, source, ingest_month, bp_job_id = row
 
     if file_status == "encoding":
-        context.log.info(f"File {filename} is already being encoded. Skipping.")
-        return Output({
-            "file_id": file_id,
-            "file_path": file_path,
-            "source": source,
-            "mime_type": mime_type,
-            "proxy_video_path": "",
-            "proxy_size": "",
-        }, metadata={
-            "duration_sec": round(time.perf_counter() - tic, 3),
-            "preview": f"Already encoding: {filename}",
-        })
+        context.log.error(
+            f"File {filename} is already being encoded by a concurrent run. Aborting."
+        )
+        raise RuntimeError(
+            f"File {filename} has status '{file_status}' at start of encoding — "
+            "a concurrent run is already encoding this file. "
+            "No work performed by this run."
+        )
 
     if file_status != "verified":
-        context.log.warning(
-            f"File {filename} has status '{file_status}' — expected 'verified'. Skipping."
+        context.log.error(
+            f"File {filename} has status '{file_status}' — expected 'verified'. "
+            "A concurrent run may have already processed this file. Aborting."
         )
-        return Output({
-            "file_id": file_id,
-            "file_path": file_path,
-            "source": source,
-            "mime_type": mime_type,
-            "proxy_video_path": "",
-            "proxy_size": "",
-        }, metadata={
-            "duration_sec": round(time.perf_counter() - tic, 3),
-            "preview": f"Skipped: status={file_status}",
-        })
+        raise RuntimeError(
+            f"File {filename} has unexpected status '{file_status}' at start of "
+            f"encoding — expected 'verified'. A duplicate run likely triggered for "
+            f"a file already processed by a concurrent encoding job. "
+            f"No work performed by this run."
+        )
 
     root = Path(file_path).parent.parent.parent.parent
     source_path = root / "autoingest" / "validation" / (bp_job_id or "") / filename
