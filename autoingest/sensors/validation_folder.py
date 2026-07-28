@@ -9,8 +9,8 @@ from autoingest.jobs.validation_jobs import verify_local_job
 RETRY_INTERVAL_SECONDS = 300
 MAX_QUEUED_PER_STAGE = 30
 MAX_NEW_PER_TICK = 50
-ACTIVE_LIMIT = 20
-ACTIVE_GATE_STATUSES = ("validating", "verified")
+ACTIVE_LIMIT = 300
+ACTIVE_GATE_STATUSES = ("validating",)
 CANDIDATE_LIMIT = 1000
 
 
