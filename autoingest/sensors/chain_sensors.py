@@ -1,5 +1,4 @@
 import json
-import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -15,7 +14,6 @@ from autoingest.jobs.validation_jobs import (
 
 MAX_QUEUED_PER_STAGE = 30   # skip tick when more files than this are waiting at this stage
 MAX_NEW_PER_TICK = 10       # per-tick launch cap in drain mode
-RETRY_INTERVAL_SECONDS = 600  # retry stuck cursor entries after 10 min
 
 
 STATUS_FIELD_QUERY = {
@@ -39,7 +37,7 @@ STATUS_FIELD_QUERY = {
         "sensor_name": "encoding_chain_sensor",
         "statuses": ("verified",),
         "max_queued": 30,
-        "active_limit": 20,
+        "active_limit": 80,
         "active_gate_statuses": ("encoding", "generating_images"),
     },
     "encoding_complete": {
@@ -73,20 +71,18 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
         required_resource_keys={"workflow_db"},
     )
     def _sensor_fn(context: SensorEvaluationContext) -> list[RunRequest]:
-        now = int(time.time())
-
-        # Cursor: {file_id: launch_timestamp} — enables crash/retry recovery.
-        cursor: dict[int, int] = {}
+        # Cursor: sorted list of file_ids already submitted for this stage.
+        submitted_ids: set[int] = set()
         if context.cursor:
             try:
                 raw = json.loads(context.cursor)
-                if isinstance(raw, dict):
-                    cursor = {int(k): int(v) for k, v in raw.items()}
-                elif isinstance(raw, list):
-                    # Upgrade old list cursor — timestamps default to 0.
-                    cursor = {int(v): 0 for v in raw}
+                if isinstance(raw, list):
+                    submitted_ids = {int(v) for v in raw}
+                elif isinstance(raw, dict):
+                    # Upgrade old timestamp cursor — keep keys, drop timestamps.
+                    submitted_ids = {int(k) for k in raw}
             except (json.JSONDecodeError, TypeError, ValueError):
-                cursor = {}
+                submitted_ids = set()
 
         db = context.resources.workflow_db
         rows = []
@@ -151,18 +147,9 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                 )
                 drain_mode = True
 
-        # Prune cursor: drop file_ids that have moved past this status,
-        # or that have been stuck for longer than RETRY_INTERVAL_SECONDS.
+        # Prune cursor: drop file_ids that have moved past this status.
         current_ids = {row[0] for row in rows}
-        for file_id, ts in list(cursor.items()):
-            if file_id not in current_ids:
-                del cursor[file_id]
-            elif (now - ts) > RETRY_INTERVAL_SECONDS:
-                del cursor[file_id]
-                context.log.info(
-                    f"{sensor_name}: retrying file_id={file_id} "
-                    f"after {now - ts}s in cursor"
-                )
+        submitted_ids &= current_ids
 
         if drain_mode:
             per_tick_cap = MAX_NEW_PER_TICK
@@ -179,7 +166,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
 
         new_requests = []
         for file_id, file_path in rows:
-            if file_id in cursor:
+            if file_id in submitted_ids:
                 continue
 
             if per_tick_cap is not None and len(new_requests) >= per_tick_cap:
@@ -189,7 +176,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                 )
                 break
 
-            run_key = f"{op_name}-{file_id}-{now}"
+            run_key = f"{op_name}-{file_id}"
             context.log.info(
                 f"{sensor_name}: launching {op_name} for file_id={file_id} "
                 f"({Path(file_path).name})"
@@ -204,12 +191,12 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                     },
                 )
             )
-            cursor[file_id] = now
+            submitted_ids.add(file_id)
 
         if new_requests:
             context.log.info(f"{sensor_name}: launching {len(new_requests)} run(s)")
 
-        context.update_cursor(json.dumps(cursor))
+        context.update_cursor(json.dumps(sorted(submitted_ids)))
         return new_requests
 
     return _sensor_fn

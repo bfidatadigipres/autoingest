@@ -1,15 +1,13 @@
 import json
-import time
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from autoingest.jobs.validation_jobs import verify_local_job
 
 
-RETRY_INTERVAL_SECONDS = 300
 MAX_QUEUED_PER_STAGE = 30
 MAX_NEW_PER_TICK = 50
-ACTIVE_LIMIT = 300
+ACTIVE_LIMIT = 40
 ACTIVE_GATE_STATUSES = ("validating",)
 CANDIDATE_LIMIT = 1000
 
@@ -22,7 +20,6 @@ CANDIDATE_LIMIT = 1000
 )
 def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     db = context.resources.workflow_db
-    now = int(time.time())
 
     # ── Phase 1: DB-driven candidate discovery ─────────────────
     # Query the database for files ready for verification,
@@ -67,34 +64,33 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
     )
 
     # ── Phase 2: Load and prune cursor ───────────────────────
-    # Cursor: {path: timestamp} — prevents re-launch within
-    # RETRY_INTERVAL_SECONDS.
+    # Cursor: sorted list of paths already submitted.
 
-    cursor: dict[str, int] = {}
+    submitted_paths: set[str] = set()
     if context.cursor:
         try:
             raw = json.loads(context.cursor)
-            if isinstance(raw, dict):
-                cursor = {str(k): int(v) for k, v in raw.items()}
-            elif isinstance(raw, list):
-                cursor = {str(v): 0 for v in raw}
+            if isinstance(raw, list):
+                submitted_paths = {str(v) for v in raw}
+            elif isinstance(raw, dict):
+                # Upgrade old timestamp cursor — keep keys, drop timestamps.
+                submitted_paths = {str(k) for k in raw}
         except (json.JSONDecodeError, TypeError, ValueError):
-            cursor = {}
+            submitted_paths = set()
 
-    cursor_initial = len(cursor)
+    cursor_initial = len(submitted_paths)
 
     # Prune: remove paths for files no longer on disk
     # (deleted by cleanup step after successful verification+encoding).
-    stale_on_disk = {fp for fp in cursor if fp not in current_files}
-    for fp in stale_on_disk:
-        del cursor[fp]
+    stale_on_disk = submitted_paths - set(current_files.keys())
+    submitted_paths -= stale_on_disk
     if stale_on_disk:
         context.log.info(
             f"Cursor: removed {len(stale_on_disk)} paths no longer on disk"
         )
 
     context.log.info(
-        f"Cursor state: {len(cursor)} pending "
+        f"Cursor state: {len(submitted_paths)} pending "
         f"(initial={cursor_initial}, pruned_disk={len(stale_on_disk)})"
     )
 
@@ -123,7 +119,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
             f"{active_count} files already active "
             f"{ACTIVE_GATE_STATUSES}, limit={ACTIVE_LIMIT}"
         )
-        context.update_cursor(json.dumps(cursor))
+        context.update_cursor(json.dumps(sorted(submitted_paths)))
         return []
 
     context.log.info(
@@ -163,26 +159,23 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
 
     # ── Phase 5: Candidate filter ────────────────────────────
     # A file triggers verification iff:
-    #   · Not launched within RETRY_INTERVAL_SECONDS.
+    #   · Not already submitted (not in submitted_paths).
     # All files in current_files are at "File cleared for ingest" by
     # definition (they came from the DB query), so no status check needed.
 
     candidates = []
-    skipped_retry = 0
+    skipped_cursor = 0
 
     for file_key, file_name in current_files.items():
-        last_launch = cursor.get(file_key)
-
-        if last_launch is not None:
-            if (now - last_launch) < RETRY_INTERVAL_SECONDS:
-                skipped_retry += 1
-                continue
+        if file_key in submitted_paths:
+            skipped_cursor += 1
+            continue
 
         candidates.append(file_key)
 
     context.log.info(
         f"Dedup: {len(candidates)} candidates, "
-        f"skipped: retry-interval={skipped_retry}"
+        f"skipped: cursor={skipped_cursor}"
     )
 
     # ── Phase 6: Launch RunRequests ───────────────────────────
@@ -202,7 +195,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         )
         new_requests.append(
             RunRequest(
-                run_key=f"validate-{file_name}-{now}",
+                run_key=f"validate-{file_name}",
                 run_config={
                     "ops": {
                         "verify_tape_copy": {
@@ -212,15 +205,15 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
                 },
             )
         )
-        cursor[file_key] = now
+        submitted_paths.add(file_key)
         launched += 1
 
     # ── Phase 7: Update cursor ────────────────────────────────
 
-    context.update_cursor(json.dumps(cursor))
+    context.update_cursor(json.dumps(sorted(submitted_paths)))
     context.log.info(
         f"Cursor updated — {launched} launched, "
-        f"{len(cursor)} pending, "
+        f"{len(submitted_paths)} pending, "
         f"{len(current_files)} files on disk"
     )
     return new_requests
