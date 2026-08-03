@@ -1,8 +1,12 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
+import time
+
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from autoingest.jobs.validation_jobs import verify_local_job
+from autoingest.ops.local.verification import retrieve_json_data
 
 
 MAX_QUEUED_PER_STAGE = 30
@@ -63,25 +67,98 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         f"loaded {len(current_files)} paths"
     )
 
-    # ── Phase 2: Load and prune cursor ───────────────────────
-    # Cursor: sorted list of paths already submitted.
+    # ── Phase 2: Load cursor ─────────────────────────────────
+    # New format: {"submitted": [...], "json_checked": {...}}
+    # Old format (upgraded): list of paths or dict of {path: timestamp}
 
     submitted_paths: set[str] = set()
+    json_checked: dict[str, str] = {}
     if context.cursor:
         try:
             raw = json.loads(context.cursor)
             if isinstance(raw, list):
                 submitted_paths = {str(v) for v in raw}
             elif isinstance(raw, dict):
-                # Upgrade old timestamp cursor — keep keys, drop timestamps.
-                submitted_paths = {str(k) for k in raw}
+                if "submitted" in raw:
+                    submitted_paths = {str(v) for v in raw["submitted"]}
+                    json_checked = raw.get("json_checked", {})
+                else:
+                    submitted_paths = {str(k) for k in raw}
         except (json.JSONDecodeError, TypeError, ValueError):
             submitted_paths = set()
+            json_checked = {}
 
     cursor_initial = len(submitted_paths)
 
-    # Prune: remove paths for files no longer on disk
-    # (deleted by cleanup step after successful verification+encoding).
+    # ── Phase 2.5: Resolve bp_json_pending files ─────────────
+    # Files previously blocked because the Black Pearl notification
+    # JSON had not yet been written. Re-check on disk and move
+    # back to "File cleared for ingest" when the JSON appears.
+
+    now = datetime.now(timezone.utc)
+    JSON_BACKOFF_SEC = 600
+
+    resolved_count = 0
+    skipped_backoff = 0
+    still_pending = 0
+
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, file_name, file_path, bp_job_id "
+                    "FROM app.file_catalogue "
+                    "WHERE file_status = 'bp_json_pending' "
+                    "  AND bp_job_id IS NOT NULL AND bp_job_id != '' "
+                    "ORDER BY created_at ASC "
+                    "LIMIT %s",
+                    (CANDIDATE_LIMIT,),
+                )
+                pending_rows = cur.fetchall()
+    except Exception as exc:
+        context.log.warning(
+            f"bp_json_pending query failed, skipping resolution: {exc}"
+        )
+        pending_rows = []
+
+    for file_id, file_name, file_path, bp_job_id in pending_rows:
+        validation_path = (
+            Path(file_path).parent.parent.parent.parent
+            / "autoingest" / "validation" / bp_job_id / file_name
+        )
+        file_key = str(validation_path)
+
+        last_check_str = json_checked.get(file_key)
+        if last_check_str:
+            try:
+                last_check = datetime.fromisoformat(last_check_str)
+                if (now - last_check).total_seconds() < JSON_BACKOFF_SEC:
+                    skipped_backoff += 1
+                    continue
+            except ValueError:
+                pass
+
+        json_checked[file_key] = now.isoformat()
+        json_path = retrieve_json_data(bp_job_id.strip())
+        if json_path:
+            db.update_file_status(
+                file_id, file_status="File cleared for ingest", error_message=""
+            )
+            submitted_paths.discard(file_key)
+            json_checked.pop(file_key, None)
+            resolved_count += 1
+        else:
+            still_pending += 1
+
+    if resolved_count or still_pending:
+        context.log.info(
+            f"bp_json_pending: resolved={resolved_count}, "
+            f"still_pending={still_pending}, "
+            f"deferred_backoff={skipped_backoff}"
+        )
+
+    # ── Phase 3: Prune cursor ────────────────────────────────
+
     stale_on_disk = submitted_paths - set(current_files.keys())
     submitted_paths -= stale_on_disk
     if stale_on_disk:
@@ -94,7 +171,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         f"(initial={cursor_initial}, pruned_disk={len(stale_on_disk)})"
     )
 
-    # ── Phase 3: Active gate ─────────────────────────────────
+    # ── Phase 4: Active gate ─────────────────────────────────
     # Count files already in the validation pipeline and skip
     # launching if at or above the limit.
 
@@ -119,7 +196,11 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
             f"{active_count} files already active "
             f"{ACTIVE_GATE_STATUSES}, limit={ACTIVE_LIMIT}"
         )
-        context.update_cursor(json.dumps(sorted(submitted_paths)))
+        cursor_data = {
+            "submitted": sorted(submitted_paths),
+            "json_checked": json_checked,
+        }
+        context.update_cursor(json.dumps(cursor_data))
         return []
 
     context.log.info(
@@ -127,7 +208,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         f"{active_count} active (limit {ACTIVE_LIMIT})"
     )
 
-    # ── Phase 4: Queue gate ──────────────────────────────────
+    # ── Phase 5: Queue gate ──────────────────────────────────
     # Count files waiting at "File cleared for ingest" status
     # and skip launching if above the queue limit.
 
@@ -157,7 +238,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         f"{queued_count} files (limit {MAX_QUEUED_PER_STAGE})"
     )
 
-    # ── Phase 5: Candidate filter ────────────────────────────
+    # ── Phase 6: Candidate filter ────────────────────────────
     # A file triggers verification iff:
     #   · Not already submitted (not in submitted_paths).
     # All files in current_files are at "File cleared for ingest" by
@@ -178,7 +259,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         f"skipped: cursor={skipped_cursor}"
     )
 
-    # ── Phase 6: Launch RunRequests ───────────────────────────
+    # ── Phase 7: Launch RunRequests ───────────────────────────
 
     new_requests = []
     launched = 0
@@ -195,7 +276,7 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         )
         new_requests.append(
             RunRequest(
-                run_key=f"validate-{file_name}",
+                run_key=f"validate-{file_name}-{int(time.time())}",
                 run_config={
                     "ops": {
                         "verify_tape_copy": {
@@ -208,12 +289,17 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
         submitted_paths.add(file_key)
         launched += 1
 
-    # ── Phase 7: Update cursor ────────────────────────────────
+    # ── Phase 8: Update cursor ────────────────────────────────
 
-    context.update_cursor(json.dumps(sorted(submitted_paths)))
+    cursor_data = {
+        "submitted": sorted(submitted_paths),
+        "json_checked": json_checked,
+    }
+    context.update_cursor(json.dumps(cursor_data))
     context.log.info(
         f"Cursor updated — {launched} launched, "
         f"{len(submitted_paths)} pending, "
-        f"{len(current_files)} files on disk"
+        f"{len(current_files)} files on disk, "
+        f"{len(json_checked)} json_checked entries"
     )
     return new_requests

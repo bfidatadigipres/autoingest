@@ -83,7 +83,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     json_path = retrieve_json_data(bp_job_id.strip())
     if not json_path:
         context.log.warning(f"Unable to locate file in JSON path:\n{json_path}")
-        _set_validation_status(db, file_info[0], "File cleared for ingest", "")
+        _set_validation_status(db, file_info[0], "bp_json_pending", "")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     errors = []
@@ -156,7 +156,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         download_path = os.path.join(download_folder, file)
         if not os.path.exists(download_path):
             context.log.warning(f"Exiting. File failed to download: {download_path}")
-            _set_validation_status(db, file_info[0], "File cleared for ingest", "")
+        _set_validation_status(db, file_info[0], "bp_json_pending", "")
             return Output({}, metadata={"duration_sec": round(time.perf_counter() - dl_toc, 3)})
 
         filesize = os.stat(download_path).st_size
