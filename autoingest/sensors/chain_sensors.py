@@ -1,4 +1,5 @@
 import json
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -12,8 +13,8 @@ from autoingest.jobs.validation_jobs import (
     metadata_update_local_job,
 )
 
-MAX_QUEUED_PER_STAGE = 30   # skip tick when more files than this are waiting at this stage
-MAX_NEW_PER_TICK = 10       # per-tick launch cap in drain mode
+MAX_QUEUED_PER_STAGE = 30
+MAX_NEW_PER_TICK = 10
 
 
 STATUS_FIELD_QUERY = {
@@ -152,7 +153,10 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
         submitted_ids &= current_ids
 
         if drain_mode:
-            per_tick_cap = MAX_NEW_PER_TICK
+            if active_limit and active_count < active_limit:
+                per_tick_cap = active_limit - active_count
+            else:
+                per_tick_cap = MAX_NEW_PER_TICK
         elif active_limit:
             per_tick_cap = max(active_limit - active_count, 0)
             if per_tick_cap == 0:
@@ -176,7 +180,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
                 )
                 break
 
-            run_key = f"{op_name}-{file_id}"
+            run_key = f"{op_name}-{file_id}-{int(time.time())}"
             context.log.info(
                 f"{sensor_name}: launching {op_name} for file_id={file_id} "
                 f"({Path(file_path).name})"
