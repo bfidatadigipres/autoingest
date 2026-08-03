@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS app.file_catalogue (
     video_count         TEXT,
     height              TEXT, -- 40
     width               TEXT,
-    colorpsace          TEXT,
+    colorspace          TEXT,
     bitdepth            TEXT,
     video_duration      TEXT,
     autoingest_path     TEXT,  -- Eg from autoingest/ingest/autodetect or autoingest/ingest/incomplete_scans or autoingest/ingest/bfi/blob
