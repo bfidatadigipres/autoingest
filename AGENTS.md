@@ -22,7 +22,7 @@ autoingest/
 │   ├── definitions.py       # Dagster Definitions (jobs + sensors + resources)
 │   ├── sensors/
 │   │   ├── watch_folder.py          # Polls directories every 30s, triggers ingest job
-│   │   └── validation_folder.py     # Polls validation dirs, triggers validation job
+│   │   └── validation_folder.py     # DB-driven, cursor-based dedup, auto-resolves bp_json_pending for BP notification race
 │   ├── jobs/
 │   │   ├── single_file_ingest.py    # assess → extract → checksum → catalogue
 │   │   ├── validation_job.py        # verify tape → encode proxy → images → cleanup
@@ -65,7 +65,7 @@ Files classified by donor (BFI, Netflix, Amazon, Disney). Non-BFI skip proxy enc
 Convention: `<OBJECT_NUMBER>_<PART>of<WHOLE>.<ext>`. Pipeline validates ordering and ensures prior parts ingested first.
 
 ### Database-Centric Tracking
-Each file tracked in `file_catalogue` with status through pipeline stages. Statuses: `"No Status"`, `"Failed assessment"`, `"File cleared for ingest"`, `"complete"`.
+Each file tracked in `file_catalogue` with status through pipeline stages. Statuses: `"No Status"`, `"Failed assessment"`, `"bp_json_pending"`, `"File cleared for ingest"`, `"complete"`.
 
 ### Error Handling
 Ops return empty dict `{}` on non-fatal failures instead of raising. Callers check for expected keys. Encoding failures raise `RuntimeError`.

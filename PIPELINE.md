@@ -44,7 +44,7 @@ autoingest/
 │   │
 │   ├── sensors/                  Folder watchers & DB status-driven chain sensors
 │   │   ├── watch_folder.py       → triggers ingest_local_job (30s poll)
-│   │   ├── validation_folder.py  → triggers verify_local_job (30s poll)
+│   │   ├── validation_folder.py  → triggers verify_local_job (DB-driven, cursor-based)
 │   │   └── chain_sensors.py      → 5 status-driven sensors (ingest→checksum→catalogue→
 │   │                                  encoding→cleanup→metadata_update)
 │   │                                  · MAX_QUEUED_PER_STAGE = 200 gate per stage
@@ -201,7 +201,10 @@ autoingest/
  ├─────────────────────────────────────────────────────────────────────────────┤
  │                                                                             │
  │                      validation_folder_sensor (30s poll)                    │
- │                      (watches /validate/<bp_job_id>/)                       │
+ │                      (DB-driven: query file_status =                         │
+ │                       'File cleared for ingest' + bp_job_id)                 │
+ │                      (Also resolves bp_json_pending: re-checks BP            │
+ │                       notification JSON on disk every 10 min)                │
  │                                     │                                       │
  │                                     ▼                                       │
  │                     ┌──────────────────────────────┐                        │
@@ -322,25 +325,36 @@ autoingest/
 
 ```
  No Status ─► assessed ─► checksummed ─► File cleared for ingest
-                                                 │
-                                    [ Black Pearl PUT — external ]
-                                                 │
-                    ┌────────────────────────────┘
-                    ▼
-               validating ─► verified ─► encoding ─► encoded
-                                                     │
-                                                     ▼
-                                            generating_images
-                                                     │
-                                                     ▼
-                                           encoding_complete
-                                                     │
-                                                     ▼
-                                               complete
-                                                     │
-                                                     ▼
-                                           metadata_updated
+                                                  │
+                                     [ Black Pearl PUT — external ]
+                                                  │
+                     ┌────────────────────────────┘
+                     ▼
+                validating ─► verified ─► encoding ─► encoded
+                     │                                    │
+                     │ (BP JSON not ready)                ▼
+                     ▼                           generating_images
+               bp_json_pending                         │
+                     │                                  ▼
+                     │ (JSON ready,                encoding_complete
+                     │  sensor resolves)                 │
+                     ▼                                  ▼
+                File cleared for ingest             complete
+                     │                                  │
+                     └── (re-enters)                    ▼
+                                               metadata_updated
 ```
+
+### BP Notification Race
+
+The Black Pearl PUT script (`black_pearl_put_group.py` / `black_pearl_put_blob.py`) writes
+`bp_job_id` to PostgreSQL immediately after renaming the folder, but the BP notification JSON
+is only written to `LOG_PATH/black_pearl/` once Spectra finishes caching data to tape
+(which can take up to an hour). The `verify_tape_copy` op detects this missing JSON and sets
+`file_status = 'bp_json_pending'`, which drops the file out of the primary sensor query.
+The `validation_folder_sensor` polls for `bp_json_pending` files and re-checks the disk
+every 10 minutes; when the JSON appears, the file is reset to `'File cleared for ingest'`
+and re-enters the pipeline on the next tick.
 
 
 ## DB Timing Fields
@@ -410,9 +424,11 @@ All sensors include skip gates to prevent flooding the run queue:
 
 | Sensor | Gate | Threshold |
 |---|---|---|
-| `chain_sensors.py` (all 5) | Query count of files at target status; skip tick if > 200 | `MAX_QUEUED_PER_STAGE = 200` |
-| `watch_folder.py` | Query active pipeline files (excluding finished); skip tick if > 200 | `MAX_PIPELINE_DEPTH = 200` |
-| `validation_folder.py` | Query files with `File cleared for ingest` status; skip tick if > 200 | `MAX_QUEUED_PER_STAGE = 200` |
+| `chain_sensors.py` (all 5) | Queue-depth gate per status; active-pipeline gate per stage | `MAX_QUEUED_PER_STAGE=30`, per-stage `active_limit` (20-80) |
+| `watch_folder.py` | Query active pipeline files (excluding finished); skip if > limit | `MAX_INGEST_DEPTH=30` |
+| `validation_folder.py` | Queue-depth gate (`File cleared for ingest`); active gate (`validating`) | `MAX_QUEUED_PER_STAGE=30`, `ACTIVE_LIMIT=40`, `MAX_NEW_PER_TICK=50` |
+
+Drain mode in chain sensors fills available active capacity (`active_limit − active_count`) rather than a flat cap. Run keys include `time.time()` to avoid Dagster's 24 h dedup window blocking retries.
 
 All gates wrap the DB query in try/except so a connection failure never crashes the sensor.
 
