@@ -201,10 +201,10 @@ autoingest/
  ├─────────────────────────────────────────────────────────────────────────────┤
  │                                                                             │
  │                      validation_folder_sensor (30s poll)                    │
- │                      (DB-driven: query file_status =                         │
- │                       'File cleared for ingest' + bp_job_id)                 │
- │                      (Also resolves bp_json_pending: re-checks BP            │
- │                       notification JSON on disk every 10 min)                │
+ │                      (DB-driven: query file_status =                        │
+ │                       'File cleared for ingest' + bp_job_id)                │
+ │                      (Also resolves bp_json_pending: re-checks BP           │
+ │                       notification JSON on disk every 10 min)               │
  │                                     │                                       │
  │                                     ▼                                       │
  │                     ┌──────────────────────────────┐                        │
