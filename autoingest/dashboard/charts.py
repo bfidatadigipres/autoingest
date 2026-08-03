@@ -3,39 +3,54 @@ import plotly.graph_objects as go
 import pandas as pd
 
 
-# Complete / green
-_COMPLETE_STATUSES = {
-    "All stages complete", "complete", "encoding_complete", "verified",
-    "metadata_updated",
-}
+_ERROR_STATUSES = {"Failed assessment", "Failed validation", "validation_failure"}
 
-# Palette of distinct blue shades for processing statuses
-_PROCESSING_BLUES = [
-    "#1f77b4", "#4a90d9", "#6fa8dc", "#2980b9",
-    "#5dade2", "#85c1e9", "#2e86c1", "#3498db",
-    "#5499c7", "#7fb3d8", "#3c8dbc", "#a9cce3",
+_ERROR_REDS = [
+    "#c0392b",  # dark red
+    "#e74c3c",  # mid red
+    "#f1948a",  # light red
+]
+
+_DISTINCT_COLORS = [
+    "#1f77b4",  # blue
+    "#ff7f0e",  # orange
+    "#9467bd",  # purple
+    "#8c564b",  # brown
+    "#e377c2",  # pink
+    "#bcbd22",  # olive
+    "#17becf",  # cyan
+    "#7f7f7f",  # gray
+    "#009688",  # teal
+    "#34495e",  # navy
+    "#ff9896",  # salmon
+    "#c5b0d5",  # plum
+    "#aec7e8",  # sky
+    "#c49c94",  # tan
+    "#f7b6d2",  # rose
+    "#dbdb8d",  # mint
+    "#ff7043",  # coral
 ]
 
 
 def _status_colour_map(df: pd.DataFrame) -> dict:
-    """Return a dict mapping each status string to a hex colour."""
-    processing_statuses = sorted(
-        s for s in df["file_status"].unique()
-        if s not in _COMPLETE_STATUSES
-    )
     mapping = {}
-    for i, s in enumerate(processing_statuses):
-        mapping[s] = _PROCESSING_BLUES[i % len(_PROCESSING_BLUES)]
-    for s in _COMPLETE_STATUSES:
-        if s in df["file_status"].unique():
-            mapping[s] = "#27ae60"   # green
+    error_i = 0
+    other_i = 0
+    for s in sorted(df["file_status"].unique()):
+        if s in _ERROR_STATUSES:
+            mapping[s] = _ERROR_REDS[error_i % len(_ERROR_REDS)]
+            error_i += 1
+        else:
+            mapping[s] = _DISTINCT_COLORS[other_i % len(_DISTINCT_COLORS)]
+            other_i += 1
     return mapping
 
 
 def _storage_stacked_bar(storage_data: list[tuple]) -> go.Figure:
     """
     Horizontal stacked bar per storage with per-status breakdown.
-    Green = complete statuses, Blue = processing, Red = rows with errors.
+    Error statuses get distinct red shades; all other statuses use a broad
+    palette for maximum contrast.
     """
     df = pd.DataFrame(storage_data, columns=["storage", "file_status", "count"])
     if df.empty:
