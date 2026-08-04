@@ -167,6 +167,37 @@ def fetch_throughput_by_day():
             return [dict(zip(columns, row)) for row in cur.fetchall()]
 
 
+def fetch_storage_filetype_counts(storage: str = None):
+    """
+    Returns (storage, file_fmt, count) for all files.
+    Optionally filtered to a single storage.
+    """
+    db = get_db()
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            if storage:
+                cur.execute(f"""
+                    SELECT {_STORAGE_SQL} AS storage,
+                           COALESCE(file_fmt, 'Unknown') AS file_fmt,
+                           COUNT(*) AS count
+                    FROM app.file_catalogue
+                    WHERE {_STORAGE_SQL} = %s
+                    GROUP BY storage, file_fmt
+                    ORDER BY count DESC
+                """, (storage,))
+            else:
+                cur.execute(f"""
+                    SELECT {_STORAGE_SQL} AS storage,
+                           COALESCE(file_fmt, 'Unknown') AS file_fmt,
+                           COUNT(*) AS count
+                    FROM app.file_catalogue
+                    WHERE file_path LIKE '/mnt/%/autoingest/%'
+                    GROUP BY storage, file_fmt
+                    ORDER BY storage, count DESC
+                """)
+            return cur.fetchall()
+
+
 def fetch_error_distribution():
     db = get_db()
     with db.get_connection() as conn:

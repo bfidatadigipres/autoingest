@@ -5,6 +5,11 @@ import pandas as pd
 
 _ERROR_STATUSES = {"Failed assessment", "Failed validation", "validation_failure"}
 
+_COMPLETE_STATUSES = {
+    "All stages complete", "complete", "encoding_complete", "verified",
+    "metadata_updated",
+}
+
 _ERROR_REDS = [
     "#c0392b",  # dark red
     "#e74c3c",  # mid red
@@ -37,7 +42,9 @@ def _status_colour_map(df: pd.DataFrame) -> dict:
     error_i = 0
     other_i = 0
     for s in sorted(df["file_status"].unique()):
-        if s in _ERROR_STATUSES:
+        if s in _COMPLETE_STATUSES:
+            mapping[s] = "#27ae60"  # green
+        elif s in _ERROR_STATUSES:
             mapping[s] = _ERROR_REDS[error_i % len(_ERROR_REDS)]
             error_i += 1
         else:
@@ -250,4 +257,61 @@ def file_timing_bar(events: list[dict]) -> go.Figure:
     )
     fig.update_layout(showlegend=False, height=max(200, len(df) * 40 + 60))
     fig.update_traces(texttemplate="%{text:.1f}s", textposition="outside")
+    return fig
+
+
+# File-type colour palette — distinct colours per file format
+_FILETYPE_COLOURS = [
+    "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+    "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+    "#009688", "#34495e", "#ff9896", "#c5b0d5", "#aec7e8",
+    "#c49c94", "#f7b6d2", "#dbdb8d", "#ff7043", "#9edae5",
+    "#c7c7c7", "#8c6d31", "#6baed6", "#fd8d3c", "#74c476",
+]
+
+
+def storage_filetype_blocks(filetype_data: list[tuple], storage: str = None) -> go.Figure:
+    """
+    Horizontal stacked bar: one row per storage, segments = file_fmt.
+    Each file type gets a distinct colour.
+    """
+    df = pd.DataFrame(filetype_data, columns=["storage", "file_fmt", "count"])
+    if df.empty:
+        return go.Figure()
+
+    if storage:
+        df = df[df["storage"] == storage]
+        if df.empty:
+            return go.Figure()
+        title = f"File Types — {storage}"
+    else:
+        title = "File Types by Storage"
+
+    pivot = df.pivot_table(
+        index="storage", columns="file_fmt",
+        values="count", aggfunc="sum", fill_value=0,
+    )
+
+    fmts = sorted(pivot.columns)
+    colour_map = {fmt: _FILETYPE_COLOURS[i % len(_FILETYPE_COLOURS)] for i, fmt in enumerate(fmts)}
+
+    fig = go.Figure()
+    for fmt in fmts:
+        fig.add_trace(go.Bar(
+            name=fmt,
+            y=pivot.index,
+            x=pivot[fmt],
+            orientation="h",
+            marker_color=colour_map.get(fmt, "#95a5a6"),
+            hovertemplate=f"<b>{fmt}</b><br>Count: %{{x}}<extra></extra>",
+        ))
+
+    fig.update_layout(
+        barmode="stack",
+        title=title,
+        xaxis_title="Files",
+        yaxis_title="Storage",
+        height=max(250, len(pivot) * 35 + 120),
+        legend=dict(orientation="h", y=1.12, itemsizing="constant"),
+    )
     return fig

@@ -15,7 +15,7 @@ st.set_page_config(
 
 st.title("BFI National Archive — Autoingest Pipeline Monitor")
 
-tabs = st.tabs(["Overview", "Performance", "Throughput", "Errors", "File Lookup"])
+tabs = st.tabs(["Overview", "Performance", "Throughput", "Storage Types", "Errors", "File Lookup"])
 
 
 # ─── Tab 1: Overview ───
@@ -127,9 +127,50 @@ with tabs[2]:
         st.rerun()
 
 
-# ─── Tab 4: Errors ───
+# ─── Tab 4: Storage Types ───
 
 with tabs[3]:
+    filetype_data = queries.fetch_storage_filetype_counts()
+
+    if filetype_data:
+        df_ft = pd.DataFrame(filetype_data, columns=["storage", "file_fmt", "count"])
+        storages = sorted(s for s in df_ft["storage"].dropna().unique() if s)
+
+        selected = st.selectbox(
+            "Filter by storage",
+            options=["All storages"] + storages,
+            key="storage_types_filter",
+        )
+
+        if selected != "All storages":
+            filtered = queries.fetch_storage_filetype_counts(storage=selected)
+            st.plotly_chart(
+                charts.storage_filetype_blocks(filtered, storage=selected),
+                width="stretch",
+            )
+        else:
+            st.plotly_chart(
+                charts.storage_filetype_blocks(filetype_data),
+                width="stretch",
+            )
+
+        # Summary table
+        st.subheader("File Type Counts")
+        summary = df_ft.pivot_table(
+            index="storage", columns="file_fmt",
+            values="count", aggfunc="sum", fill_value=0,
+        )
+        st.dataframe(summary, width="stretch")
+    else:
+        st.info("No file type data available.")
+
+    if st.button("Force refresh", key="refresh_st"):
+        st.rerun()
+
+
+# ─── Tab 5: Errors ───
+
+with tabs[4]:
     error_counts = queries.fetch_error_distribution()
     error_files = queries.fetch_files_with_errors(100)
 
@@ -151,9 +192,9 @@ with tabs[3]:
         st.rerun()
 
 
-# ─── Tab 5: File Lookup ───
+# ─── Tab 6: File Lookup ───
 
-with tabs[4]:
+with tabs[5]:
     file_view.render()
 
 
