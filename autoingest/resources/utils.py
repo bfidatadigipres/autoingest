@@ -373,14 +373,13 @@ def check_ffprobe_exit(fpath: str) -> Optional[int]:
 
 def get_mediaconch(dpath: str, policy: str) -> bool:
     """
-    Check for 'pass! {path}' in mediaconch reponse
+    Check for 'pass! {path}' in mediaconch response
     for supplied file path and policy
     """
 
     cmd = ["mediaconch", "--force", "-p", policy, dpath]
-
-    meta = subprocess.check_output(cmd).decode("utf-8")
-    return meta.startswith(f"pass! {dpath}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.stdout.startswith(f"pass! {dpath}")
 
 
 def get_duration(filepath: str) -> Optional[str]:
