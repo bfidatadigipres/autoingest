@@ -230,7 +230,7 @@ def encode_proxy_mp4(
         context.log.info(f"JPEG proxy for clean up to go here: {jpeg_location}")
 
         seconds = ut.adjust_seconds(duration, result.stderr if result.stderr else "")
-        print(f"Seconds for JPEG cut: {seconds}")
+        context.log.info(f"Seconds for JPEG cut: {seconds} - overall duration {duration}")
         success = ut.get_jpeg(seconds, output_path, jpeg_location)
         if not success:
             context.log.error(
