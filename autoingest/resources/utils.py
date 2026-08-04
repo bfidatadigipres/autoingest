@@ -379,6 +379,7 @@ def get_mediaconch(dpath: str, policy: str) -> bool:
 
     cmd = ["mediaconch", "--force", "-p", policy, dpath]
     result = subprocess.run(cmd, capture_output=True, text=True)
+    print(result)
     return result.stdout.startswith(f"pass! {dpath}")
 
 
