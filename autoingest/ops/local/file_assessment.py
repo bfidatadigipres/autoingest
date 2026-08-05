@@ -25,10 +25,50 @@ def assess_filename(context: OpExecutionContext) -> Output:
     filesize = file_path.stat().st_size
 
     db = context.resources.workflow_db
-    claimed_id = db.try_claim_file(filename, str(file_path))
+    claimed_id, existing_status, existing_path = db.try_claim_file(
+        filename, str(file_path)
+    )
     if claimed_id is None:
+        if existing_status is not None:
+            db.insert_duplicate_error(
+                filename, str(file_path), existing_status, existing_path or "unknown"
+            )
+            context.log.warning(
+                f"Duplicate filename detected: '{filename}' already in catalogue "
+                f"(status: {existing_status}, path: {existing_path})"
+            )
+            db.record_pipeline_event(
+                run_id=context.run_id,
+                job_name=context.job_name,
+                op_name="assess_filename",
+                event_type="op_completed",
+                status="failure",
+                metadata={
+                    "duration_sec": round(time.perf_counter() - tic, 3),
+                    "file_name": filename,
+                    "preview": f"Duplicate: {filename}",
+                },
+                message=f"Duplicate filename: '{filename}' already in catalogue",
+            )
+            return Output(
+                {
+                    "file_name": filename,
+                    "error_message": "Duplicate filename",
+                },
+                metadata={
+                    "duration_sec": round(time.perf_counter() - tic, 3),
+                    "file_name": filename,
+                    "preview": f"Duplicate: {filename}",
+                },
+            )
         context.log.info(f"File {filename} is already being processed. Skipping.")
-        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3), "preview": f"Already processing: {filename}"})
+        return Output(
+            {},
+            metadata={
+                "duration_sec": round(time.perf_counter() - tic, 3),
+                "preview": f"Already processing: {filename}",
+            },
+        )
 
     context.log.info(CID_API)
     field_details = db.lookup_file_details(filename)

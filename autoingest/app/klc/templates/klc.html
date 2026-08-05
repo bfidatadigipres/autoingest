@@ -140,6 +140,7 @@ function renderTable(files) {
             f.file_status === "complete" ? "status-ok" :
             f.file_status === "encoding_complete" ? "status-ok" :
             f.file_status === "Failed assessment" ? "status-fail" :
+            f.file_status === "Duplicate filename" ? "status-fail" :
             f.file_status === "failed" ? "status-fail" :
             f.file_status === "Error" ? "status-error" :
             f.file_status && f.file_status.toLowerCase().indexOf("fail") !== -1 ? "status-error" :

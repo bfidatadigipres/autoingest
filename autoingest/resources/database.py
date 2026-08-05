@@ -52,7 +52,8 @@ class WorkflowDatabase:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"SELECT {field} FROM app.file_catalogue WHERE file_name = %s",
+                    f"SELECT {field} FROM app.file_catalogue WHERE file_name = %s "
+                    "ORDER BY created_at ASC LIMIT 1",
                     (filename,),
                 )
                 return cur.fetchone()
@@ -61,7 +62,8 @@ class WorkflowDatabase:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM app.file_catalogue WHERE file_name LIKE %s",
+                    "SELECT * FROM app.file_catalogue WHERE file_name LIKE %s "
+                    "ORDER BY created_at ASC LIMIT 1",
                     (filename,),
                 )
                 return cur.fetchone()
@@ -143,12 +145,15 @@ class WorkflowDatabase:
                     return False
                 return row[0] is True and row[1] is True
 
-    def try_claim_file(self, file_name: str, file_path: str) -> int | None:
+    def try_claim_file(
+        self, file_name: str, file_path: str
+    ) -> tuple[int | None, str | None, str | None]:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, file_status FROM app.file_catalogue "
-                    "WHERE file_name = %s FOR UPDATE",
+                    "SELECT id, file_status, file_path FROM app.file_catalogue "
+                    "WHERE file_name = %s "
+                    "ORDER BY created_at ASC LIMIT 1 FOR UPDATE",
                     (file_name,),
                 )
                 existing = cur.fetchone()
@@ -159,16 +164,33 @@ class WorkflowDatabase:
                         "VALUES (%s, %s, 'processing') RETURNING id",
                         (file_name, file_path),
                     )
-                    return cur.fetchone()[0]
-                if existing[1] == "No Status":
+                    return (cur.fetchone()[0], None, None)
+                if existing[1] in ("No Status", "Failed assessment"):
                     cur.execute(
                         "UPDATE app.file_catalogue "
                         "SET file_status = 'processing', updated_at = NOW() "
                         "WHERE id = %s",
                         (existing[0],),
                     )
-                    return existing[0]
-                return None
+                    return (existing[0], None, None)
+                return (None, existing[1], existing[2])
+
+    def insert_duplicate_error(
+        self, file_name: str, file_path: str, existing_status: str, existing_path: str
+    ) -> int:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO app.file_catalogue "
+                    "(file_name, file_path, file_status, error_message) "
+                    "VALUES (%s, %s, 'Duplicate filename', %s) RETURNING id",
+                    (
+                        file_name,
+                        file_path,
+                        f"Duplicate filename: '{file_name}' already exists in catalogue at '{existing_path}' (status: {existing_status})",
+                    ),
+                )
+                return cur.fetchone()[0]
 
     def upsert_file_record(self, file_data: dict[str, Any]) -> tuple[int, str]:
         file_name = file_data.get("file_name")

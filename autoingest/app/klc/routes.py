@@ -25,6 +25,10 @@ GUIDANCE = {
         "text": "This indicates poorly formed partWhole statement, eg 01of002. Please change filename to use correct partWhole syntax making sure to use an underscore to separate Object Number, not a hyphen or space.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
     },
+    "Duplicate filename": {
+        "text": "A file with this name already exists in the ingest catalogue. This indicates a file may have been accidentally re-added after already being processed. Please check whether the original file completed ingest successfully before removing the duplicate from autoingest/ingest. Raise a ticket in Collections Systems Service Desk if you need further assistance.",
+        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+    },
     "Filename formatted incorrectly": {
         "text": "This indicates poorly formed filename with incorrect Object Number syntax, eg using hyphens rather than underscores. Correct any obvious Object Number syntax issues and remove and incorrect characters or extensions.",
         "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
