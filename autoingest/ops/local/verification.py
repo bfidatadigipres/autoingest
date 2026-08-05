@@ -257,7 +257,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
     if not utils.cid_check(CID_API):
         context.log.info("CID API is not responsive for media record creation")
-        results["error_message"] = "CID API unreachable — will retry verification"
+        results["error_message"] = "Cannot reach CID database API"
         results["do_ingest"] = False
         results["validated"] = False
         duration_sec = round(time.perf_counter() - tic, 3)
