@@ -30,7 +30,8 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT * FROM app.file_catalogue WHERE file_name = %s FOR UPDATE",
+                "SELECT * FROM app.file_catalogue WHERE file_name = %s "
+                "ORDER BY created_at ASC LIMIT 1 FOR UPDATE",
                 (file,),
             )
             file_info = cur.fetchone()
