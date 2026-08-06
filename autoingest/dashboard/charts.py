@@ -42,8 +42,16 @@ def _status_colour_map(df: pd.DataFrame) -> dict:
     error_i = 0
     other_i = 0
     for s in sorted(df["file_status"].unique()):
-        if s in _COMPLETE_STATUSES:
-            mapping[s] = "#27ae60"  # green
+        if s == "verified":
+            mapping[s] = "#2ecc71"  # light green
+        elif s == "All stages complete":
+            mapping[s] = "#1e8449"  # dark green
+        elif s == "encoding_complete":
+            mapping[s] = "#f1c40f"  # yellow
+        elif s == "complete":
+            mapping[s] = "#6c3483"  # dark purple
+        elif s in _COMPLETE_STATUSES:
+            mapping[s] = "#27ae60"  # green (metadata_updated)
         elif s in _ERROR_STATUSES:
             mapping[s] = _ERROR_REDS[error_i % len(_ERROR_REDS)]
             error_i += 1
