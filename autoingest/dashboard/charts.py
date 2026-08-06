@@ -184,9 +184,9 @@ def throughput_line(throughput: list[dict], storage: str = None) -> go.Figure:
 
     time_col = "hour"
     title = (
-        f"Throughput Over Time — {storage}"
+        f"Throughput Over Last 7 Days — {storage}"
         if storage
-        else "Throughput Over Time (all storages)"
+        else "Throughput Over Last 7 Days (all storages)"
     )
     fig = go.Figure()
     fig.add_trace(go.Bar(

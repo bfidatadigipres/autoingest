@@ -121,7 +121,7 @@ with tabs[2]:
             bytes_processed=("bytes_processed", "sum"),
         )
         storage_summary["GB"] = (
-            storage_summary["bytes_processed"] / 1e9
+            storage_summary["bytes_processed"].astype(float) / 1e9
         ).round(2)
         storage_summary = storage_summary.sort_values(
             "GB", ascending=False
