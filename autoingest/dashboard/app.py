@@ -96,14 +96,41 @@ with tabs[1]:
 with tabs[2]:
     throughput_hour = queries.fetch_throughput_by_hour()
 
-    st.plotly_chart(
-        charts.throughput_line(throughput_hour),
-        width="stretch",
+    st.caption(
+        "Shows all files updated in the last 7 days (any status — not just "
+        "'All stages complete'). Includes files at every pipeline stage."
     )
 
-    # Per-storage breakdown via dropdown
     if throughput_hour:
         df_tp = pd.DataFrame(throughput_hour)
+        total_files = int(df_tp["files"].sum())
+        total_gb = float(df_tp["bytes_processed"].sum()) / 1e9
+
+        c1, c2 = st.columns(2)
+        c1.metric("Total files (7 days)", f"{total_files:,}")
+        c2.metric("Total GB (7 days)", f"{total_gb:.1f}")
+
+        st.plotly_chart(
+            charts.throughput_line(throughput_hour),
+            width="stretch",
+        )
+
+        # Per-storage summary table
+        storage_summary = df_tp.groupby("storage", as_index=False).agg(
+            files=("files", "sum"),
+            bytes_processed=("bytes_processed", "sum"),
+        )
+        storage_summary["GB"] = (
+            storage_summary["bytes_processed"] / 1e9
+        ).round(2)
+        storage_summary = storage_summary.sort_values(
+            "GB", ascending=False
+        ).drop(columns="bytes_processed")
+        storage_summary.columns = ["Storage", "Files", "GB"]
+        st.subheader("Per-Storage Breakdown (7 days)")
+        st.dataframe(storage_summary, width="stretch", hide_index=True)
+
+        # Per-storage dropdown with GB total
         storages = sorted(
             s for s in df_tp["storage"].dropna().unique() if s
         )
@@ -114,12 +141,20 @@ with tabs[2]:
                 key="throughput_storage",
             )
             if selected != "— All storages —":
+                storage_gb = storage_summary.loc[
+                    storage_summary["Storage"] == selected, "GB"
+                ].values[0]
+                storage_files = storage_summary.loc[
+                    storage_summary["Storage"] == selected, "Files"
+                ].values[0]
+                st.caption(
+                    f"{selected}: {storage_files:,} files, "
+                    f"{storage_gb:.2f} GB"
+                )
                 st.plotly_chart(
                     charts.throughput_line(throughput_hour, storage=selected),
                     width="stretch",
                 )
-        else:
-            st.info("No per-storage data available.")
     else:
         st.info("No throughput data for the last 7 days.")
 
