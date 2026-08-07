@@ -118,7 +118,38 @@ def generate_images(
             "proxy_thumb_path": "",
         }, metadata={"duration_sec": duration_sec, "preview": f"Skipped (non-BFI): {source}"})
 
+    # Already created check if images already exist on disk, the worker exited early
+    proxy_image_check = os.path.join(root, f"{filename_stem}_largeimage")
+    proxy_thumb_check = os.path.join(root, f"{filename_stem}_thumbnail")
+
+    if os.path.isfile(proxy_image_check) and os.path.isfile(proxy_thumb_check):
+        context.log.info(
+            f"Images already exist on disk for {file_name}, skipping generation."
+        )
+        db.update_file_status(
+            file_id,
+            proxy_image_path=proxy_image_check,
+            proxy_thumb_path=proxy_thumb_check,
+        )
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue SET file_status = 'encoding_complete', "
+                    "error_message = NULL, updated_at = NOW() WHERE id = %s",
+                    (file_id,),
+                )
+        return Output({
+            "file_id": file_id,
+            "proxy_video_path": proxy_path,
+            "proxy_image_path": proxy_image_check,
+            "proxy_thumb_path": proxy_thumb_check,
+        }, metadata={
+            "duration_sec": round(time.perf_counter() - tic, 3),
+            "preview": f"Images already exist: {file_name}",
+        })
+
     _set_images_status(db, file_id)
+    context.log.info(f"[DEBUG] Status set to generating_images for {file_name}")
 
     if mime == "video":
         source_image = os.path.join(root, f"{filename_stem}.jpg")
@@ -167,8 +198,11 @@ def generate_images(
         img_tic = time.perf_counter()
         if oversize is False:
             proxy_image_path = ut.make_jpg(source_image, "full", root, None)
+            context.log.info(f"[DEBUG] Large image created: {proxy_image_path}")
         else:
             proxy_image_path = ut.make_jpg(source_image, "oversize", root, percent)
+            context.log.info(f"[DEBUG] Thumbnail created: {proxy_thumb_path}")
+
         context.log.info(f"Generating thumbnail from proxy: {proxy_path}")
         proxy_thumb_path = ut.make_jpg(source_image, "thumb", root, None)
         img_toc = time.perf_counter()
@@ -207,12 +241,14 @@ def generate_images(
             proxy_thumb_path=proxy_thumb_path,
             image_time_sec=image_time,
         )
+        context.log.info(f"[DEBUG] Proxy paths written to DB for {file_name}")
 
         toc = time.perf_counter()
         duration_sec = round(toc - tic, 3)
 
         large_size = os.path.getsize(proxy_image_path) if os.path.isfile(proxy_image_path) else 0
         thumb_size = os.path.getsize(proxy_thumb_path) if os.path.isfile(proxy_thumb_path) else 0
+        context.log.info(f"File size for large image: {large_size} File size for thumb: {thumb_size}")
 
         metadata = {
             "duration_sec": duration_sec,
@@ -233,9 +269,11 @@ def generate_images(
                 status="success",
                 metadata=metadata,
             )
-        except Exception:
+        except Exception as err:
+            context.log.warning(f"DB write failed: {err}")
             pass
 
+        context.log.info(f"[DEBUG] About to set encoding_complete for {file_name}")
         with db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
