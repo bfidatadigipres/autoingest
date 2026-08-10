@@ -611,6 +611,13 @@ def _set_error_and_log(
                     context.log,
                 )
     except Exception as exc:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue SET file_status = 'complete', "
+                    "updated_at = NOW() WHERE id = %s",
+                    (file_id,),
+                )
         context.log.error(f"Failed to write error status for {file_name}: {exc}")
 
     duration_sec = round(time.perf_counter() - tic, 3)
@@ -671,6 +678,14 @@ def _advance_status(
                     context.log,
                 )
     except Exception as exc:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE app.file_catalogue "
+                    "SET file_status = 'complete', updated_at = NOW() "
+                    "WHERE id = %s",
+                    (file_id,),
+                )
         context.log.error(f"Failed to advance status for {file_name}: {exc}")
 
     duration_sec = round(time.perf_counter() - tic, 3)
