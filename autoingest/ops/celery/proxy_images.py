@@ -270,8 +270,7 @@ def generate_images(
                 metadata=metadata,
             )
         except Exception as err:
-            context.log.warning(f"DB write failed: {err}")
-            pass
+            context.log.warning(f"Failed to record pipeline event for {filename_stem}: {err}")
 
         context.log.info(f"[DEBUG] About to set encoding_complete for {file_name}")
         with db.get_connection() as conn:

@@ -281,8 +281,8 @@ def encode_proxy_mp4(
                 status="success",
                 metadata=metadata,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            context.log.warning(f"Failed to record pipeline event for {filename}: {exc}")
 
         return Output({
             "file_id": file_id,

@@ -117,57 +117,61 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
                 context.log.warning("Error accessing JSON metadata tracks")
 
     db = context.resources.workflow_db
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE app.file_catalogue
-                SET mdata_full_text = %s,
-                    mdata_text = %s,
-                    mdata_ebucore = %s,
-                    mdata_pbcore = %s,
-                    mdata_full_xml = %s,
-                    mdata_full_json = %s::jsonb,
-                    mdata_exif = %s,
-                    file_fmt = %s,
-                    video_codec = %s,
-                    audio_codec = %s,
-                    writing_library = %s,
-                    audio_format = %s,
-                    framerate = %s,
-                    audio_ch_total = %s,
-                    audio_count = %s,
-                    video_count = %s,
-                    height = %s,
-                    width = %s,
-                    colorspace = %s,
-                    bitdepth = %s,
-                    video_duration = %s,
-                    updated_at = NOW()
-                WHERE file_name = %s
-            """, (
-                file_info.get("mdata_full_text"),
-                file_info.get("mdata_text"),
-                file_info.get("mdata_ebucore"),
-                file_info.get("mdata_pbcore"),
-                file_info.get("mdata_full_xml"),
-                file_info.get("mdata_full_json"),
-                file_info.get("mdata_exif"),
-                file_info.get("file_fmt"),
-                file_info.get("video_codec"),
-                file_info.get("audio_codec"),
-                file_info.get("writing_library"),
-                file_info.get("audio_format"),
-                file_info.get("framerate"),
-                file_info.get("audio_ch_total"),
-                file_info.get("audio_count"),
-                file_info.get("video_count"),
-                file_info.get("height"),
-                file_info.get("width"),
-                file_info.get("colorspace"),
-                file_info.get("bitdepth"),
-                file_info.get("video_duration"),
-                file_name,
-            ))
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                db._retry_query(conn, cur, """
+                    UPDATE app.file_catalogue
+                    SET mdata_full_text = %s,
+                        mdata_text = %s,
+                        mdata_ebucore = %s,
+                        mdata_pbcore = %s,
+                        mdata_full_xml = %s,
+                        mdata_full_json = %s::jsonb,
+                        mdata_exif = %s,
+                        file_fmt = %s,
+                        video_codec = %s,
+                        audio_codec = %s,
+                        writing_library = %s,
+                        audio_format = %s,
+                        framerate = %s,
+                        audio_ch_total = %s,
+                        audio_count = %s,
+                        video_count = %s,
+                        height = %s,
+                        width = %s,
+                        colorspace = %s,
+                        bitdepth = %s,
+                        video_duration = %s,
+                        updated_at = NOW()
+                    WHERE file_name = %s
+                """, (
+                    file_info.get("mdata_full_text"),
+                    file_info.get("mdata_text"),
+                    file_info.get("mdata_ebucore"),
+                    file_info.get("mdata_pbcore"),
+                    file_info.get("mdata_full_xml"),
+                    file_info.get("mdata_full_json"),
+                    file_info.get("mdata_exif"),
+                    file_info.get("file_fmt"),
+                    file_info.get("video_codec"),
+                    file_info.get("audio_codec"),
+                    file_info.get("writing_library"),
+                    file_info.get("audio_format"),
+                    file_info.get("framerate"),
+                    file_info.get("audio_ch_total"),
+                    file_info.get("audio_count"),
+                    file_info.get("video_count"),
+                    file_info.get("height"),
+                    file_info.get("width"),
+                    file_info.get("colorspace"),
+                    file_info.get("bitdepth"),
+                    file_info.get("video_duration"),
+                    file_name,
+                ), context.log)
+    except Exception as exc:
+        context.log.error(f"Failed to write metadata to DB for {file_name}: {exc}")
+        raise
 
     toc = time.perf_counter()
     duration_sec = round(toc - tic, 3)
@@ -186,8 +190,8 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
                 "preview": f"{file_name} mediainfo extracted in {duration_sec}s",
             },
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {file_name}: {exc}")
 
     return Output(file_info, metadata={
         "duration_sec": duration_sec,

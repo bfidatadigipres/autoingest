@@ -72,18 +72,23 @@ def generate_checksum(context: OpExecutionContext) -> Output:
 
     checksum_duration = round(time.perf_counter() - tic, 3)
 
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE app.file_catalogue
-                SET checksum_md5 = %s,
-                    checksum_xxh = %s,
-                    checksum_date = %s,
-                    checksum_time_sec = %s,
-                    file_status = 'checksummed',
-                    updated_at = NOW()
-                WHERE id = %s
-            """, (md5, xxhash_val, checksum_date, checksum_duration, file_id))
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                db._retry_query(conn, cur, """
+                    UPDATE app.file_catalogue
+                    SET checksum_md5 = %s,
+                        checksum_xxh = %s,
+                        checksum_date = %s,
+                        checksum_time_sec = %s,
+                        file_status = 'checksummed',
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (md5, xxhash_val, checksum_date, checksum_duration, file_id), context.log)
+    except Exception as exc:
+        _rollback_checksum_status(db, file_id)
+        context.log.error(f"Failed to write checksum to DB for {file_name}: {exc}")
+        raise
 
     toc = time.perf_counter()
     duration_sec = round(toc - tic, 3)
@@ -117,8 +122,8 @@ def generate_checksum(context: OpExecutionContext) -> Output:
                 "preview": f"{file_name} checksums in {duration_sec}s (MD5: {md5_time}s, XXH: {xxh_time}s)",
             },
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {file_name}: {exc}")
 
     return Output(result, metadata={
         "duration_sec": duration_sec,

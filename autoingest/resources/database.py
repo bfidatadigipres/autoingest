@@ -1,10 +1,17 @@
 import os
 import json
+import time
+import logging
 from typing import Any
 
 import psycopg2
 from contextlib import contextmanager
 from dagster import resource, InitResourceContext
+
+logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 10  # seconds: 10s, 20s, 40s
 
 
 ALLOWED_FIELDS = {
@@ -32,11 +39,32 @@ class WorkflowDatabase:
             "user": username,
             "password": password,
             "dbname": db_name,
+            "connect_timeout": 10,
         }
 
     @contextmanager
     def get_connection(self) -> Any:
-        conn = psycopg2.connect(**self._conn_params)
+        conn = None
+        last_exc = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                conn = psycopg2.connect(**self._conn_params)
+                break
+            except psycopg2.OperationalError as exc:
+                last_exc = exc
+                if attempt < MAX_RETRIES:
+                    backoff = RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
+                    logger.warning(
+                        "DB connection attempt %d/%d failed: %s. Retrying in %ds...",
+                        attempt, MAX_RETRIES, exc, backoff,
+                    )
+                    time.sleep(backoff)
+                else:
+                    logger.error(
+                        "DB connection failed after %d attempts: %s",
+                        MAX_RETRIES, exc,
+                    )
+                    raise
         try:
             yield conn
             conn.commit()
@@ -45,6 +73,31 @@ class WorkflowDatabase:
             raise
         finally:
             conn.close()
+
+    def _retry_query(self, conn, cur, query: str, params: tuple, context_log=None) -> None:
+        last_exc = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                cur.execute(query, params)
+                return
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as exc:
+                last_exc = exc
+                if attempt < MAX_RETRIES:
+                    backoff = RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
+                    msg = f"DB query attempt {attempt}/{MAX_RETRIES} failed: {exc}. Retrying in {backoff}s..."
+                    if context_log:
+                        context_log.warning(msg)
+                    else:
+                        logger.warning(msg)
+                    time.sleep(backoff)
+                else:
+                    msg = f"DB query failed after {MAX_RETRIES} attempts: {exc}"
+                    if context_log:
+                        context_log.error(msg)
+                    else:
+                        logger.error(msg)
+                    raise
+        raise last_exc
 
     def fetch_field_argument(self, filename: str, field: str) -> tuple[Any, ...] | None:
         if field not in ALLOWED_FIELDS:

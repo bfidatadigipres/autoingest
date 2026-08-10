@@ -142,69 +142,79 @@ def create_catalogue_record(context: OpExecutionContext) -> Output:
     record_id_out = record_id if success is True else None
     if success is True:
         context.log.info(log)
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE app.file_catalogue
-                    SET file_status = 'File cleared for ingest',
-                        do_ingest = %s,
-                        error_message = %s,
-                        file_path = %s,
-                        extension = %s,
-                        file_size = %s,
-                        incomplete_scan = %s,
-                        screencraft_arch = %s,
-                        checksum_md5 = %s,
-                        checksum_xxh = %s,
-                        checksum_date = %s,
-                        part = %s,
-                        whole = %s,
-                        ffprobe_exit = %s,
-                        mime_type = %s,
-                        bp_bucket = %s,
-                        bucket_list = %s,
-                        cid_file_type = %s,
-                        cid_item_priref = %s,
-                        cid_ob_num = %s,
-                        source = %s,
-                        put_type = %s,
-                        autoingest_path = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                """, (
-                    basics.get("do_ingest", ""),
-                    basics.get("error_message", ""),
-                    str(basics.get("file_path", "")),
-                    basics.get("extension", ""),
-                    basics.get("file_size", 0),
-                    basics.get("incomplete_scan", ""),
-                    basics.get("screencraft_arch", ""),
-                    basics.get("checksum_md5", ""),
-                    basics.get("checksum_xxh", ""),
-                    basics.get("checksum_date", ""),
-                    basics.get("part"),
-                    basics.get("whole"),
-                    basics.get("ffprobe_exit"),
-                    basics.get("mime_type", ""),
-                    basics.get("bp_bucket", ""),
-                    str(basics.get("bucket_list", "")),
-                    basics.get("cid_file_type", ""),
-                    basics.get("cid_item_priref", ""),
-                    basics.get("cid_ob_num", ""),
-                    basics.get("source", ""),
-                    basics.get("put_type", ""),
-                    basics.get("autoingest_path", ""),
-                    record_id,
-                ))
+        try:
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    db._retry_query(conn, cur, """
+                        UPDATE app.file_catalogue
+                        SET file_status = 'File cleared for ingest',
+                            do_ingest = %s,
+                            error_message = %s,
+                            file_path = %s,
+                            extension = %s,
+                            file_size = %s,
+                            incomplete_scan = %s,
+                            screencraft_arch = %s,
+                            checksum_md5 = %s,
+                            checksum_xxh = %s,
+                            checksum_date = %s,
+                            part = %s,
+                            whole = %s,
+                            ffprobe_exit = %s,
+                            mime_type = %s,
+                            bp_bucket = %s,
+                            bucket_list = %s,
+                            cid_file_type = %s,
+                            cid_item_priref = %s,
+                            cid_ob_num = %s,
+                            source = %s,
+                            put_type = %s,
+                            autoingest_path = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, (
+                        basics.get("do_ingest", ""),
+                        basics.get("error_message", ""),
+                        str(basics.get("file_path", "")),
+                        basics.get("extension", ""),
+                        basics.get("file_size", 0),
+                        basics.get("incomplete_scan", ""),
+                        basics.get("screencraft_arch", ""),
+                        basics.get("checksum_md5", ""),
+                        basics.get("checksum_xxh", ""),
+                        basics.get("checksum_date", ""),
+                        basics.get("part"),
+                        basics.get("whole"),
+                        basics.get("ffprobe_exit"),
+                        basics.get("mime_type", ""),
+                        basics.get("bp_bucket", ""),
+                        str(basics.get("bucket_list", "")),
+                        basics.get("cid_file_type", ""),
+                        basics.get("cid_item_priref", ""),
+                        basics.get("cid_ob_num", ""),
+                        basics.get("source", ""),
+                        basics.get("put_type", ""),
+                        basics.get("autoingest_path", ""),
+                        record_id,
+                    ), context.log)
+        except Exception as exc:
+            _rollback_cataloguing_status(db, record_id)
+            context.log.error(f"Failed to write 'File cleared for ingest' status for {file_name}: {exc}")
+            duration_sec = round(time.perf_counter() - tic, 3)
+            return Output(None, metadata={"duration_sec": duration_sec, "preview": f"DB write failed: {file_name}"})
     else:
         context.log.warning(f"Move failed for {file_name}: {log}")
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE app.file_catalogue SET file_status = 'Error', "
-                    "error_message = %s, updated_at = NOW() WHERE id = %s",
-                    ("File failed move into autoingest processing folder", record_id),
-                )
+        try:
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    db._retry_query(conn, cur,
+                        "UPDATE app.file_catalogue SET file_status = 'Error', "
+                        "error_message = %s, updated_at = NOW() WHERE id = %s",
+                        ("File failed move into autoingest processing folder", record_id),
+                        context.log,
+                    )
+        except Exception as exc:
+            context.log.error(f"Failed to write Error status for {file_name}: {exc}")
 
     metadata = {
         "duration_sec": duration_sec,
@@ -225,8 +235,8 @@ def create_catalogue_record(context: OpExecutionContext) -> Output:
             status="success" if record_id_out is not None else "failure",
             metadata=metadata,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {file_name}: {exc}")
 
     return Output(record_id_out, metadata=metadata)
 

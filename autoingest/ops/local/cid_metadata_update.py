@@ -600,14 +600,18 @@ def _set_error_and_log(
     stage: str,
     extra: dict | None = None,
 ) -> None:
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE app.file_catalogue SET file_status = 'complete', "
-                "error_message = %s, updated_at = NOW() "
-                "WHERE id = %s",
-                (error, file_id),
-            )
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                db._retry_query(conn, cur,
+                    "UPDATE app.file_catalogue SET file_status = 'complete', "
+                    "error_message = %s, updated_at = NOW() "
+                    "WHERE id = %s",
+                    (error, file_id),
+                    context.log,
+                )
+    except Exception as exc:
+        context.log.error(f"Failed to write error status for {file_name}: {exc}")
 
     duration_sec = round(time.perf_counter() - tic, 3)
 
@@ -631,8 +635,8 @@ def _set_error_and_log(
             metadata=metadata,
             message=error,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {file_name}: {exc}")
 
 
 def _set_updating_status(db, file_id: int) -> None:
@@ -654,16 +658,20 @@ def _advance_status(
     new_status: str,
     extra: dict | None = None,
 ) -> None:
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE app.file_catalogue "
-                "SET file_status = %s, updated_to_cid = 'TRUE', "
-                "total_ingest_time_sec = EXTRACT(EPOCH FROM (NOW() - created_at)), "
-                "error_message = NULL, updated_at = NOW() "
-                "WHERE id = %s",
-                (new_status, file_id),
-            )
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                db._retry_query(conn, cur,
+                    "UPDATE app.file_catalogue "
+                    "SET file_status = %s, updated_to_cid = 'TRUE', "
+                    "total_ingest_time_sec = EXTRACT(EPOCH FROM (NOW() - created_at)), "
+                    "error_message = NULL, updated_at = NOW() "
+                    "WHERE id = %s",
+                    (new_status, file_id),
+                    context.log,
+                )
+    except Exception as exc:
+        context.log.error(f"Failed to advance status for {file_name}: {exc}")
 
     duration_sec = round(time.perf_counter() - tic, 3)
 
@@ -685,5 +693,5 @@ def _advance_status(
             status="success",
             metadata=metadata,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {file_name}: {exc}")

@@ -262,55 +262,59 @@ def assess_filename(context: OpExecutionContext) -> Output:
     returns["source"] = donor
     returns["autoingest_path"] = autoingest_path
 
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE app.file_catalogue
-                SET file_status = %s,
-                    do_ingest = %s,
-                    error_message = %s,
-                    file_size = %s,
-                    mime_type = %s,
-                    source = %s,
-                    extension = %s,
-                    part = %s,
-                    whole = %s,
-                    ffprobe_exit = %s,
-                    bp_bucket = %s,
-                    bucket_list = %s,
-                    cid_file_type = %s,
-                    cid_item_priref = %s,
-                    cid_ob_num = %s,
-                    incomplete_scan = %s,
-                    screencraft_arch = %s,
-                    put_type = %s,
-                    autoingest_path = %s,
-                    file_path = %s,
-                    updated_at = NOW()
-                WHERE file_name = %s
-            """, (
-                returns.get("file_status", "Failed assessment"),
-                returns.get("do_ingest", "FALSE"),
-                returns.get("error_message", ""),
-                returns.get("file_size", 0),
-                returns.get("mime_type", ""),
-                returns.get("source", ""),
-                returns.get("extension", ""),
-                returns.get("part"),
-                returns.get("whole"),
-                returns.get("ffprobe_exit"),
-                returns.get("bp_bucket", ""),
-                str(returns.get("bucket_list", "")),
-                returns.get("cid_file_type", ""),
-                returns.get("cid_item_priref"),
-                returns.get("cid_ob_num", ""),
-                returns.get("incomplete_scan", "UNKNOWN"),
-                returns.get("screencraft_arch", "UNKNOWN"),
-                returns.get("put_type", ""),
-                returns.get("autoingest_path", ""),
-                returns.get("file_path", str(file_path)),
-                filename,
-            ))
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                db._retry_query(conn, cur, """
+                    UPDATE app.file_catalogue
+                    SET file_status = %s,
+                        do_ingest = %s,
+                        error_message = %s,
+                        file_size = %s,
+                        mime_type = %s,
+                        source = %s,
+                        extension = %s,
+                        part = %s,
+                        whole = %s,
+                        ffprobe_exit = %s,
+                        bp_bucket = %s,
+                        bucket_list = %s,
+                        cid_file_type = %s,
+                        cid_item_priref = %s,
+                        cid_ob_num = %s,
+                        incomplete_scan = %s,
+                        screencraft_arch = %s,
+                        put_type = %s,
+                        autoingest_path = %s,
+                        file_path = %s,
+                        updated_at = NOW()
+                    WHERE file_name = %s
+                """, (
+                    returns.get("file_status", "Failed assessment"),
+                    returns.get("do_ingest", "FALSE"),
+                    returns.get("error_message", ""),
+                    returns.get("file_size", 0),
+                    returns.get("mime_type", ""),
+                    returns.get("source", ""),
+                    returns.get("extension", ""),
+                    returns.get("part"),
+                    returns.get("whole"),
+                    returns.get("ffprobe_exit"),
+                    returns.get("bp_bucket", ""),
+                    str(returns.get("bucket_list", "")),
+                    returns.get("cid_file_type", ""),
+                    returns.get("cid_item_priref"),
+                    returns.get("cid_ob_num", ""),
+                    returns.get("incomplete_scan", "UNKNOWN"),
+                    returns.get("screencraft_arch", "UNKNOWN"),
+                    returns.get("put_type", ""),
+                    returns.get("autoingest_path", ""),
+                    returns.get("file_path", str(file_path)),
+                    filename,
+                ), context.log)
+    except Exception as exc:
+        context.log.error(f"Failed to write assessment results to DB for {filename}: {exc}")
+        raise
 
     toc = time.perf_counter()
     duration_sec = round(toc - tic, 3)
@@ -336,8 +340,8 @@ def assess_filename(context: OpExecutionContext) -> Output:
             metadata=metadata,
             message=errors[0] if errors else None,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {filename}: {exc}")
 
     return Output(returns, metadata=metadata)
 

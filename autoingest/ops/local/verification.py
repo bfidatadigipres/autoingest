@@ -298,30 +298,41 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
             "preview": f"CID Media record creation failed for {file}",
         })
 
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE app.file_catalogue "
-                "SET cid_media_priref = %s, tape_verified = TRUE, "
-                "file_status = 'verified', "
-                "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
-                "bp_version_id = %s, validated = %s, reference_num = %s, "
-                "verify_time_sec = %s, "
-                "ingest_month = %s, "
-                "error_message = NULL, "
-                "updated_at = NOW() "
-                "WHERE id = %s",
-                (media_priref,
-                str(results.get("persisted_ok", "")),
-                results.get("bp_etag", ""),
-                results.get("bp_length", ""),
-                results.get("bp_version_id", ""),
-                str(results.get("validated", "")),
-                file,
-                verify_elapsed,
-                datetime.now().strftime("%Y%m"),
-                file_info[0]),
-            )
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                db._retry_query(conn, cur,
+                    "UPDATE app.file_catalogue "
+                    "SET cid_media_priref = %s, tape_verified = TRUE, "
+                    "file_status = 'verified', "
+                    "persisted_ok = %s, bp_etag = %s, bp_length = %s, "
+                    "bp_version_id = %s, validated = %s, reference_num = %s, "
+                    "verify_time_sec = %s, "
+                    "ingest_month = %s, "
+                    "error_message = NULL, "
+                    "updated_at = NOW() "
+                    "WHERE id = %s",
+                    (media_priref,
+                    str(results.get("persisted_ok", "")),
+                    results.get("bp_etag", ""),
+                    results.get("bp_length", ""),
+                    results.get("bp_version_id", ""),
+                    str(results.get("validated", "")),
+                    file,
+                    verify_elapsed,
+                    datetime.now().strftime("%Y%m"),
+                    file_info[0]),
+                    context.log,
+                )
+    except Exception as exc:
+        _set_validation_status(db, file_info[0], "File cleared for ingest", f"DB write failed: {exc}")
+        context.log.error(f"Failed to write verified status for {file}: {exc}")
+        duration_sec = round(time.perf_counter() - tic, 3)
+        return Output(results, metadata={
+            "duration_sec": duration_sec,
+            "file_name": file,
+            "preview": f"DB write failed for {file}",
+        })
 
     duration_sec = round(time.perf_counter() - tic, 3)
 
@@ -366,8 +377,8 @@ def _record_verify_event(
                 "preview": f"{file} verification {status} in {duration_sec}s",
             },
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {file}: {exc}")
 
 
 def retrieve_json_data(job_id: str) -> Optional[str]:

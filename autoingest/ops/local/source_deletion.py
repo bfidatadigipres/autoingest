@@ -162,8 +162,8 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
             status="success",
             metadata=metadata,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        context.log.warning(f"Failed to record pipeline event for {file_name}: {exc}")
 
     return Output(None, metadata={
         "duration_sec": duration_sec,
