@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import autoingest.resources.proxy_utils as ut
-from dagster import op, OpExecutionContext, Output
+from dagster import op, OpExecutionContext, Output, Field
 
 
 REQUIRED_KEYS = ("file_id", "file_path", "mime_type", "source")
@@ -14,7 +14,7 @@ REQUIRED_KEYS = ("file_id", "file_path", "mime_type", "source")
 @op(
     required_resource_keys={"workflow_db", "encoding_config"},
     tags={"dagster-celery/queue": "encoding"},
-    config_schema={"file_path": str},
+    config_schema={"file_path": Field(str, is_required=False, default_value="")},
 )
 def generate_images(
     context: OpExecutionContext,
