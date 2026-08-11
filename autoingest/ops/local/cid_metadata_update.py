@@ -156,21 +156,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Not found: {file_name}",
         })
-
-    file_id = row[0]
     file_status = row[2]
-    mime_type = row[3]
-    media_priref = row[4] or ""
-    db_metadata = {
-        "MediaInfo json 0": row[5],
-        "Exiftool text": row[6] or "",
-        "MediaInfo text 0": row[7] or "",
-        "MediaInfo text 0 full": row[8] or "",
-        "MediaInfo xml 0": row[9] or "",
-        "MediaInfo ebucore 0": row[10] or "",
-        "MediaInfo pbcore 0": row[11] or ""
-    }
-
     if file_status == "updating_cid":
         context.log.info(f"File {file_name} is already being updated. Skipping.")
         return Output(None, metadata={
@@ -185,6 +171,19 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"Skipped: status={file_status}",
         })
+
+    file_id = row[0]
+    mime_type = row[3]
+    media_priref = row[4] or ""
+    db_metadata = {
+        "MediaInfo json 0": row[5],
+        "Exiftool text": row[6] or "",
+        "MediaInfo text 0": row[7] or "",
+        "MediaInfo text 0 full": row[8] or "",
+        "MediaInfo xml 0": row[9] or "",
+        "MediaInfo ebucore 0": row[10] or "",
+        "MediaInfo pbcore 0": row[11] or ""
+    }
 
     if not media_priref:
         context.log.warning(
@@ -201,6 +200,8 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             "preview": f"No media priref: {file_name}",
         })
 
+    _set_updating_status(db, file_id)
+
     if not utils.cid_check(CID_API):
         context.log.warning("CID API is not responsive for metadata update")
         _set_error_and_log(
@@ -213,8 +214,6 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"CID API down: {file_name}",
         })
-
-    _set_updating_status(db, file_id)
 
     # Add to header tags
     payload_data = ""

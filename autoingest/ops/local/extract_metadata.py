@@ -23,12 +23,12 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
     context.log.info(f"** Extracting metadata from {file_path}")
 
     mdata_type = [
+        "mdata_full_json",
         "mdata_full_text",
         "mdata_text",
-        "mdata_ebucore",
-        "mdata_pbcore",
         "mdata_full_xml",
-        "mdata_full_json"
+        "mdata_ebucore",
+        "mdata_pbcore"
     ]
 
     mdata_times = {}
@@ -37,10 +37,26 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
         mdata = utils.make_metadata(file_path, mtype)
         mt_toc = time.perf_counter()
         mdata_times[mtype] = round(mt_toc - mt_tic, 3)
-        if "json" in mdata:
-            file_info[mtype] = mdata
-        else:
-            file_info[mtype] = mdata
+        file_info[mtype] = mdata
+
+    if str(file_info["mdata_full_json"]).startswith('{"media": null, '):
+        context.log.error("*** JSON metadata absent — mediainfo could not parse tracks for %s", file_name)
+        error_msg = "MediaInfo metadata extraction failed"
+        try:
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    db._retry_query(conn, cur,
+                        "UPDATE app.file_catalogue SET file_status = 'Failed assessment', "
+                        "error_message = %s, updated_at = NOW() WHERE id = ("
+                        "SELECT id FROM app.file_catalogue WHERE file_name = %s "
+                        "ORDER BY created_at ASC LIMIT 1"
+                        ")",
+                        (error_msg, file_name),
+                        context.log,
+                    )
+        except Exception as exc:
+            context.log.error(f"Failed to reset status for {file_name}: {exc}")
+        raise RuntimeError(f"MediaInfo metadata extraction failed for {file_name}")
 
     mime_type = file_info.get("mime_type", "")
     if mime_type == "image":

@@ -23,91 +23,95 @@ STORAGE_OPTIONS = [
 GUIDANCE = {
     "Cannot parse partWhole from filename": {
         "text": "This indicates poorly formed partWhole statement, eg 01of002. Please change filename to use correct partWhole syntax making sure to use an underscore to separate Object Number, not a hyphen or space.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Duplicate filename": {
         "text": "A file with this name already exists in the ingest catalogue. This indicates a file may have been accidentally re-added after already being processed. Please check whether the original file completed ingest successfully before removing the duplicate from autoingest/ingest. Raise a ticket in Collections Systems Service Desk if you need further assistance.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Filename formatted incorrectly": {
         "text": "This indicates poorly formed filename with incorrect Object Number syntax, eg using hyphens rather than underscores. Correct any obvious Object Number syntax issues and remove and incorrect characters or extensions.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Extension does not match record file_type": {
         "text": "This indicates a mismatch between the file_type in the CID record and the file extensions. In some cases this can indicate the wrong Object Number use in the filename. Most commonly the file_type in the CID record must be changed.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
+    },
+    "MediaInfo metadata extraction failed": {
+        "text": "The file metadata could not be read by software MediaInfo. This issue should retry successfully, but if the warning lingers please contact the Archive Developer team via the Service Desk",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "FFprobe failed to read file": {
         "text": "This indicates a serious problem with the file's metadata preventing it from being preserved in DPI. In most cases this indicates a badly encoded file, which must be re-encoded or re-acquired, as it cannot be ingested to DPI.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Skip object as previous part not yet ingested or queued for ingest": {
         "text": "This message indicates that a partWhole is attempting to ingest out of sequence. This issue should clear itself if all reel/image parts are being processed at the same time. Please raise a ticket in Collections Systems Service desk if you need more assistance with this issue.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Filesize does not match BlackPearl object length": {
         "text": "This indicates a different filesize locally to the filesize being reported by Black Pearl for the ingested object. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether the version previously ingested must be replaced with this version.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "MIMEtype is not permitted": {
         "text": "The file does not have an accepted MIMEtype - video, audio, image or document. In most cases this indicates a file fault, which may need to be re-encoded or re-acquired, as it cannot be ingested to DPI.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Filename already has a CID Media record:": {
         "text": "This indicates that this filename has already been ingest to DPI, and has received a CID media record. Please review if this file has been ingested already using DPI Browser. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Invalid <file_type> in Collect record": {
         "text": "This indicates either a file type that is not accepted for ingest, or multiple file_type occurrences in the CID record. Please check the file_type and ensure only one is present and is one of our accepted file types.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Failed fixity check: checksums do not match": {
         "text": "TThis indicates the MD5 checksum created for the file is different to the MD5 checksum that Black Pearl has stored for the file. This could be an ingest failure or a media management issue. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether there is a media management issue, or whether this indicates an ingest failure.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Cannot find record": {
         "text": "This indicates that the filename uses an Object Number that does not exist in CID. Check in CID to identify possible mistyping of Object Number. If no corresponding CID record can be found, file should be removed from Autoingest until further investigation can assign a correct Object Number.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Cannot parse <object_number> from filename": {
         "text": "This indicates that the filename does not have the correct formatting, eg prefix does not match accepted prefixes.Change filename to correct these errors. A list of accepted prefixes is available at the Autoingest Service Overview.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "No BlackPearl ObjectList returned from BlackPearl API query": {
         "text": "This indicates a problem has arisen with the Black Pearl ingest scripts. The file does not appear to have persisted to Black Pearl tape libraries. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "BlackPearl failed to ingest file": {
         "text": "This indicates that the BlackPearl PUT notification reported this file as failing ingest, or persisted to tape notification is FALSE. The file should attempt a second ingest but plLease raise a ticket in Collections Systems Service Desk if the problem persists.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Filename has already been ingested to DPI": {
         "text": "TTis indicates a problem has arisen with the Black Pearl ingest scripts. An instance exists in the BlackPearl library that has the same filename. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "No CID Media record found for this file": {
         "text": "This indicates that a file that has been qualified as persisted does not have a CID media record. A CID media record may need manually creating. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "File failed move into autoingest folder": {
         "text": "This indicates a problem with the autoingest folder permissions. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "CID media metadata update failed for file": {
         "text": "An error occurred while augmenting the file metadata into the CID media record that represents it. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "BlackPearl JOB ID absent": {
         "text": "The file has been moved into the validated folder, signalling completion of write to BlackPearl. But JOB ID for this PUT is not available for the file to process. If this issue does not clear in 24 hours please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Failed to delete BlackPearl file": {
         "text": "The clean up of a failed ingest has not been able to delete the file from BlackPearl tape libraries and no further ingest attempts will succeed. Please raise a ticket in Collections Systems Service Desk to request a review of the problem quoting supplied ID number and filename.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "_default": {
         "text": "Please visit the Autoingest User Guide for more information or raise a Service Desk ticket for your specific error.",
-        "link": "https://bficollectionssystems.atlassian.net/wiki/spaces/UKB/pages/109871111/Autoingest+-+User+Guide#Error-Log",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
 }
 
