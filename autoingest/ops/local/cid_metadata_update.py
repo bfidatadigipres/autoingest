@@ -217,9 +217,9 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
     if str(db_metadata['MediaInfo json 0']).startswith("{'media': None,"):
         context.log.warning("This file has no MediaInfo JSON data - will attempt to recreate from text")
         if file_name in str(db_metadata['MediaInfo text 0 full']):
-            mdata_full_json = json.dumps(utils.mediainfo_text_to_json(db_metadata['MediaInfo text 0 full']))
+            mdata_full_json = json.dumps(utils.mediainfo_text_to_json(db_metadata['MediaInfo text 0 full'], file_name))
         elif file_name in str(db_metadata['MediaInfo text 0']):
-            mdata_full_json = json.dumps(utils.mediainfo_text_to_json(db_metadata['MediaInfo text 0']))
+            mdata_full_json = json.dumps(utils.mediainfo_text_to_json(db_metadata['MediaInfo text 0'], file_name))
         else:
             mdata_full_json = None
 
