@@ -685,3 +685,16 @@ def get_current_api():
     except FileNotFoundError:
         print(f"Control JSON file not found: {CONTROL_JSON}")
         return None
+
+
+def mediainfo_text_to_json(text_full: str, filename: str) -> dict:
+    """Convert MediaInfo TEXT FULL output to JSON-compatible dict.
+
+    Wraps the mediainfo_text_parser module for use across ops.
+    Returns a dict matching MediaInfo's native JSON structure,
+    suitable for build_metadata_xml_from_db() in cid_metadata_update.py.
+
+    If the input is empty or unparseable, returns a minimal valid structure.
+    """
+    from autoingest.resources.mediainfo_text_parser import text_full_to_json
+    return text_full_to_json(text_full, filename)
