@@ -20,6 +20,11 @@ def encoding_celery_graph():
 
 
 @graph
+def generate_images_graph():
+    return generate_images()
+
+
+@graph
 def cleanup_graph():
     return check_and_delete_source()
 

@@ -41,6 +41,15 @@ STATUS_FIELD_QUERY = {
         "active_limit": 80,
         "active_gate_statuses": ("encoding", "generating_images"),
     },
+    "encoded": {
+        "job": generate_images_job,
+        "op": "generate_images",
+        "sensor_name": "generate_images_chain_sensor",
+        "active_limit": 80,
+        "active_gate_statuses": ("generating_images",),
+        "min_age_seconds": 3600,
+        "min_interval_seconds": 300,
+    },
     "encoding_complete": {
         "job": cleanup_local_job,
         "op": "check_and_delete_source",
@@ -67,7 +76,7 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
     @sensor(
         job=job,
         name=sensor_name,
-        minimum_interval_seconds=30,
+        minimum_interval_seconds=conf.get("min_interval_seconds", 30),
         default_status=DefaultSensorStatus.RUNNING,
         required_resource_keys={"workflow_db"},
     )
@@ -91,19 +100,27 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
             with db.get_connection() as conn:
                 with conn.cursor() as cur:
                     if statuses:
-                        cur.execute(
+                        query = (
                             "SELECT id, file_path FROM app.file_catalogue "
                             "WHERE file_status IN %s "
-                            "ORDER BY created_at ASC LIMIT 500",
-                            (statuses,),
                         )
+                        params: list = [statuses]
+                        if conf.get("min_age_seconds"):
+                            query += "AND updated_at < NOW() - INTERVAL %s "
+                            params.append(f"{conf['min_age_seconds']} seconds")
+                        query += "ORDER BY created_at ASC LIMIT 500"
+                        cur.execute(query, tuple(params))
                     else:
-                        cur.execute(
+                        query = (
                             "SELECT id, file_path FROM app.file_catalogue "
                             "WHERE file_status = %s "
-                            "ORDER BY created_at ASC LIMIT 500",
-                            (status,),
                         )
+                        params: list = [status]
+                        if conf.get("min_age_seconds"):
+                            query += "AND updated_at < NOW() - INTERVAL %s "
+                            params.append(f"{conf['min_age_seconds']} seconds")
+                        query += "ORDER BY created_at ASC LIMIT 500"
+                        cur.execute(query, tuple(params))
                     rows = cur.fetchall()
         except Exception as exc:
             context.log.warning(
@@ -209,5 +226,6 @@ def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]
 ingest_chain_sensor = _make_status_sensor("assessed", STATUS_FIELD_QUERY["assessed"])
 catalogue_chain_sensor = _make_status_sensor("checksummed", STATUS_FIELD_QUERY["checksummed"])
 encoding_chain_sensor = _make_status_sensor("verified", STATUS_FIELD_QUERY["verified"])
+generate_images_chain_sensor = _make_status_sensor("encoded", STATUS_FIELD_QUERY["encoded"])
 cleanup_status_sensor = _make_status_sensor("encoding_complete", STATUS_FIELD_QUERY["encoding_complete"])
 metadata_update_chain_sensor = _make_status_sensor("complete", STATUS_FIELD_QUERY["complete"])

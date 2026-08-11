@@ -14,12 +14,51 @@ REQUIRED_KEYS = ("file_id", "file_path", "mime_type", "source")
 @op(
     required_resource_keys={"workflow_db", "encoding_config"},
     tags={"dagster-celery/queue": "encoding"},
+    config_schema={"file_path": str},
 )
 def generate_images(
     context: OpExecutionContext,
-    file_info: dict[str, Any],
+    file_info: dict[str, Any] | None = None,
 ) -> Output:
     tic = time.perf_counter()
+
+    # If no file_info from upstream (standalone sensor launch), build from DB
+    if file_info is None or not file_info:
+        file_path = context.op_config.get("file_path")
+        if not file_path:
+            context.log.warning("No file_info or file_path provided. Skipping.")
+            return Output({
+                "file_id": None,
+                "proxy_video_path": "",
+                "proxy_image_path": "",
+                "proxy_thumb_path": "",
+            }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+        file_name = Path(file_path).name
+        db = context.resources.workflow_db
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, file_path, mime_type, source, proxy_video_path "
+                    "FROM app.file_catalogue WHERE file_name = %s "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (file_name,),
+                )
+                row = cur.fetchone()
+        if not row:
+            context.log.error(f"No DB record found for {file_name}")
+            return Output({
+                "file_id": None,
+                "proxy_video_path": "",
+                "proxy_image_path": "",
+                "proxy_thumb_path": "",
+            }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+        file_info = {
+            "file_id": row[0],
+            "file_path": row[1],
+            "mime_type": row[2],
+            "source": row[3],
+            "proxy_video_path": row[4] or "",
+        }
 
     missing = [k for k in REQUIRED_KEYS if k not in file_info or not file_info[k]]
     if missing:
