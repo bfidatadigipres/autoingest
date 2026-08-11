@@ -269,8 +269,14 @@ def generate_images(
 
         if mime == "video":
             context.log.info("Cleaning up Video proxy filename / JPEG export")
-            os.replace(proxy_path, os.path.join(root, filename_stem))
-            os.remove(os.path.join(root, f"{filename_stem}.jpg"))
+            actual_proxy = proxy_path
+            if not os.path.exists(proxy_path) and os.path.exists(proxy_path + ".mp4"):
+                actual_proxy = proxy_path + ".mp4"
+            if os.path.exists(actual_proxy):
+                os.replace(actual_proxy, os.path.join(root, filename_stem))
+            jpg_path = os.path.join(root, f"{filename_stem}.jpg")
+            if os.path.exists(jpg_path):
+                os.remove(jpg_path)
 
         context.log.info("Updating Proxy Image data to dB")
         db = context.resources.workflow_db
