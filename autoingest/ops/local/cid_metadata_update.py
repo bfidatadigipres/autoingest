@@ -1,6 +1,5 @@
 from importlib import metadata
 from itertools import islice
-import os
 import time
 import json
 from pathlib import Path
@@ -214,6 +213,31 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
             "duration_sec": round(time.perf_counter() - tic, 3),
             "preview": f"CID API down: {file_name}",
         })
+
+    if str(db_metadata['MediaInfo json 0']).startswith('{"media": null,'):
+        context.log.warning("This file has no MediaInfo JSON data - will attempt to recreate from text")
+        if file_name in str(db_metadata['MediaInfo text 0 full']):
+            mdata_full_json = json.dumps(utils.mediainfo_text_to_json(db_metadata['MediaInfo text 0 full']))
+        elif file_name in str(db_metadata['MediaInfo text 0']):
+            mdata_full_json = json.dumps(utils.mediainfo_text_to_json(db_metadata['MediaInfo text 0']))
+        else:
+            mdata_full_json = None
+
+        if mdata_full_json:
+            context.log.info(f"JSON data recreated: {mdata_full_json}")
+            db_metadata["MediaInfo json 0"] = mdata_full_json
+        else:
+            context.log.error(f"JSON data could not be recreated...")
+            _set_error_and_log(
+                context, db, file_id, file_name, tic,
+                error=f"CID media metadata update failed for file {file_name}",
+                stage="no_json_metadata",
+                extra={"media_priref": media_priref},
+            )
+            return Output(None, metadata={
+                "duration_sec": round(time.perf_counter() - tic, 3),
+                "preview": f"No JSON metadata: {file_name}",
+            })
 
     # Add to header tags
     payload_data = ""
