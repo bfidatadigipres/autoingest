@@ -42,7 +42,8 @@ STATUS_FIELD_QUERY = {
         "active_gate_statuses": ("encoding", "generating_images"),
     },
     "encoded": {
-        "job": generate_images_job,
+        "job_module": "autoingest.jobs.validation_jobs",
+        "job_name": "generate_images_job",
         "op": "generate_images",
         "sensor_name": "generate_images_chain_sensor",
         "active_limit": 80,
@@ -68,7 +69,11 @@ STATUS_FIELD_QUERY = {
 
 
 def _make_status_sensor(status: str, conf: dict[str, Any]) -> Callable[..., Any]:
-    job = conf["job"]
+    job = conf.get("job")
+    if job is None:
+        import importlib
+        mod = importlib.import_module(conf["job_module"])
+        job = getattr(mod, conf["job_name"])
     op_name = conf["op"]
     sensor_name = conf["sensor_name"]
     statuses = conf.get("statuses")
