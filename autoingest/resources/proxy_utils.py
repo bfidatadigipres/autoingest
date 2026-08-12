@@ -591,7 +591,7 @@ def _adjust_single_second(target: float, blist: list[str]) -> float:
         second = blist[2].split(" - ")[0]
         frame_secs = int(first) + (int(second) - int(first)) // 2
         if int(first) < frame_secs < int(second):
-            return float(frame_secs)
+            return round(frame_secs)
 
     return target
 
