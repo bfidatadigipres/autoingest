@@ -600,6 +600,8 @@ def adjust_seconds(duration: float, data: str) -> list[float]:
     """
     Return three candidate seconds (first, middle, last thirds)
     adjusted to avoid FFmpeg-detected black frames.
+    Low value last item for TV source data where filtered
+    frame warning is encountered in video
     """
     blist = _retrieve_blackspaces(data)
     print(f"*** BLACK GAPS: {blist}")
@@ -612,6 +614,7 @@ def adjust_seconds(duration: float, data: str) -> list[float]:
         _adjust_single_second(first, blist),
         _adjust_single_second(middle, blist),
         _adjust_single_second(last, blist),
+        2.0,
     ]
 
 
@@ -657,6 +660,8 @@ def get_jpeg(seconds: list[float], fullpath: str, outpath: str) -> bool:
     Seconds accepted as list of float candidates.
     Returns True on first successful extraction, False if all fail.
     """
+
+    open(outpath, 'w').close() and os.chmod(outpath, 0o777)
     for candidate in seconds:
         cmd = [
             "ffmpeg",
@@ -676,7 +681,6 @@ def get_jpeg(seconds: list[float], fullpath: str, outpath: str) -> bool:
         print(f"Trying JPEG extraction at {candidate}s: {command}")
 
         try:
-            open(outpath, 'w').close() and os.chmod(outpath, 0o777)
             subprocess.call(cmd)
             if os.path.isfile(outpath):
                 print(f"JPEG extraction succeeded at {candidate}s")
