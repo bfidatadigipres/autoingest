@@ -549,23 +549,16 @@ def call_ffmpeg_command(ffmpeg_cmd: list[str]) -> subprocess.CompletedProcess:
     return result
 
 
-def adjust_seconds(duration: float, data: str) -> float:
+def _adjust_single_second(target: float, blist: list[str]) -> float:
     """
-    Adjust second durations within
-    FFmpeg detected blackspace
+    Adjust a single second value away from any black-frame blocks.
     """
-    blist = _retrieve_blackspaces(data)
-    print(f"*** BLACK GAPS: {blist}")
-    if not blist:
-        return duration // 2
-
-    secs = duration // 4
-    clash = _check_seconds(blist, secs)
+    clash = _check_seconds(blist, target)
     if not clash:
-        return secs
+        return target
 
     for num in range(2, 5):
-        frame_secs = duration // num
+        frame_secs = target / num
         clash = _check_seconds(blist, frame_secs)
         if not clash:
             return frame_secs
@@ -575,9 +568,28 @@ def adjust_seconds(duration: float, data: str) -> float:
         second = blist[2].split(" - ")[0]
         frame_secs = int(first) + (int(second) - int(first)) // 2
         if int(first) < frame_secs < int(second):
-            return frame_secs
+            return float(frame_secs)
 
-    return duration // 2
+    return target
+
+
+def adjust_seconds(duration: float, data: str) -> list[float]:
+    """
+    Return three candidate seconds (first, middle, last thirds)
+    adjusted to avoid FFmpeg-detected black frames.
+    """
+    blist = _retrieve_blackspaces(data)
+    print(f"*** BLACK GAPS: {blist}")
+
+    first = duration / 4
+    middle = duration / 2
+    last = (3 * duration) / 4
+
+    return [
+        _adjust_single_second(first, blist),
+        _adjust_single_second(middle, blist),
+        _adjust_single_second(last, blist),
+    ]
 
 
 def _retrieve_blackspaces(data: str) -> list[str]:
@@ -616,33 +628,40 @@ def _check_seconds(blackspace: list[str], seconds: float) -> Optional[bool]:
         return True
 
 
-def get_jpeg(seconds: float, fullpath: str, outpath: str) -> bool:
+def get_jpeg(seconds: list[float], fullpath: str, outpath: str) -> bool:
     """
-    Retrieve JPEG from MP4
-    Seconds accepted as float
+    Retrieve JPEG from MP4, trying multiple candidate timestamps.
+    Seconds accepted as list of float candidates.
+    Returns True on first successful extraction, False if all fail.
     """
-    cmd = [
-        "ffmpeg",
-        "-ss",
-        str(seconds),
-        "-i",
-        fullpath,
-        "-frames:v",
-        "1",
-        "-q:v",
-        "2",
-        "-y",
-        outpath,
-    ]
+    for candidate in seconds:
+        cmd = [
+            "ffmpeg",
+            "-ss",
+            str(candidate),
+            "-i",
+            fullpath,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            "-y",
+            outpath,
+        ]
 
-    command = " ".join(cmd)
-    print(command)
-    try:
-        subprocess.call(cmd)
-        if os.path.isfile(outpath):
-            return True
-    except subprocess.CalledProcessError as err:
-        print(f"get_jpeg(): failed to extract JPEG: {command} {err}")
+        command = " ".join(cmd)
+        print(f"Trying JPEG extraction at {candidate}s: {command}")
+        try:
+            subprocess.call(cmd)
+            if os.path.isfile(outpath):
+                print(f"JPEG extraction succeeded at {candidate}s")
+                return True
+            else:
+                print(f"JPEG extraction at {candidate}s produced no output file")
+        except subprocess.CalledProcessError as err:
+            print(f"get_jpeg(): failed to extract JPEG at {candidate}s: {command} {err}")
+
+    print(f"get_jpeg(): all {len(seconds)} candidates failed for {fullpath}")
     return False
 
 

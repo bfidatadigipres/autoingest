@@ -126,18 +126,20 @@ class TestCheckSeconds:
 
 
 class TestAdjustSeconds:
-    def test_no_blackspace_returns_half_duration(self):
+    def test_no_blackspace_returns_three_candidates(self):
         result = adjust_seconds(100, "")
-        assert result == 50.0
+        assert result == [25.0, 50.0, 75.0]
 
     def test_avoids_blackspace(self):
         data = "[blackdetect @ 0x1] black_start:20 black_end:30 black_duration:10\n"
         result = adjust_seconds(100, data)
-        assert result == 50.0
+        assert len(result) == 3
+        for val in result:
+            assert val < 20.0 or val > 30.0
 
     def test_short_duration(self):
         result = adjust_seconds(4, "")
-        assert result == 2.0
+        assert result == [1.0, 2.0, 3.0]
 
 
 class TestCheckModTime:

@@ -229,15 +229,20 @@ def encode_proxy_mp4(
         jpeg_location = f"{os.path.splitext(output_path)[0]}.jpg"
         context.log.info(f"JPEG proxy for clean up to go here: {jpeg_location}")
 
-        seconds = ut.adjust_seconds(duration, result.stderr if result.stderr else "")
-        context.log.info(f"Seconds for JPEG cut: {seconds} - overall duration {duration}")
-        success = ut.get_jpeg(seconds, output_path, jpeg_location)
+        candidates = ut.adjust_seconds(duration, result.stderr if result.stderr else "")
+        context.log.info(f"JPEG cut candidates: {candidates} - overall duration {duration}")
+        success = ut.get_jpeg(candidates, output_path, jpeg_location)
         if not success:
-            context.log.error(
-                f"Failed to extract JPEG from proxy: {jpeg_location}. "
-                "Cannot proceed to image generation."
+            error_msg = (
+                f"Unable to create JPEG from proxy video — "
+                f"all {len(candidates)} candidate timestamps failed. "
+                f"The frames may contain bad signal or corrupted data. "
+                f"Proxy: {output_path}"
             )
-            raise RuntimeError(f"JPEG extraction failed for {file_path}")
+            context.log.error(f"{error_msg}. Cannot proceed to image generation.")
+            db.update_file_status(file_id, error_message=error_msg)
+            output_path = None
+            raise RuntimeError(error_msg)
 
         context.log.info("Updating Proxy Video data to dB")
         db.update_file_status(
