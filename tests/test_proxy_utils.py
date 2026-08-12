@@ -1,4 +1,5 @@
 import os
+import subprocess
 import time
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
@@ -15,6 +16,7 @@ from autoingest.resources.proxy_utils import (
     _retrieve_blackspaces,
     _check_seconds,
     check_mod_time,
+    validate_mp4_moov,
     VIDEO_FILTERS,
 )
 
@@ -156,3 +158,32 @@ class TestCheckModTime:
         ts = time.time() - 21600
         os.utime(str(f), (ts, ts))
         assert check_mod_time(str(f)) is False
+
+
+class TestValidateMp4Moov:
+    def test_valid_mp4_returns_true(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "mov,mp4,m4a,3gp,3g2,mj2\n"
+        with patch("autoingest.resources.proxy_utils.subprocess.run", return_value=mock_result):
+            ok, err = validate_mp4_moov("/tmp/test.mp4")
+        assert ok is True
+        assert err == ""
+
+    def test_missing_moov_returns_false(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x1] moov atom not found\n/tmp/test.mp4: Invalid data found when processing input"
+        with patch("autoingest.resources.proxy_utils.subprocess.run", return_value=mock_result):
+            ok, err = validate_mp4_moov("/tmp/test.mp4")
+        assert ok is False
+        assert "moov atom not found" in err
+
+    def test_empty_stdout_returns_false(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        with patch("autoingest.resources.proxy_utils.subprocess.run", return_value=mock_result):
+            ok, err = validate_mp4_moov("/tmp/test.mp4")
+        assert ok is False
+        assert "MOOV atom not found" in err

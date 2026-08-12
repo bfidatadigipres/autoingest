@@ -199,32 +199,63 @@ def encode_proxy_mp4(
             context.log.warning(f"FFmpeg command creation failed - not list: {type(ffmpeg_cmd)} {ffmpeg_cmd}")
             raise RuntimeError(f"FFmpeg build failed: {ffmpeg_cmd}")
 
-        ffmpeg_tic = time.perf_counter()
-        result = ut.call_ffmpeg_command(ffmpeg_cmd)
-        ffmpeg_toc = time.perf_counter()
-        ffmpeg_time = round(ffmpeg_toc - ffmpeg_tic, 3)
-        transcode_mins = ffmpeg_time // 60
-        context.log.info(f"FFmpeg encoding completed in: {transcode_mins} minutes")
+        max_encode_attempts = 2
+        proxy_size = 0
+        source_size = os.path.getsize(file_path)
 
-        if result.returncode != 0 or not os.path.isfile(output_path):
-            stderr_snippet = (result.stderr or b"").encode("utf-8", errors="replace")[-500:] if result.stderr else "(none)"
-            context.log.error(f"FFmpeg exit code {result.returncode} - stderr: {stderr_snippet}")
-            raise RuntimeError(
-                f"FFmpeg encoding failed for {file_path} (exit {result.returncode}). "
-                f"Command: {ffmpeg_call_neat}. Stderr: {stderr_snippet}"
-            )
+        for attempt in range(1, max_encode_attempts + 1):
+            ffmpeg_tic = time.perf_counter()
+            result = ut.call_ffmpeg_command(ffmpeg_cmd)
+            ffmpeg_toc = time.perf_counter()
+            ffmpeg_time = round(ffmpeg_toc - ffmpeg_tic, 3)
+            transcode_mins = ffmpeg_time // 60
+            context.log.info(f"FFmpeg encoding (attempt {attempt}) completed in: {transcode_mins} minutes")
 
-        os.chmod(output_path, 0o777)
-        policy_check = utils.get_mediaconch(output_path, MP4_POLICY)
-        if policy_check is True:
+            if result.returncode != 0 or not os.path.isfile(output_path):
+                stderr_snippet = (result.stderr or "(none)")[-500:]
+                context.log.error(f"FFmpeg exit code {result.returncode} - stderr: {stderr_snippet}")
+                raise RuntimeError(
+                    f"FFmpeg encoding failed for {file_path} (exit {result.returncode}). "
+                    f"Command: {ffmpeg_call_neat}. Stderr: {stderr_snippet}"
+                )
+
+            os.chmod(output_path, 0o777)
+            policy_check = utils.get_mediaconch(output_path, MP4_POLICY)
+            if policy_check is not True:
+                os.remove(output_path)
+                context.log.error(f"Deleted proxy - Mediaconch MP4 policy failed against new proxy file: {output_path}")
+                raise RuntimeError(f"FFmpeg encoding failed for {file_path}")
+
+            moov_ok, moov_err = ut.validate_mp4_moov(output_path)
+            if not moov_ok:
+                context.log.warning(
+                    f"MOOV atom missing on attempt {attempt} — {moov_err}. "
+                    f"Deleting broken MP4 and retrying."
+                )
+                try:
+                    os.remove(output_path)
+                except OSError:
+                    pass
+
+                if attempt < max_encode_attempts:
+                    context.log.info(f"Retrying FFmpeg encode for {filename} (attempt {attempt + 1})")
+                    continue
+                else:
+                    error_msg = (
+                        f"MPEG-TS file could not be encoded to MP4. "
+                        f"MOOV atom missing after {max_encode_attempts} attempts — "
+                        f"source file may be corrupted. "
+                        f"Detail: {moov_err}"
+                    )
+                    context.log.error(error_msg)
+                    db.update_file_status(file_id, error_message=error_msg)
+                    output_path = None
+                    raise RuntimeError(error_msg)
+
             proxy_size = os.path.getsize(output_path)
-            source_size = os.path.getsize(file_path)
             compression_ratio = round(source_size / proxy_size, 2) if proxy_size > 0 else 0
             context.log.info(f"Proxy created: {output_path} ({proxy_size} bytes)")
-        else:
-            os.remove(output_path)
-            context.log.error(f"Deleted proxy - Mediaconch MP4 policy failed against new proxy file: {output_path}")
-            raise RuntimeError(f"FFmpeg encoding failed for {file_path}")
+            break
 
         jpeg_location = f"{os.path.splitext(output_path)[0]}.jpg"
         context.log.info(f"JPEG proxy for clean up to go here: {jpeg_location}")

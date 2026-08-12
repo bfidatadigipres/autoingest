@@ -545,8 +545,31 @@ def call_ffmpeg_command(ffmpeg_cmd: list[str]) -> subprocess.CompletedProcess:
     except Exception as e:
         print(e)
         result = subprocess.CompletedProcess(args=ffmpeg_cmd, returncode=-1, stderr=str(e), stdout="")
-    
+
     return result
+
+
+def validate_mp4_moov(output_path: str) -> tuple[bool, str]:
+    """
+    Validate that an MP4 file contains a MOOV atom.
+    Returns (True, "") if valid, (False, error_detail) if not.
+    """
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=format_name",
+            "-of", "csv=p=0",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False, result.stderr.strip() or "ffprobe returned non-zero exit code"
+    if "mov,mp4" not in result.stdout:
+        return False, f"MOOV atom not found — ffprobe output: {result.stdout.strip()}"
+    return True, ""
 
 
 def _adjust_single_second(target: float, blist: list[str]) -> float:
