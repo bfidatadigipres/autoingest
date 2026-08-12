@@ -674,7 +674,9 @@ def get_jpeg(seconds: list[float], fullpath: str, outpath: str) -> bool:
 
         command = " ".join(cmd)
         print(f"Trying JPEG extraction at {candidate}s: {command}")
+
         try:
+            open(outpath, 'w').close() and os.chmod(outpath, 0o777)
             subprocess.call(cmd)
             if os.path.isfile(outpath):
                 print(f"JPEG extraction succeeded at {candidate}s")
