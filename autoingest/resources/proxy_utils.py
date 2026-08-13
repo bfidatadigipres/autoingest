@@ -725,6 +725,7 @@ def make_jpg(
         cmd = start + [f"{outfile}"]
 
     try:
+        open(outfile, 'w').close() and os.chmod(outfile, 0o777)
         subprocess.call(cmd)
     except subprocess.CalledProcessError as err:
         print(f"ERROR: JPEG creation failed for filepath: {filepath} {err}")
