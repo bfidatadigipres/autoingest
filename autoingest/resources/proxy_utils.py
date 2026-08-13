@@ -661,7 +661,6 @@ def get_jpeg(seconds: list[float], fullpath: str, outpath: str) -> bool:
     Returns True on first successful extraction, False if all fail.
     """
 
-    open(outpath, 'w').close() and os.chmod(outpath, 0o777)
     for candidate in seconds:
         cmd = [
             "ffmpeg",
@@ -679,16 +678,17 @@ def get_jpeg(seconds: list[float], fullpath: str, outpath: str) -> bool:
 
         command = " ".join(cmd)
         print(f"Trying JPEG extraction at {candidate}s: {command}")
-
-        try:
-            subprocess.call(cmd)
-            if os.path.isfile(outpath):
-                print(f"JPEG extraction succeeded at {candidate}s")
-                return True
-            else:
-                print(f"JPEG extraction at {candidate}s produced no output file")
-        except subprocess.CalledProcessError as err:
-            print(f"get_jpeg(): failed to extract JPEG at {candidate}s: {command} {err}")
+        result = subprocess.run(cmd, capture_output=True)
+        if result.returncode == 0 and os.path.isfile(outpath):
+            os.chmod(outpath, 0o777)
+            print(f"JPEG extraction succeeded at {candidate}s")
+            return True
+        else:
+            try:
+                os.remove(outpath)
+            except OSError:
+                pass
+            print(f"JPEG extraction at {candidate}s failed (rc={result.returncode})")
 
     print(f"get_jpeg(): all {len(seconds)} candidates failed for {fullpath}")
     return False
@@ -725,10 +725,22 @@ def make_jpg(
         cmd = start + [f"{outfile}"]
 
     try:
-        open(outfile, 'w').close() and os.chmod(outfile, 0o777)
-        subprocess.call(cmd)
-    except subprocess.CalledProcessError as err:
-        print(f"ERROR: JPEG creation failed for filepath: {filepath} {err}")
+        open(outfile, 'w').close()
+        os.chmod(outfile, 0o777)
+    except OSError as exc:
+        print(f"ERROR: Could not create output file {outfile}: {exc}")
+        return None
+
+    result = subprocess.run(cmd, capture_output=True)
+    if result.returncode != 0:
+        stderr_msg = result.stderr.decode(errors="replace").strip() if result.stderr else ""
+        print(f"ERROR: gm convert failed for {filepath}: {stderr_msg}")
+        try:
+            os.remove(outfile)
+        except OSError:
+            pass
+        return None
 
     if os.path.exists(outfile):
         return outfile
+    return None

@@ -264,8 +264,28 @@ def generate_images(
                 os.replace(proxy_thumb_path, stripped)
                 proxy_thumb_path = stripped
         else:
-            context.log.error(f"One or both JPEG image creations failed for file {Path(proxy_path).name}")
-            raise RuntimeError("JPEG proxy image failed for image and/or thumbnail")
+            error_detail = (
+                f"GraphicsMagick failed for {Path(proxy_path).name} — "
+                f"source JPEG may contain bad signal or corrupted data."
+            )
+            context.log.warning(error_detail)
+
+            db.update_file_status(
+                file_id,
+                proxy_image_path=None,
+                proxy_thumb_path=None,
+                error_message="Proxy image file generation failed",
+            )
+            _rollback_images_status(db, file_id)
+            return Output({
+                "file_id": file_id,
+                "proxy_video_path": proxy_path,
+                "proxy_image_path": "",
+                "proxy_thumb_path": "",
+            }, metadata={
+                "duration_sec": round(time.perf_counter() - tic, 3),
+                "preview": f"Image generation failed: {filename_stem}",
+            })
 
         if mime == "video":
             context.log.info("Cleaning up Video proxy filename / JPEG export")
@@ -359,7 +379,7 @@ def _rollback_images_status(db, file_id: int) -> None:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE app.file_catalogue SET file_status = 'verified', "
+                "UPDATE app.file_catalogue SET file_status = 'encoded', "
                 "updated_at = NOW() WHERE id = %s",
                 (file_id,),
             )
