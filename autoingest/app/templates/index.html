@@ -67,6 +67,35 @@ async function loadFiles() {
     setTimeout(loadFiles, 30000);
 }
 
+function getActionOptions(status) {
+    var earlierMap = {
+        "assessed": "No Status",
+        "generating_checksum": "assessed",
+        "checksummed": "assessed",
+        "cataloguing": "checksummed",
+        "File cleared for ingest": "checksummed",
+        "bp_json_pending": "File cleared for ingest",
+        "validating": "File cleared for ingest",
+        "verified": "File cleared for ingest",
+        "encoding": "verified",
+        "encoded": "verified",
+        "generating_images": "verified",
+        "encoding_complete": "verified",
+        "deleting_source": "encoding_complete",
+        "complete": "encoding_complete",
+        "updating_cid": "complete",
+        "All stages complete": "complete",
+    };
+    var options = [];
+    options.push({value: "refresh", label: "↻ Return to pre-ingest"});
+    options.push({value: "validator", label: "↺ Return to pre-validation"});
+    if (earlierMap[status]) {
+        options.push({value: "reset:" + earlierMap[status], label: "⚙ Status Reset → " + earlierMap[status]});
+    }
+    options.push({value: "delete", label: "✕ Delete record"});
+    return options;
+}
+
 function renderTable(files) {
     var tbody = document.getElementById("tableBody");
     if (files.length === 0) {
@@ -86,6 +115,15 @@ function renderTable(files) {
             f.file_status === "Error" ? "status-error" :
             f.file_status && f.file_status.toLowerCase().indexOf("fail") !== -1 ? "status-error" :
             "status-pending";
+
+        var options = getActionOptions(f.file_status);
+        var selectId = "actionSelect_" + f.id;
+        var selectHtml = '<select id="' + selectId + '" class="action-select">';
+        for (var j = 0; j < options.length; j++) {
+            selectHtml += '<option value="' + esc(options[j].value) + '">' + esc(options[j].label) + '</option>';
+        }
+        selectHtml += '</select>';
+
         html +=
             '<tr>' +
             '<td>' + esc(f.id) + '</td>' +
@@ -102,9 +140,8 @@ function renderTable(files) {
             '<td>' + esc(f.created_at) + '</td>' +
             '<td>' + esc(f.updated_at) + '</td>' +
             '<td>' +
-                '<button class="btn-retry" onclick="refreshFile(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Reset for re-ingest">↻</button>' +
-                '<button class="btn-reset" onclick="validatorReset(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Reset validation state">↺</button>' +
-                '<button class="btn-delete" onclick="deleteFile(' + f.id + ',\'' + esc(f.file_name) + '\')" title="Delete from database">✕</button>' +
+                selectHtml +
+                '<button class="btn-submit" onclick="submitAction(' + f.id + ',\'' + esc(f.file_name) + '\',\'' + esc(f.file_status) + '\')" title="Execute selected action">Submit</button>' +
             '</td>' +
             '</tr>';
     }
@@ -117,13 +154,35 @@ function esc(v) {
         .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-async function refreshFile(id, name) {
-    if (!confirm('Reset file "' + name + '" for re-ingest?\n\nThis will move the file back to the watch folder and queue it for processing.')) return;
-    var btn = event.target;
-    btn.disabled = true;
-    btn.textContent = "…";
+async function submitAction(id, name, status) {
+    var select = document.getElementById("actionSelect_" + id);
+    if (!select) return;
+    var value = select.value;
+
+    if (value === "refresh") {
+        if (!confirm('Reset file "' + name + '" for re-ingest?\n\nThis will clear all accrued metadata and return the file to "No Status".')) return;
+        await doAction("/api/refresh/" + id, "POST", "refresh", name);
+    } else if (value === "validator") {
+        if (!confirm('⚠ WARNING: Reset validation state for "' + name + '"?\n\nA CID Media Record and/or Black Pearl file may need to be deleted manually before proceeding.\n\nThis returns the file to "File cleared for ingest". bp_job_id is retained.\n\nContinue?')) return;
+        await doAction("/api/validator-reset/" + id, "POST", "validator", name);
+    } else if (value.startsWith("reset:")) {
+        var newStatus = value.split(":")[1];
+        if (!confirm('Reset status for "' + name + '" from "' + status + '" to "' + newStatus + '"?\n\nError message will be cleared.')) return;
+        await doAction("/api/status-reset/" + id, "POST", "status", name, {new_status: newStatus});
+    } else if (value === "delete") {
+        if (!confirm('Permanently delete "' + name + '" from the database?\n\nThis removes the row. The file on disk is not affected.')) return;
+        await doAction("/api/delete/" + id, "DELETE", "delete", name);
+    }
+}
+
+async function doAction(url, method, actionType, name, body) {
+    var opts = {method: method};
+    if (body) {
+        opts.headers = {"Content-Type": "application/json"};
+        opts.body = JSON.stringify(body);
+    }
     try {
-        var resp = await fetch("/api/refresh/" + id, { method: "POST" });
+        var resp = await fetch(url, opts);
         var result = await resp.json();
         if (result.success) {
             alert(result.message);
@@ -134,48 +193,6 @@ async function refreshFile(id, name) {
     } catch (e) {
         alert("Request failed");
     }
-    btn.disabled = false;
-    btn.textContent = "↻";
-}
-
-async function deleteFile(id, name) {
-    if (!confirm('Permanently delete "' + name + '" from the database?\n\nThis removes the row. The file on disk is not affected.')) return;
-    var btn = event.target;
-    btn.disabled = true;
-    btn.textContent = "…";
-    try {
-        var resp = await fetch("/api/delete/" + id, { method: "DELETE" });
-        var result = await resp.json();
-        if (result.success) {
-            loadFiles();
-        } else {
-            alert("Error: " + result.error);
-        }
-    } catch (e) {
-        alert("Request failed");
-    }
-    btn.disabled = false;
-    btn.textContent = "✕";
-}
-
-async function validatorReset(id, name) {
-    if (!confirm('Reset validation state for "' + name + '"?\n\nThis returns the file to pre-verification state. bp_job_id is retained.')) return;
-    var btn = event.target;
-    btn.disabled = true;
-    btn.textContent = "…";
-    try {
-        var resp = await fetch("/api/validator-reset/" + id, { method: "POST" });
-        var result = await resp.json();
-        if (result.success) {
-            loadFiles();
-        } else {
-            alert("Error: " + result.error);
-        }
-    } catch (e) {
-        alert("Request failed");
-    }
-    btn.disabled = false;
-    btn.textContent = "↺";
 }
 
 async function loadStats() {

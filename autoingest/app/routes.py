@@ -24,6 +24,26 @@ def _format_size(size_bytes):
     return f"{size} B"
 
 
+_ONE_STEP_EARLIER = {
+    "assessed": "No Status",
+    "generating_checksum": "assessed",
+    "checksummed": "assessed",
+    "cataloguing": "checksummed",
+    "File cleared for ingest": "checksummed",
+    "bp_json_pending": "File cleared for ingest",
+    "validating": "File cleared for ingest",
+    "verified": "File cleared for ingest",
+    "encoding": "verified",
+    "encoded": "verified",
+    "generating_images": "verified",
+    "encoding_complete": "verified",
+    "deleting_source": "encoding_complete",
+    "complete": "encoding_complete",
+    "updating_cid": "complete",
+    "All stages complete": "complete",
+}
+
+
 @bp.route("/")
 def index():
     return render_template(
@@ -152,11 +172,62 @@ def api_refresh(file_id):
                 UPDATE app.file_catalogue
                 SET file_status = 'No Status',
                     do_ingest = 'UNKNOWN',
+                    incomplete_scan = 'UNKNOWN',
+                    screencraft_arch = 'UNKNOWN',
+                    part = NULL,
+                    whole = NULL,
                     error_message = NULL,
                     tape_verified = NULL,
                     proxy_created = NULL,
                     source_deletion = NULL,
                     validated = NULL,
+                    checksum_xxh = NULL,
+                    checksum_md5 = NULL,
+                    checksum_date = NULL,
+                    file_fmt = NULL,
+                    video_codec = NULL,
+                    audio_codec = NULL,
+                    writing_library = NULL,
+                    audio_format = NULL,
+                    framerate = NULL,
+                    audio_ch_total = NULL,
+                    audio_count = NULL,
+                    video_count = NULL,
+                    height = NULL,
+                    width = NULL,
+                    colorspace = NULL,
+                    bitdepth = NULL,
+                    video_duration = NULL,
+                    ffmpeg_command = NULL,
+                    proxy_video_path = NULL,
+                    proxy_size = NULL,
+                    proxy_image_path = NULL,
+                    proxy_thumb_path = NULL,
+                    mdata_text = NULL,
+                    mdata_full_text = NULL,
+                    mdata_full_xml = NULL,
+                    mdata_ebucore = NULL,
+                    mdata_pbcore = NULL,
+                    mdata_full_json = '{}',
+                    mdata_exif = NULL,
+                    cid_item_priref = NULL,
+                    cid_file_type = NULL,
+                    cid_ob_num = NULL,
+                    cid_media_priref = NULL,
+                    bp_bucket = NULL,
+                    bp_job_id = NULL,
+                    put_type = NULL,
+                    persisted_ok = NULL,
+                    bp_etag = NULL,
+                    bp_length = NULL,
+                    bp_version_id = NULL,
+                    reference_num = NULL,
+                    updated_to_cid = NULL,
+                    encode_time_sec = NULL,
+                    image_time_sec = NULL,
+                    checksum_time_sec = NULL,
+                    verify_time_sec = NULL,
+                    total_ingest_time_sec = NULL,
                     updated_at = NOW()
                 WHERE id = %s
             """, (file_id,))
@@ -232,9 +303,15 @@ def api_validator_reset(file_id):
                     error_message   = NULL,
                     tape_verified   = NULL,
                     validated       = NULL,
+                    cid_media_priref = NULL,
+                    proxy_video_path = NULL,
+                    proxy_image_path = NULL,
+                    proxy_thumb_path = NULL,
+                    proxy_size      = NULL,
+                    bp_version_id   = NULL,
                     bp_etag         = NULL,
                     bp_length       = NULL,
-                    bp_version_id   = NULL,
+                    ffmpeg_command  = NULL,
                     proxy_created   = NULL,
                     source_deletion = NULL,
                     updated_at      = NOW()
@@ -261,6 +338,65 @@ def api_validator_reset(file_id):
     return jsonify({
         "success": True,
         "message": f"'{file_name}' reset to pre-verification state. bp_job_id retained.",
+    })
+
+
+@bp.route("/api/status-reset/<int:file_id>", methods=["POST"])
+def api_status_reset(file_id):
+    db = _db()
+    data = request.get_json()
+    if not data or "new_status" not in data:
+        return jsonify({"success": False, "error": "Missing 'new_status' field"}), 400
+
+    new_status = data["new_status"].strip()
+    if new_status not in _ONE_STEP_EARLIER.values():
+        return jsonify({"success": False, "error": f"Invalid status: {new_status}"}), 400
+
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT file_name, file_status FROM app.file_catalogue WHERE id = %s",
+                (file_id,),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        return jsonify({"success": False, "error": "File not found"}), 404
+
+    file_name, current_status = row
+
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE app.file_catalogue
+                SET file_status = %s,
+                    error_message = NULL,
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (new_status, file_id))
+
+    try:
+        db.record_pipeline_event(
+            run_id="manual",
+            job_name="viewer",
+            op_name="status_reset",
+            event_type="manual_status_reset",
+            status="success",
+            metadata={
+                "file_id": file_id,
+                "file_name": file_name,
+                "old_status": current_status,
+                "new_status": new_status,
+                "timestamp": str(datetime.now())[:19],
+            },
+            message=f"Manual status reset: '{file_name}' (id={file_id}) from '{current_status}' to '{new_status}'",
+        )
+    except Exception:
+        pass
+
+    return jsonify({
+        "success": True,
+        "message": f"'{file_name}' status reset from '{current_status}' to '{new_status}'.",
     })
 
 
