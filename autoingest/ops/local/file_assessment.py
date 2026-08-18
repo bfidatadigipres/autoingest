@@ -72,30 +72,10 @@ def assess_filename(context: OpExecutionContext) -> Output:
 
     context.log.info(CID_API)
     field_details = db.lookup_file_details(filename)
-    existing_error = ""
     if field_details is None:
         context.log.info(
             f"No field details found for filename '{filename}'"
         )
-    else:
-        if field_details[4] and len(field_details[4]) > 0:
-            print(field_details[4])
-            existing_error = field_details[4]
-            context.log.warning(f"Historical error found for ingest, will not proceed until error fixed and ingest refreshed: {existing_error}")
-            duration_sec = round(time.perf_counter() - tic, 3)
-            try:
-                db.record_pipeline_event(
-                    run_id=context.run_id,
-                    job_name=context.job_name,
-                    op_name="assess_filename",
-                    event_type="op_completed",
-                    status="failure",
-                    metadata={"duration_sec": duration_sec, "file_name": filename, "preview": f"Historical error: {existing_error}"},
-                    message=existing_error,
-                )
-            except Exception:
-                pass
-            return Output({}, metadata={"duration_sec": duration_sec, "file_name": filename})
 
     errors = []
     do_ingest = True
