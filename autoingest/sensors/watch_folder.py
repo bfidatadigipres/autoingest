@@ -23,8 +23,22 @@ RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
 def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     tick_start = time.perf_counter()
 
-    watch_paths = os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
-    watch_paths = [p.strip() for p in watch_paths if p.strip()]
+    watch_paths_file = os.environ.get("WATCH_PATHS_FILE", "")
+    if watch_paths_file:
+        try:
+            watch_paths = [
+                line.strip()
+                for line in Path(watch_paths_file).read_text().splitlines()
+                if line.strip() and not line.startswith("#")
+            ]
+        except Exception as exc:
+            context.log.warning(f"Failed to read {watch_paths_file}: {exc}")
+            watch_paths = []
+    else:
+        watch_paths = [
+            p.strip() for p in os.environ.get("WATCH_FOLDER_PATHS", "").split(",")
+            if p.strip()
+        ]
 
     if not watch_paths:
         context.log.warning("WATCH_FOLDER_PATHS is empty — no folders to watch.")
