@@ -1,6 +1,7 @@
 import os
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
@@ -11,6 +12,7 @@ from autoingest.resources.utils import accepted_file_type
 MAX_INGEST_DEPTH = 30
 MAX_NEW_PER_TICK = 10
 TICK_DEADLINE_SEC = 55
+CURSOR_TIMEOUT_SEC = 900  # 15 minutes
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
 
 
@@ -128,25 +130,62 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     # ── Phase 2: Load and prune cursor ───────────────────────
     # Cursor stores paths that have been launched but not yet
     # confirmed by DB — sensor memory between ticks.
+    # Format: {"submitted": [...], "timestamps": {path: iso_time}}
+    # Old format (list) auto-migrates on first tick.
 
     submitted_paths: set[str] = set()
+    submitted_timestamps: dict[str, str] = {}
     if context.cursor:
         try:
             raw = json.loads(context.cursor)
             if isinstance(raw, list):
                 submitted_paths = set(raw)
+            elif isinstance(raw, dict):
+                submitted_paths = set(raw.get("submitted", []))
+                submitted_timestamps = raw.get("timestamps", {})
         except (json.JSONDecodeError, TypeError):
             submitted_paths = set()
+            submitted_timestamps = {}
 
     cursor_initial = len(submitted_paths)
+
+    # Migrate old-format entries (no timestamp) to current time.
+    now = datetime.now(timezone.utc)
+    for path in submitted_paths:
+        if path not in submitted_timestamps:
+            submitted_timestamps[path] = now.isoformat()
 
     # Prune: remove paths for files no longer on disk (moved away
     # by catalogue after processing).
     stale_on_disk = submitted_paths - set(current_files.keys())
     submitted_paths -= stale_on_disk
+    for path in stale_on_disk:
+        submitted_timestamps.pop(path, None)
     if stale_on_disk:
         context.log.info(
             f"Cursor: removed {len(stale_on_disk)} paths no longer on disk"
+        )
+
+    # Prune: remove paths that have been in the cursor longer than
+    # the timeout without being confirmed by the DB. These files
+    # will become candidates again on the next tick.
+    timed_out_paths = set()
+    for path in list(submitted_paths):
+        ts_str = submitted_timestamps.get(path)
+        if ts_str:
+            try:
+                ts = datetime.fromisoformat(ts_str)
+                if (now - ts).total_seconds() > CURSOR_TIMEOUT_SEC:
+                    timed_out_paths.add(path)
+                    submitted_timestamps.pop(path, None)
+            except ValueError:
+                timed_out_paths.add(path)
+                submitted_timestamps.pop(path, None)
+    submitted_paths -= timed_out_paths
+    if timed_out_paths:
+        context.log.info(
+            f"Cursor: evicted {len(timed_out_paths)} entries "
+            f"older than {CURSOR_TIMEOUT_SEC}s — will retry"
         )
 
     # ── Phase 3: DB batch lookup ─────────────────────────────
@@ -272,11 +311,16 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             )
         )
         submitted_paths.add(file_key)
+        submitted_timestamps[file_key] = datetime.now(timezone.utc).isoformat()
         launched += 1
 
     # ── Phase 7: Update cursor ────────────────────────────────
 
-    context.update_cursor(json.dumps(sorted(submitted_paths)))
+    cursor_data = {
+        "submitted": sorted(submitted_paths),
+        "timestamps": submitted_timestamps,
+    }
+    context.update_cursor(json.dumps(cursor_data))
     context.log.info(
         f"Cursor updated — {launched} launched, "
         f"{len(submitted_paths)} pending, "
