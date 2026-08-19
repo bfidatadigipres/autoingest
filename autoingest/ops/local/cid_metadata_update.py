@@ -144,7 +144,7 @@ def update_cid_metadata(context: OpExecutionContext) -> Output:
                 "mdata_text, mdata_full_text, mdata_full_xml, "
                 "mdata_ebucore, mdata_pbcore "
                 "FROM app.file_catalogue WHERE file_name = %s "
-                "ORDER BY created_at DESC LIMIT 1",
+                "ORDER BY created_at ASC LIMIT 1",
                 (file_name,),
             )
             row = cur.fetchone()

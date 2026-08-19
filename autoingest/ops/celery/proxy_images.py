@@ -40,7 +40,7 @@ def generate_images(
                 cur.execute(
                     "SELECT id, file_path, mime_type, source, proxy_video_path "
                     "FROM app.file_catalogue WHERE file_name = %s "
-                    "ORDER BY created_at DESC LIMIT 1",
+                    "ORDER BY created_at ASC LIMIT 1",
                     (file_name,),
                 )
                 row = cur.fetchone()
@@ -99,7 +99,7 @@ def generate_images(
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT file_status FROM app.file_catalogue "
-                "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
+                "WHERE file_name = %s ORDER BY created_at ASC LIMIT 1",
                 (file_name,),
             )
             row = cur.fetchone()

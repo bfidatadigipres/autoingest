@@ -26,9 +26,10 @@ def encode_proxy_mp4(
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, file_status, mime_type, source, ingest_month, bp_job_id "
+                "SELECT id, file_status, mime_type, source, ingest_month, "
+                "bp_job_id, proxy_video_path "
                 "FROM app.file_catalogue "
-                "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
+                "WHERE file_name = %s ORDER BY created_at ASC LIMIT 1",
                 (filename,),
             )
             row = cur.fetchone()
@@ -44,37 +45,64 @@ def encode_proxy_mp4(
             "proxy_size": "",
         }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    file_id, file_status, mime_type, source, ingest_month, bp_job_id = row
+    file_id, file_status, mime_type, source, ingest_month, bp_job_id, existing_proxy = row
+
+    if existing_proxy:
+        context.log.info(
+            f"File {filename} already has proxy_video_path set — "
+            f"skipping encoding (status: {file_status})"
+        )
+        return Output({
+            "file_id": file_id,
+            "file_path": file_path,
+            "source": source,
+            "mime_type": mime_type,
+            "proxy_video_path": existing_proxy,
+            "proxy_size": "",
+        }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     if file_status == "encoding":
-        context.log.error(
+        context.log.info(
             f"File {filename} is already being encoded by a concurrent run. Aborting."
         )
-        raise RuntimeError(
-            f"File {filename} has status '{file_status}' at start of encoding — "
-            "a concurrent run is already encoding this file. "
-            "No work performed by this run."
-        )
+        return Output({
+            "file_id": file_id,
+            "file_path": file_path,
+            "source": source,
+            "mime_type": mime_type,
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     if file_status != "verified":
-        context.log.error(
+        context.log.info(
             f"File {filename} has status '{file_status}' — expected 'verified'. "
             "A concurrent run may have already processed this file. Aborting."
         )
-        raise RuntimeError(
-            f"File {filename} has unexpected status '{file_status}' at start of "
-            f"encoding — expected 'verified'. A duplicate run likely triggered for "
-            f"a file already processed by a concurrent encoding job. "
-            f"No work performed by this run."
-        )
+        return Output({
+            "file_id": file_id,
+            "file_path": file_path,
+            "source": source,
+            "mime_type": mime_type,
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     root = Path(file_path).parent.parent.parent.parent
     source_path = root / "autoingest" / "validation" / (bp_job_id or "") / filename
     if not source_path.is_file():
-        raise RuntimeError(
+        context.log.warning(
             f"Source file not found at validation path: {source_path}. "
             f"Original ingest path ({file_path}) may be stale — file has moved through the pipeline."
         )
+        return Output({
+            "file_id": file_id,
+            "file_path": file_path,
+            "source": source,
+            "mime_type": mime_type,
+            "proxy_video_path": "",
+            "proxy_size": "",
+        }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     file_path = str(source_path)
 
@@ -358,6 +386,13 @@ def _set_encoding_status(db, file_id: int) -> None:
 def _rollback_encoding_status(db, file_id: int) -> None:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
+            cur.execute(
+                "SELECT proxy_video_path FROM app.file_catalogue WHERE id = %s",
+                (file_id,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return
             cur.execute(
                 "UPDATE app.file_catalogue SET file_status = 'verified', "
                 "updated_at = NOW() WHERE id = %s",

@@ -251,7 +251,7 @@ class WorkflowDatabase:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT id, file_status FROM app.file_catalogue "
-                    "WHERE file_name = %s ORDER BY created_at DESC LIMIT 1",
+                    "WHERE file_name = %s ORDER BY created_at ASC LIMIT 1",
                     (file_name,),
                 )
                 existing = cur.fetchone()

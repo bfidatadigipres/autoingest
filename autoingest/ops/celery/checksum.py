@@ -22,9 +22,9 @@ def generate_checksum(context: OpExecutionContext) -> Output:
     with db.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, file_status, do_ingest, file_size, file_path "
+                "SELECT id, file_status, do_ingest, file_size "
                 "FROM app.file_catalogue WHERE file_name = %s "
-                "ORDER BY created_at DESC LIMIT 1",
+                "ORDER BY created_at ASC LIMIT 1",
                 (file_name,),
             )
             row = cur.fetchone()
@@ -33,17 +33,18 @@ def generate_checksum(context: OpExecutionContext) -> Output:
         context.log.info(f"No DB record found for {file_name}. Skipping.")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    file_id, file_status, do_ingest, file_size, stored_path = row
+    file_id, file_status, do_ingest, file_size = row
 
-    if file_status == "generating_checksum":
-        context.log.info(f"File {file_name} is already being checksummed. Skipping.")
-        return Output({}, metadata={
-            "duration_sec": round(time.perf_counter() - tic, 3),
-            "preview": f"Already checksumming: {file_name}",
-        })
+    if file_status != "assessed":
+        context.log.info(
+            f"Skipping checksum for {file_name} — status is '{file_status}', expected 'assessed'"
+        )
+        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    if do_ingest != "TRUE":
-        context.log.info(f"Skipping checksum generation — file not cleared for ingest: {file_name}")
+    if not Path(file_path).is_file():
+        context.log.error(
+            f"File not found at {file_path} — cannot generate checksum for {file_name}"
+        )
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
     worker = socket.gethostname()
