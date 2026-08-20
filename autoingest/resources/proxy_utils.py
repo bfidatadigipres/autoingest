@@ -383,17 +383,17 @@ def check_audio(
         return None, None, None
 
     try:
-        lang0 = subprocess.check_output(cmd0)
+        lang0 = subprocess.check_output(cmd0, errors="replace")
         lang0_str = lang0.decode("utf-8")
     except (subprocess.CalledProcessError, Exception):
         lang0_str = ""
     try:
-        lang1 = subprocess.check_output(cmd1)
+        lang1 = subprocess.check_output(cmd1, errors="replace")
         lang1_str = lang1.decode("utf-8")
     except (subprocess.CalledProcessError, Exception):
         lang1_str = ""
     try:
-        streams = subprocess.check_output(cmd2)
+        streams = subprocess.check_output(cmd2, errors="replace")
         streams_str = streams.decode("utf-8").lstrip("\n").rstrip("\n").split("\n")
     except (subprocess.CalledProcessError, Exception):
         streams_str = None
@@ -461,7 +461,7 @@ def check_for_mixed_audio(fpath: str) -> Optional[dict[str, int]]:
         "csv=p=0",
         fpath,
     ]
-    audio = subprocess.check_output(cmd)
+    audio = subprocess.check_output(cmd, errors="replace")
     audio_str = str(audio.decode("utf-8").lstrip("\n").rstrip("\n"))
     audio_channels = str(audio_str).split("\n")
     if len(audio_channels) > 1:
@@ -492,7 +492,7 @@ def check_for_fl_fr(fpath: str) -> bool:
         "csv=p=0",
         fpath,
     ]
-    audio = subprocess.check_output(cmd)
+    audio = subprocess.check_output(cmd, errors="replace")
     audio_str = str(audio.decode("utf-8")).lstrip("\n").rstrip("\n")
     audio_channels = audio_str.split("\n")
     if "5.1(side)" in audio_channels:
@@ -541,6 +541,7 @@ def call_ffmpeg_command(ffmpeg_cmd: list[str]) -> subprocess.CompletedProcess:
             shell=False,
             capture_output=True,
             text=True,
+            errors="replace",
         )
     except Exception as e:
         print(e)
@@ -564,6 +565,7 @@ def validate_mp4_moov(output_path: str) -> tuple[bool, str]:
         ],
         capture_output=True,
         text=True,
+        errors="replace",
     )
     if result.returncode != 0:
         return False, result.stderr.strip() or "ffprobe returned non-zero exit code"
@@ -678,7 +680,7 @@ def get_jpeg(seconds: list[float], fullpath: str, outpath: str) -> bool:
 
         command = " ".join(cmd)
         print(f"Trying JPEG extraction at {candidate}s: {command}")
-        result = subprocess.run(cmd, capture_output=True)
+        result = subprocess.run(cmd, capture_output=True, errors="replace")
         if result.returncode == 0 and os.path.isfile(outpath):
             os.chmod(outpath, 0o777)
             print(f"JPEG extraction succeeded at {candidate}s")

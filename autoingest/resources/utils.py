@@ -232,7 +232,7 @@ def get_metadata(stream: str, arg: str, dpath: str) -> str:
         dpath,
     ]
 
-    meta = subprocess.check_output(cmd)
+    meta = subprocess.check_output(cmd, errors="replace")
     return meta.decode("utf-8").strip()
 
 
@@ -345,7 +345,7 @@ def exif_data(dpath: str) -> Optional[list[str]]:
 
     cmd = ["exiftool", dpath]
     try:
-        data = subprocess.run(cmd, shell=False, capture_output=True)
+        data = subprocess.run(cmd, shell=False, capture_output=True, errors="replace")
         data = data.stdout.decode("latin-1")
         print(data)
     except subprocess.CalledProcessError as err:
@@ -363,7 +363,7 @@ def check_ffprobe_exit(fpath: str) -> Optional[int]:
     """
     cmd = ["ffprobe", "-i", fpath, "-loglevel", "-8"]
     try:
-        code = subprocess.run(cmd, check=True, shell=False)
+        code = subprocess.run(cmd, check=True, shell=False, errors="replace")
         print(f"*ffprobe read file successfully - status {code.returncode}")
         return code.returncode
     except Exception as err:
@@ -378,7 +378,7 @@ def get_mediaconch(dpath: str, policy: str) -> bool:
     """
 
     cmd = ["mediaconch", "--force", "-p", policy, dpath]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
     return result.stdout.startswith(f"pass! {dpath}")
 
 
@@ -400,7 +400,7 @@ def get_duration(filepath: str) -> Optional[str]:
         filepath,
     ]
     try:
-        duration = subprocess.check_output(cmd)
+        duration = subprocess.check_output(cmd, errors="replace")
     except subprocess.CalledProcessError as err:
         print(f"Unable to extract duration with FFprobe: {err}")
         retry = True
@@ -415,7 +415,7 @@ def get_duration(filepath: str) -> Optional[str]:
         ]
 
         try:
-            duration = subprocess.check_output(cmd)
+            duration = subprocess.check_output(cmd, error="replace")
         except Exception as err:
             print(f"Unable to extract duration with MediaInfo: {err}")
     if duration:
@@ -543,7 +543,7 @@ def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: 
     ]
 
     try:
-        results = subprocess.run(command, shell=False, capture_output=True)
+        results = subprocess.run(command, shell=False, capture_output=True, errors="replace")
     except Exception as err:
         print(err)
         return None
