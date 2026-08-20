@@ -383,17 +383,17 @@ def check_audio(
         return None, None, None
 
     try:
-        lang0 = subprocess.check_output(cmd0, errors="replace")
+        lang0 = subprocess.check_output(cmd0)
         lang0_str = lang0.decode("utf-8")
     except (subprocess.CalledProcessError, Exception):
         lang0_str = ""
     try:
-        lang1 = subprocess.check_output(cmd1, errors="replace")
+        lang1 = subprocess.check_output(cmd1)
         lang1_str = lang1.decode("utf-8")
     except (subprocess.CalledProcessError, Exception):
         lang1_str = ""
     try:
-        streams = subprocess.check_output(cmd2, errors="replace")
+        streams = subprocess.check_output(cmd2)
         streams_str = streams.decode("utf-8").lstrip("\n").rstrip("\n").split("\n")
     except (subprocess.CalledProcessError, Exception):
         streams_str = None
@@ -461,7 +461,7 @@ def check_for_mixed_audio(fpath: str) -> Optional[dict[str, int]]:
         "csv=p=0",
         fpath,
     ]
-    audio = subprocess.check_output(cmd, errors="replace")
+    audio = subprocess.check_output(cmd)
     audio_str = str(audio.decode("utf-8").lstrip("\n").rstrip("\n"))
     audio_channels = str(audio_str).split("\n")
     if len(audio_channels) > 1:
@@ -492,7 +492,7 @@ def check_for_fl_fr(fpath: str) -> bool:
         "csv=p=0",
         fpath,
     ]
-    audio = subprocess.check_output(cmd, errors="replace")
+    audio = subprocess.check_output(cmd)
     audio_str = str(audio.decode("utf-8")).lstrip("\n").rstrip("\n")
     audio_channels = audio_str.split("\n")
     if "5.1(side)" in audio_channels:

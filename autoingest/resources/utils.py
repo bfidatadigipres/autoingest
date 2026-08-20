@@ -232,7 +232,7 @@ def get_metadata(stream: str, arg: str, dpath: str) -> str:
         dpath,
     ]
 
-    meta = subprocess.check_output(cmd, errors="replace")
+    meta = subprocess.check_output(cmd)
     return meta.decode("utf-8").strip()
 
 
@@ -400,7 +400,7 @@ def get_duration(filepath: str) -> Optional[str]:
         filepath,
     ]
     try:
-        duration = subprocess.check_output(cmd, errors="replace")
+        duration = subprocess.check_output(cmd)
     except subprocess.CalledProcessError as err:
         print(f"Unable to extract duration with FFprobe: {err}")
         retry = True
@@ -415,7 +415,7 @@ def get_duration(filepath: str) -> Optional[str]:
         ]
 
         try:
-            duration = subprocess.check_output(cmd, error="replace")
+            duration = subprocess.check_output(cmd)
         except Exception as err:
             print(f"Unable to extract duration with MediaInfo: {err}")
     if duration:
