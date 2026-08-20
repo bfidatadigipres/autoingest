@@ -328,6 +328,7 @@ def sort_ext(ext: str) -> Optional[str]:
             "rtf",
             "csv",
             "ttml",
+            "txt",
         ],
     }
 

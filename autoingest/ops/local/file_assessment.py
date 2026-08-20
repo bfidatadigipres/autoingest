@@ -181,7 +181,11 @@ def assess_filename(context: OpExecutionContext) -> Output:
 
     if not incomplete_scan or part != 1 or whole != 1:
         previous_part = check_for_multipart(filename, part, whole)
-        if previous_part is True:
+        if previous_part is False:
+            context.log.info(f"Part whole absent for multipart checks: {filename}")
+            errors.append(f"Cannot parse partWhole from filename {filename}")
+            do_ingest = False
+        elif previous_part is True:
             pass
         elif previous_part:
             pp_field_details = db.lookup_file_details(previous_part)
@@ -437,7 +441,7 @@ def ext_in_file_type(
 def check_for_multipart(filename: str, part: int | None, whole: int | None) -> Union[bool, str]:
 
     if part is None or whole is None:
-        return True
+        return False
 
     file_split = filename.split("_")
     if len(file_split) == 4:
