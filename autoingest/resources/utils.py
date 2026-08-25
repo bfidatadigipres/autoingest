@@ -528,7 +528,8 @@ def make_metadata(fpath: str, arg: str) -> str:
     elif arg == "mdata_full_json":
         data = mediainfo_create("-f", "JSON", fpath)
 
-    return data.decode("utf-8").strip()
+    if data:
+        return data.decode("utf-8").strip()
 
 
 def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: Optional[str] = None) -> Optional[bytes]:
@@ -544,7 +545,7 @@ def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: 
     ]
 
     try:
-        results = subprocess.run(command, shell=False, capture_output=True, errors="replace")
+        results = subprocess.run(command, shell=False, capture_output=True)
     except Exception as err:
         print(err)
         return None
