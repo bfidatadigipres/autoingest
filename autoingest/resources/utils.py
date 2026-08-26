@@ -346,7 +346,7 @@ def exif_data(dpath: str) -> Optional[list[str]]:
 
     cmd = ["exiftool", dpath]
     try:
-        data = subprocess.run(cmd, shell=False, capture_output=True, errors="replace")
+        data = subprocess.run(cmd, shell=False, capture_output=True)
         data = data.stdout.decode("latin-1")
         print(data)
     except subprocess.CalledProcessError as err:
@@ -364,7 +364,7 @@ def check_ffprobe_exit(fpath: str) -> Optional[int]:
     """
     cmd = ["ffprobe", "-i", fpath, "-loglevel", "-8"]
     try:
-        code = subprocess.run(cmd, check=True, shell=False, errors="replace")
+        code = subprocess.run(cmd, check=True, shell=False)
         print(f"*ffprobe read file successfully - status {code.returncode}")
         return code.returncode
     except Exception as err:
@@ -379,7 +379,7 @@ def get_mediaconch(dpath: str, policy: str) -> bool:
     """
 
     cmd = ["mediaconch", "--force", "-p", policy, dpath]
-    result = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    result = subprocess.run(cmd, capture_output=True, text=True)
     return result.stdout.startswith(f"pass! {dpath}")
 
 
