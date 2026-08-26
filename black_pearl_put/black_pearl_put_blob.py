@@ -59,10 +59,8 @@ def main():
     """
     if not sys.argv[1]:
         sys.exit("Missing launch path, script exiting")
-
-    if not utils.check_control("pause_scripts"):
+    if not utils.check_control("black_pearl"):
         sys.exit("Script run prevented by downtime_control.json. Script exiting.")
-
     if not utils.check_storage(sys.argv[1]):
         sys.exit("Script run prevented by storage_control.json. Script exiting.")
 
@@ -130,6 +128,15 @@ def main():
             if fname.endswith((".md5", ".log", ".mhl", ".ini", ".json")):
                 continue
             fpath = os.path.join(autoingest, fname)
+
+            status = bp.check_no_bp_status(fname, [bucket])
+            if status is False:
+                print(f"bp.check_no_bp_status: {status}")
+                LOGGER.warning(
+                    "Skipping. File already found in Black Pearl: %s",
+                    fname,
+                )
+                continue
 
             # Begin blobbed PUT (bool argument for checksum validation off/on in ds3Helpers)
             put_job_id = ""
