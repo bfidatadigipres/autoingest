@@ -10,7 +10,7 @@ from autoingest.resources.utils import accepted_file_type
 
 
 MAX_INGEST_DEPTH = 30
-MAX_NEW_PER_TICK = 10
+MAX_NEW_PER_TICK = 50 # 10
 TICK_DEADLINE_SEC = 55
 CURSOR_TIMEOUT_SEC = 900  # 15 minutes
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}

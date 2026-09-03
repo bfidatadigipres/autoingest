@@ -24,7 +24,7 @@ run_coordinator:
     tag_concurrency_limits:
       - key: "dagster/job"
         value: "encoding_celery_job"
-        limit: 80
+        limit: 90
       - key: "dagster/job"
         value:
           applyLimitPerUniqueValue: true

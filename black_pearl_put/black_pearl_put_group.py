@@ -162,7 +162,7 @@ def main():
     """
     if not sys.argv[1]:
         sys.exit("Missing launch path, script exiting")
-    if not utils.check_control("black_pearl"):
+    if not utils.check_control("black_pearl_put"):
         logger.info("Script run prevented by downtime_control.json. Script exiting.")
         sys.exit("Script run prevented by downtime_control.json. Script exiting.")
     if not utils.check_storage(sys.argv[1]):
@@ -231,7 +231,7 @@ def main():
     # If no files, check for part filled folder first then exit
     if not files:
         for folder in folders:
-            if not utils.check_control("black_pearl") or not utils.check_control(
+            if not utils.check_control("black_pearl_put") or not utils.check_control(
                 "pause_scripts"
             ):
                 sys.exit(
@@ -289,7 +289,7 @@ def main():
         sys.exit()
 
     while files:
-        if not utils.check_control("black_pearl"):
+        if not utils.check_control("black_pearl_put"):
             sys.exit("Script run prevented by downtime_control.json. Script exiting.")
         folderpth = ""
         # Autoingest check for ingest_ path under 2TB
