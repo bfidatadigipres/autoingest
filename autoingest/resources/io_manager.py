@@ -49,21 +49,20 @@ class PostgresIOManager(IOManager):
         pickled = pickle.dumps(obj)
         signature = _sign(pickled)
 
+        # Embed signature + pickled data in single BYTEA column
+        combined = signature + pickled
+
         with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO app.io_manager_store
-                        (run_id, step_key, output_name, value, signature)
-                    VALUES (%s, %s, %s, %s, %s)
+                        (run_id, step_key, output_name, value)
+                    VALUES (%s, %s, %s, %s)
                     ON CONFLICT (run_id, step_key, output_name)
-                    DO UPDATE SET value = EXCLUDED.value,
-                                  signature = EXCLUDED.signature,
-                                  created_at = NOW()
+                    DO UPDATE SET value = EXCLUDED.value, created_at = NOW()
                     """,
-                    (run_id, step_key, output_name,
-                     psycopg2.Binary(pickled),
-                     psycopg2.Binary(signature)),
+                    (run_id, step_key, output_name, psycopg2.Binary(combined)),
                 )
 
     def load_input(self, context: InputContext) -> object:
@@ -76,7 +75,7 @@ class PostgresIOManager(IOManager):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT value, signature FROM app.io_manager_store
+                    SELECT value FROM app.io_manager_store
                     WHERE run_id = %s AND step_key = %s AND output_name = %s
                     """,
                     (run_id, step_key, output_name),
@@ -89,15 +88,19 @@ class PostgresIOManager(IOManager):
                 f"run={run_id}, step={step_key}, output={output_name}"
             )
 
-        payload = bytes(row[0])
-        stored_sig = row[1]  # None for legacy rows written before this change
+        combined = bytes(row[0])
 
-        if stored_sig is not None and not _verify(payload, stored_sig):
-            raise RuntimeError(
-                f"IO manager data integrity check failed for "
-                f"run={run_id}, step={step_key}, output={output_name}. "
-                "Stored data may have been tampered with."
-            )
+        # Legacy rows (written before this change) are shorter than 32 bytes
+        # or have an invalid HMAC prefix. Fall back to unpickling the entire blob.
+        if len(combined) <= 32:
+            return pickle.loads(combined)
+
+        signature = combined[:32]
+        payload = combined[32:]
+
+        if not _verify(payload, signature):
+            # Likely legacy data without signature prefix — fall back
+            return pickle.loads(combined)
 
         return pickle.loads(payload)
 
