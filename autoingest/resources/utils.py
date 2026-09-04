@@ -332,9 +332,9 @@ def sort_ext(ext: str) -> Optional[str]:
         ],
     }
 
-    ext = ext.lower()
+    ext = ext.strip().lower()
     for key, val in mime_type.items():
-        if ext in str(val):
+        if ext in val:
             return key
 
 
