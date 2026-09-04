@@ -21,11 +21,12 @@ def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[
     """
     bucket_list: list[str] = []
     key_bucket: str = ""
+    bucket_collection = bucket_collection.strip().lower()
 
     with open(DPI_BUCKETS) as data:
         bucket_data: dict[str, str] = json.load(data)
     for key, value in bucket_data.items():
-        if bucket_collection.lower() == "bfi":
+        if bucket_collection == "bfi":
             if blob_accepted:
                 if "preservationblobbing0" in str(key.lower()):
                     if value is True:
@@ -40,16 +41,16 @@ def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[
                     bucket_list.append(key)
                 elif "imagen" in str(key):
                     bucket_list.append(key)
-        elif bucket_collection.lower() in ("netflix", "amazon", "disney"):
+        elif bucket_collection in ("netflix", "amazon", "disney"):
             if blob_accepted:
-                if f"{bucket_collection.lower()}blobbing" in key:
+                if f"{bucket_collection}blobbing" in key:
                     if value is True:
                         key_bucket = key
                     bucket_list.append(key)
             else:
-                if f"{bucket_collection.strip()}blobbing" in key:
+                if f"{bucket_collection}blobbing" in key:
                     continue
-                elif f"{bucket_collection.strip()}0" in key:
+                elif f"{bucket_collection}0" in key:
                     if value is True:
                         key_bucket = key
                     bucket_list.append(key)

@@ -334,13 +334,13 @@ def sort_ext(ext: str) -> Optional[str]:
 
     ext = ext.lower()
     for key, val in mime_type.items():
-        if str(ext) == str(val):
+        if ext in str(val):
             return key
 
 
 def exif_data(dpath: str) -> Optional[list[str]]:
     """
-    Retrieve exiftool data
+      Retrieve exiftool data
     return match to field if available
     """
 
