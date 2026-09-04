@@ -352,9 +352,9 @@ def get_data_from_path(fpath: str) -> Tuple[str, bool, bool]:
 
 
 def check_mime_type(fpath: str) -> str:
-    mime = utils.sort_ext(fpath)
+    ext = os.path.splitext(fpath)[-1]
+    mime = utils.sort_ext(ext)
     if not mime:
-        ext = os.path.splitext(fpath)[-1]
         if ext == ".ts":
             return 'video'
         mime = magic.from_file(fpath, mime=True)
