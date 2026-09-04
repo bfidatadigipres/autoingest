@@ -333,8 +333,11 @@ def sort_ext(ext: str) -> Optional[str]:
     }
 
     ext = ext.strip().lower()
+    print(f"Received Extension for mime type comparison: '{ext}'")
     for key, val in mime_type.items():
+        print(f"{key}: {val}")
         if ext in val:
+            print(f"****** Matched ext {ext} to key {key}")
             return key
 
 
