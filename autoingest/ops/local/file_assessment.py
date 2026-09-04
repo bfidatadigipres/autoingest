@@ -352,7 +352,7 @@ def get_data_from_path(fpath: str) -> Tuple[str, bool, bool]:
 
 
 def check_mime_type(fpath: str) -> str:
-    ext = os.path.splitext(fpath)[-1]
+    ext = os.path.splitext(fpath)[-1].lstrip(".")
     mime = utils.sort_ext(ext)
     if not mime:
         if ext == ".ts":
