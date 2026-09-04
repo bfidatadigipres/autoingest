@@ -9,16 +9,28 @@ from dagster import IOManager, InputContext, OutputContext, io_manager
 
 IO_MANAGER_RETENTION_MONTHS = 4
 
-_IO_HMAC_KEY = os.environ.get("AUTOINGEST_IO_HMAC_KEY", "").encode("utf-8")
-if not _IO_HMAC_KEY:
-    raise RuntimeError(
-        "AUTOINGEST_IO_HMAC_KEY environment variable is not set. "
-        "Set it in /etc/environment on all servers before deploying."
-    )
+# ADD HMAC KEY HERE
+# Set AUTOINGEST_IO_HMAC_KEY in /etc/environment on ALL servers
+# (Dagster daemon + all Celery workers) before deploying this change.
+# Generate a key with: python3 -c "import secrets; print(secrets.token_hex(32))"
+_IO_HMAC_KEY: bytes | None = None
+
+
+def _get_hmac_key() -> bytes:
+    global _IO_HMAC_KEY
+    if _IO_HMAC_KEY is None:
+        key = os.environ.get("AUTOINGEST_IO_HMAC_KEY", "")
+        if not key:
+            raise RuntimeError(
+                "AUTOINGEST_IO_HMAC_KEY environment variable is not set. "
+                "Set it in /etc/environment on all servers before deploying."
+            )
+        _IO_HMAC_KEY = key.encode("utf-8")
+    return _IO_HMAC_KEY
 
 
 def _sign(payload: bytes) -> bytes:
-    return hmac.new(_IO_HMAC_KEY, payload, hashlib.sha256).digest()
+    return hmac.new(_get_hmac_key(), payload, hashlib.sha256).digest()
 
 
 def _verify(payload: bytes, signature: bytes) -> bool:
