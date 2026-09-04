@@ -65,54 +65,58 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             context.log.warning(f"Watch folder does not exist: {watch_path}")
             continue
 
+        def _scan_recursive(dir_path):
+            nonlocal total_scanned, skipped_extension, skipped_not_file, skipped_size, timed_out
+            try:
+                with os.scandir(dir_path) as scan_iter:
+                    for file_entry in scan_iter:
+                        total_scanned += 1
+
+                        if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
+                            timed_out = True
+                            return
+
+                        if not file_entry.is_file():
+                            if file_entry.is_dir():
+                                _scan_recursive(file_entry.path)
+                            else:
+                                skipped_not_file += 1
+                            continue
+                        if not accepted_file_type(
+                            Path(file_entry.name).suffix.lstrip(".")
+                        ):
+                            skipped_extension += 1
+                            continue
+
+                        try:
+                            st = file_entry.stat()
+                            age_sec = time.time() - st.st_mtime
+                            if age_sec < 5 or st.st_size == 0:
+                                skipped_size += 1
+                                context.log.info(
+                                    f"Skipping in-flight file: {file_entry.name} "
+                                    f"(modified {age_sec:.1f}s ago, size={st.st_size})"
+                                )
+                                continue
+                        except OSError as exc:
+                            context.log.warning(
+                                f"OS error checking {file_entry.name}: {exc}"
+                            )
+                            continue
+
+                        current_files[file_entry.path] = {
+                            "size": st.st_size,
+                            "mtime": st.st_mtime,
+                        }
+            except OSError:
+                pass
+
         try:
             with os.scandir(watch_dir) as dir_iter:
                 for entry in dir_iter:
                     if not entry.is_dir():
                         continue
-                    folder_path = entry.path
-                    try:
-                        with os.scandir(folder_path) as file_iter:
-                            for file_entry in file_iter:
-                                total_scanned += 1
-
-                                if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
-                                    timed_out = True
-                                    break
-
-                                if not file_entry.is_file():
-                                    skipped_not_file += 1
-                                    continue
-                                if not accepted_file_type(
-                                    Path(file_entry.name).suffix.lstrip(".")
-                                ):
-                                    skipped_extension += 1
-                                    continue
-
-                                try:
-                                    st = file_entry.stat()
-                                    age_sec = time.time() - st.st_mtime
-                                    if age_sec < 5 or st.st_size == 0:
-                                        skipped_size += 1
-                                        context.log.info(
-                                            f"Skipping in-flight file: {file_entry.name} "
-                                            f"(modified {age_sec:.1f}s ago, size={st.st_size})"
-                                        )
-                                        continue
-                                except OSError as exc:
-                                    context.log.warning(
-                                        f"OS error checking {file_entry.name}: {exc}"
-                                    )
-                                    continue
-
-                                current_files[file_entry.path] = {
-                                    "size": st.st_size,
-                                    "mtime": st.st_mtime,
-                                }
-
-                    except OSError:
-                        continue
-
+                    _scan_recursive(entry.path)
                     if timed_out:
                         break
         except OSError:
