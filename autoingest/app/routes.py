@@ -65,7 +65,7 @@ def api_files():
 
     conditions = [
         "("
-        "(file_status != 'All stages complete' AND updated_at < NOW() - INTERVAL '24 hours')"
+        "(file_status != 'All stages complete' AND updated_at < NOW() - INTERVAL '0 hours')"
         " OR"
         " (error_message IS NOT NULL AND error_message != '')"
         ")"

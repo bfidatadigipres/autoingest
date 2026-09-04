@@ -8,11 +8,6 @@ from dagster import IOManager, InputContext, OutputContext, io_manager
 
 
 IO_MANAGER_RETENTION_MONTHS = 4
-
-# ADD HMAC KEY HERE
-# Set AUTOINGEST_IO_HMAC_KEY in /etc/environment on ALL servers
-# (Dagster daemon + all Celery workers) before deploying this change.
-# Generate a key with: python3 -c "import secrets; print(secrets.token_hex(32))"
 _IO_HMAC_KEY: bytes | None = None
 
 
