@@ -40,7 +40,7 @@ def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[
                     bucket_list.append(key)
                 elif "imagen" in str(key):
                     bucket_list.append(key)
-        elif bucket_collection.lower() in ("netflix", "amazon"):
+        elif bucket_collection.lower() in ("netflix", "amazon", "disney"):
             if blob_accepted:
                 if f"{bucket_collection.lower()}blobbing" in key:
                     if value is True:
