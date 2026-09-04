@@ -10,7 +10,7 @@ from autoingest.resources.utils import accepted_file_type
 
 
 MAX_INGEST_DEPTH = 30
-MAX_NEW_PER_TICK = 50 # 10
+MAX_NEW_PER_TICK = 30  # was 50, reduced to keep ticks well under 60s deadline
 TICK_DEADLINE_SEC = 55
 CURSOR_TIMEOUT_SEC = 900  # 15 minutes
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
@@ -51,7 +51,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     # ── Phase 1: Scan watch directories ──────────────────────
     # Always scan, regardless of pipeline depth.
 
-    current_files: dict[str, int] = {}
+    phase1_start = time.perf_counter()
+    current_files: dict[str, dict] = {}
     total_scanned = 0
     skipped_extension = 0
     skipped_not_file = 0
@@ -104,7 +105,10 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                                     )
                                     continue
 
-                                current_files[file_entry.path] = st.st_size
+                                current_files[file_entry.path] = {
+                                    "size": st.st_size,
+                                    "mtime": st.st_mtime,
+                                }
 
                     except OSError:
                         continue
@@ -126,12 +130,15 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         f"skipped: not-file={skipped_not_file} ext={skipped_extension} "
         f"size-unstable={skipped_size}, found={len(current_files)}"
     )
+    context.log.info(f"Phase 1 (scan) took {time.perf_counter() - phase1_start:.2f}s")
 
     # ── Phase 2: Load and prune cursor ───────────────────────
     # Cursor stores paths that have been launched but not yet
     # confirmed by DB — sensor memory between ticks.
     # Format: {"submitted": [...], "timestamps": {path: iso_time}}
     # Old format (list) auto-migrates on first tick.
+
+    phase2_start = time.perf_counter()
 
     submitted_paths: set[str] = set()
     submitted_timestamps: dict[str, str] = {}
@@ -192,6 +199,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     # Cross-reference both disk files and cursor entries against
     # DB to determine what truly needs processing.
 
+    phase3_start = time.perf_counter()
+
     all_disk_paths = set(current_files.keys())
     lookup_paths = all_disk_paths | submitted_paths
 
@@ -219,11 +228,15 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         f"(initial={cursor_initial}, pruned_disk={len(stale_on_disk)}, "
         f"pruned_db={len(cursor_with_db)})"
     )
+    context.log.info(f"Phase 3 (DB lookup) took {time.perf_counter() - phase3_start:.2f}s")
+    context.log.info(f"Phase 2 (cursor) took {time.perf_counter() - phase2_start:.2f}s")
 
     # ── Phase 4: Candidate filter ─────────────────────────────
     # A file needs processing iff:
     #   · NOT already launched (not in submitted_paths), AND
     #   · No DB row, OR DB row with retryable status
+
+    phase4_start = time.perf_counter()
 
     candidates = []
     skipped_cursor = 0
@@ -250,11 +263,14 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         f"Dedup: {len(candidates)} candidates, "
         f"skipped: cursor={skipped_cursor} db={skipped_db}"
     )
+    context.log.info(f"Phase 4 (filter) took {time.perf_counter() - phase4_start:.2f}s")
 
     # ── Phase 5: Gate check (ingest stages only) ─────────────
-    # Only count files actively in the pre-BP-PUT ingest pipeline.
+    # Only count Files actively in the pre-BP-PUT ingest pipeline.
     # 'File cleared for ingest' is excluded — it means catalogue
     # is done and the file is waiting for external BP PUT.
+
+    phase5_start = time.perf_counter()
 
     try:
         with db.get_connection() as conn:
@@ -284,9 +300,11 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         f"watch_folder_sensor: ingest depth — "
         f"{ingest_count} files (limit {MAX_INGEST_DEPTH})"
     )
+    context.log.info(f"Phase 5 (gate check) took {time.perf_counter() - phase5_start:.2f}s")
 
     # ── Phase 6: Launch RunRequests ───────────────────────────
 
+    phase6_start = time.perf_counter()
     run_requests = []
     launched = 0
     for file_key in candidates:
@@ -300,7 +318,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         context.log.info(f"New file detected: {fname}")
         run_requests.append(
             RunRequest(
-                run_key=f"ingest-{fname}-{int(os.stat(file_key).st_mtime)}",
+                run_key=f"ingest-{fname}-{int(current_files[file_key]['mtime'])}",
                 run_config={
                     "ops": {
                         "assess_filename": {
@@ -326,4 +344,6 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         f"{len(submitted_paths)} pending, "
         f"{len(current_files)} files on disk"
     )
+    context.log.info(f"Phase 6 (launch) took {time.perf_counter() - phase6_start:.2f}s")
+    context.log.info(f"Total tick time: {time.perf_counter() - tick_start:.2f}s")
     return run_requests
