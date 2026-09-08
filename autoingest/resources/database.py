@@ -188,7 +188,7 @@ class WorkflowDatabase:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT tape_verified, proxy_created
+                    SELECT tape_verified, bp_etag, checksum_md5
                     FROM app.file_catalogue WHERE id = %s
                     """,
                     (file_id,),
@@ -196,7 +196,10 @@ class WorkflowDatabase:
                 row = cur.fetchone()
                 if row is None:
                     return False
-                return row[0] is True and row[1] is True
+                if row[1] == row[2] and row[0] is True:
+                    return True
+        return False
+
 
     def try_claim_file(
         self, file_name: str, file_path: str
