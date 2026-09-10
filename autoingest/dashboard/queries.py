@@ -208,7 +208,6 @@ def fetch_error_distribution():
                        COUNT(*) AS count
                 FROM app.file_catalogue
                 WHERE error_message IS NOT NULL AND error_message != ''
-                  AND file_path LIKE '/mnt/%/autoingest/%'
                 GROUP BY error_message, storage
                 ORDER BY count DESC
                 LIMIT 30
@@ -227,7 +226,6 @@ def fetch_files_with_errors(limit: int = 100):
                        updated_at
                 FROM app.file_catalogue
                 WHERE error_message IS NOT NULL AND error_message != ''
-                  AND file_path LIKE '/mnt/%/autoingest/%'
                 ORDER BY updated_at DESC
                 LIMIT %s
             """, (limit,))
