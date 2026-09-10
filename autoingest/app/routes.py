@@ -49,6 +49,7 @@ def index():
     return render_template(
         "index.html",
         recovery_guide_url=current_app.config.get("RECOVERY_GUIDE_URL", ""),
+        confluence_url=current_app.config.get("CONFLUENCE_URL", ""),
         service_desk_url=current_app.config.get("SERVICE_DESK_URL", ""),
     )
 
