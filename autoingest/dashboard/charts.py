@@ -95,7 +95,7 @@ def _storage_stacked_bar(storage_data: list[tuple]) -> go.Figure:
         xaxis_title="Files",
         yaxis_title="Storage",
         height=max(300, len(pivot) * 35 + 120),
-        legend=dict(orientation="h", y=1.12),
+        legend=dict(orientation="h", y=1.2, yanchor="bottom"),
     )
     return fig
 
@@ -162,7 +162,7 @@ def encode_histogram(encode_data: list[dict]) -> go.Figure:
         title="Encode Time Distribution (by storage)",
         labels={"encode_time_sec": "Encode time (seconds)", "storage": "Storage"},
     )
-    fig.update_layout(legend=dict(orientation="h", y=1.12))
+    fig.update_layout(legend=dict(orientation="h", y=1.2, yanchor="bottom"))
     return fig
 
 
@@ -237,7 +237,7 @@ def error_bar(error_counts: list[tuple]) -> go.Figure:
         xaxis_title="Files",
         yaxis_title="Error",
         height=max(300, len(df["short"].unique()) * 28 + 60),
-        legend=dict(orientation="h", y=1.12),
+        legend=dict(orientation="h", y=1.2, yanchor="bottom"),
     )
     return fig
 
@@ -336,6 +336,6 @@ def storage_filetype_blocks(filetype_data: list[tuple], storage: str = None) -> 
         xaxis_title="Files",
         yaxis_title="Storage",
         height=max(250, len(pivot) * 35 + 120),
-        legend=dict(orientation="h", y=1.12, itemsizing="constant"),
+        legend=dict(orientation="h", y=1.2, yanchor="bottom", itemsizing="constant"),
     )
     return fig
