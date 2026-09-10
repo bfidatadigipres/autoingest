@@ -48,9 +48,8 @@ _ONE_STEP_EARLIER = {
 def index():
     return render_template(
         "index.html",
-        confluence_url=current_app.config.get("CONFLUENCE_URL", ""),
-        service_desk_url=current_app.config.get("SERVICE_DESK_URL", ""),
         recovery_guide_url=current_app.config.get("RECOVERY_GUIDE_URL", ""),
+        service_desk_url=current_app.config.get("SERVICE_DESK_URL", ""),
     )
 
 
