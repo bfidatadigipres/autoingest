@@ -218,7 +218,7 @@ with tabs[4]:
             lambda t: str(t)[:19] if t else ""
         )
         st.dataframe(
-            df_err[["file_name", "file_status", "error_message", "mime_type", "source", "updated_at"]],
+            df_err[["file_name", "file_status", "error_message", "storage", "source", "updated_at"]],
             width="stretch",
             hide_index=True,
         )

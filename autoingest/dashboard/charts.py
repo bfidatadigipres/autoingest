@@ -212,17 +212,33 @@ def throughput_line(throughput: list[dict], storage: str = None) -> go.Figure:
 
 
 def error_bar(error_counts: list[tuple]) -> go.Figure:
-    df = pd.DataFrame(error_counts, columns=["error", "count"])
+    df = pd.DataFrame(error_counts, columns=["error", "storage", "count"])
+    if df.empty:
+        return go.Figure()
+
     df["short"] = df["error"].apply(lambda s: s[:60] + "..." if len(s) > 60 else s)
-    fig = px.bar(
-        df,
-        x="count",
-        y="short",
-        orientation="h",
-        title="Error Distribution (top 30)",
-        hover_data=["error"],
+
+    fig = go.Figure()
+
+    storages = sorted(df["storage"].dropna().unique())
+    for storage in storages:
+        storage_df = df[df["storage"] == storage]
+        fig.add_trace(go.Bar(
+            name=storage,
+            y=storage_df["short"],
+            x=storage_df["count"],
+            orientation="h",
+            hovertemplate=f"<b>{storage}</b><br>%{{y}}<br>Count: %{{x}}<extra></extra>",
+        ))
+
+    fig.update_layout(
+        barmode="stack",
+        title="Error Distribution by Storage (top 30)",
+        xaxis_title="Files",
+        yaxis_title="Error",
+        height=max(300, len(df["short"].unique()) * 28 + 60),
+        legend=dict(orientation="h", y=1.12),
     )
-    fig.update_layout(height=max(300, len(df) * 28 + 60), showlegend=False)
     return fig
 
 

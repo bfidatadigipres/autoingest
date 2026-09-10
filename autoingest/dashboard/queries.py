@@ -202,12 +202,14 @@ def fetch_error_distribution():
     db = get_db()
     with db.get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT COALESCE(error_message, 'None') AS error_message,
+                       {_STORAGE_SQL} AS storage,
                        COUNT(*) AS count
                 FROM app.file_catalogue
                 WHERE error_message IS NOT NULL AND error_message != ''
-                GROUP BY error_message
+                  AND file_path LIKE '/mnt/%/autoingest/%'
+                GROUP BY error_message, storage
                 ORDER BY count DESC
                 LIMIT 30
             """)
@@ -218,12 +220,14 @@ def fetch_files_with_errors(limit: int = 100):
     db = get_db()
     with db.get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT file_name, file_status, error_message,
-                       mime_type, source, file_size,
+                       {_STORAGE_SQL} AS storage,
+                       source,
                        updated_at
                 FROM app.file_catalogue
                 WHERE error_message IS NOT NULL AND error_message != ''
+                  AND file_path LIKE '/mnt/%/autoingest/%'
                 ORDER BY updated_at DESC
                 LIMIT %s
             """, (limit,))
