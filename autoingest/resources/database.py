@@ -115,7 +115,7 @@ class WorkflowDatabase:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM app.file_catalogue WHERE file_name LIKE %s "
+                    "SELECT * FROM app.file_catalogue WHERE file_name = %s "
                     "ORDER BY created_at ASC LIMIT 1",
                     (filename,),
                 )

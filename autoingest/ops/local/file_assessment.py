@@ -172,12 +172,12 @@ def assess_filename(context: OpExecutionContext) -> Output:
     context.log.info(f"No CID Media record found for file: {filename}")
 
     # Check Black Pearl
-    # status = bp.check_no_bp_status(filename, bucket_list)
-    # context.log.info(status)
-    # if status is False:
-    #    context.log.info(f"File has already been ingested to Black Pearl: {filename} - Buckets {bucket_list}")
-    #    errors.append(f"Filename has already been ingested to DPI: <{filename}>")
-    #    do_ingest = False
+    status = bp.check_no_bp_status(filename, bucket_list)
+    context.log.info(status)
+    if status is False:
+        context.log.info(f"File has already been ingested to Black Pearl: {filename} - Buckets {bucket_list}")
+        errors.append(f"Filename has already been ingested to DPI: <{filename}>")
+        do_ingest = False
 
     if not incomplete_scan or part != 1 or whole != 1:
         previous_part = check_for_multipart(filename, part, whole)
@@ -187,7 +187,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
             do_ingest = False
         elif previous_part is True:
             pass
-        elif previous_part:
+        elif isinstance(previous_part, str):
             pp_field_details = db.lookup_file_details(previous_part)
             if not pp_field_details:
                 context.log.info(f"Skipping ingest - previous part has not been ingested yet")
