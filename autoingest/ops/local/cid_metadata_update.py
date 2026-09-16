@@ -384,7 +384,7 @@ def build_metadata_xml_from_db(mdata: Any, priref: str) -> str:
         for track in mdata["media"]["track"]:
             track_type = track.get("@type")
             if track_type:
-                tracks[track_type] = track
+                tracks.setdefault(track_type, []).append(track)
     except (KeyError, TypeError, IndexError):
         return ""
 
@@ -398,16 +398,15 @@ def build_metadata_xml_from_db(mdata: Any, priref: str) -> str:
 
     payload = ""
     for key, value in xml_dct.items():
-        track = tracks.get(key)
-        if not track:
-            continue
-        if key == "Video":
-            xml = get_video_xml(track)
-        else:
-            xml = get_xml(value, track)
-        if xml:
-            wrapped = wrap_as_xml(value.title(), xml)
-            payload += wrapped
+        track_list = tracks.get(key, [])
+        for track in track_list:
+            if key == "Video":
+                xml = get_video_xml(track)
+            else:
+                xml = get_xml(value, track)
+            if xml:
+                wrapped = wrap_as_xml(value.title(), xml)
+                payload += wrapped
 
     if not payload:
         return ""
