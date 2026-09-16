@@ -471,6 +471,8 @@ def fetch_item_priref(ob_num: str) -> str:
     """
     Retrieve item priref, title from CID
     """
+    if not ob_num:
+        return ""
     ob_num = ob_num.strip()
     search = f"object_number='{ob_num}'"
     print(f"Search used against CID Collect dB: {search}")
