@@ -265,6 +265,12 @@ def check_part_whole(fname: str) -> Tuple[Optional[int], Optional[int]]:
     if not match:
         print("* Part-whole has illegal charcters...")
         return None, None
+    if len(fname.split(".")) != 2:
+        print("* Part-whole has illegal charcters...")
+        return None, None
+    if "-" in str(fname):
+        print("* Part-whole has illegal charcters...")
+        return None, None
     part, whole = [int(i) for i in match.group(1).split("of")]
     len_check = fname.split("_")[-1].split(".")[0]
     str_part, str_whole = len_check.split("of")
