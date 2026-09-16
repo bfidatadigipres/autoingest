@@ -293,7 +293,12 @@ def get_object_number(fname: str) -> Optional[str]:
         object_number: Optional[str] = "-".join(splits[:-1])
     except Exception:
         object_number = None
-    return object_number
+    if len(object_number.split("-")) == 2:
+        return object_number
+    elif len(object_number.split("-")) == 3
+        return object_number
+    else:
+        return None
 
 
 def sort_ext(ext: str) -> Optional[str]:
