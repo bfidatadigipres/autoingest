@@ -193,10 +193,11 @@ def assess_filename(context: OpExecutionContext) -> Output:
                 context.log.info(f"Skipping ingest - previous part has not been ingested yet")
                 errors.append("Skip object as previous part not yet ingested or queued for ingest")
                 do_ingest = False
-            if pp_field_details[6] == "FALSE":
-                context.log.info(f"Skipping ingest - previous part has not been ingested yet")
-                errors.append("Skip object as previous part not yet ingested or queued for ingest")
-                do_ingest = False
+            else:
+                if pp_field_details[6] == "FALSE":
+                    context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                    errors.append("Skip object as previous part not yet ingested or queued for ingest")
+                    do_ingest = False
 
     returns = {}
     returns["file_name"] = filename
