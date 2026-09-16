@@ -295,7 +295,7 @@ def get_object_number(fname: str) -> Optional[str]:
         object_number = None
     if len(object_number.split("-")) == 2:
         return object_number
-    elif len(object_number.split("-")) == 3
+    elif len(object_number.split("-")) == 3:
         return object_number
     else:
         return None
