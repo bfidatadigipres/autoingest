@@ -114,9 +114,9 @@ def create_catalogue_record(context: OpExecutionContext) -> Output:
         duration_sec = round(time.perf_counter() - tic, 3)
         return Output(None, metadata={"duration_sec": duration_sec, "preview": f"Missing autoingest_path: {file_name}"})
 
-    source = Path(record["file_path"])
-    base_dir = source.parent.parent.parent.parent
-    autoingest_path = base_dir / put_base / file_name
+    source = record["file_path"]
+    base_dir = source.split("autoingest")[0]
+    autoingest_path = os.path.join(base_dir, put_base, file_name)
     context.log.info(f"Moving {file_name} to PUT folder: {autoingest_path}")
 
     move_tic = time.perf_counter()
