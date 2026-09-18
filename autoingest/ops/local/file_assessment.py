@@ -100,6 +100,16 @@ def assess_filename(context: OpExecutionContext) -> Output:
             do_ingest = False
         elif isinstance(previous_part, str):
             pp_field_details = db.lookup_file_details(previous_part)
+            if pp_field_details[2] == "No Status":
+                context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                db.update_file_status(field_details[0], file_status="No Status")
+                return Output(
+                    {},
+                    metadata={
+                        "duration_sec": round(time.perf_counter() - tic, 3),
+                        "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
+                    },
+                )
             if not pp_field_details:
                 context.log.info(f"Skipping ingest - previous part has not been ingested yet")
                 db.update_file_status(field_details[0], file_status="No Status")
