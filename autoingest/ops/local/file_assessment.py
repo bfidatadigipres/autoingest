@@ -458,6 +458,7 @@ def check_for_multipart(filename: str, part: int | None, whole: int | None) -> U
     if part is None or whole is None:
         return False
 
+    ext = filename.split(".")[-1]
     file_split = filename.split("_")
     if len(file_split) == 4:
         file = "_".join(file_split[:3])
@@ -480,4 +481,4 @@ def check_for_multipart(filename: str, part: int | None, whole: int | None) -> U
     previous = part - 2
     previous_part = filename_range[previous]
 
-    return previous_part
+    return f"{previous_part}.{ext}"
