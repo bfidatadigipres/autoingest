@@ -1,4 +1,5 @@
 from ...resources import utils
+import os
 import time
 from pathlib import Path
 from dagster import op, Output, OpExecutionContext
