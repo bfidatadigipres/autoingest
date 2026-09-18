@@ -82,18 +82,48 @@ def assess_filename(context: OpExecutionContext) -> Output:
     context.log.info(f"** Assessing file: {filename} ({filetype}, {filesize} bytes)")
     donor, incomplete_scan, screencraft = get_data_from_path(str(file_path))
 
-    filename_check = utils.check_filename(filename, screencraft)
-    if not filename_check:
-        context.log.info(f"Filename did not pass filename checks: {filename}")
-        errors.append("Filename formatted incorrectly")
-        do_ingest = False
-
     if screencraft is True:
         context.log.info("File path identified as Screencraft archive")
         object_number, part, whole = process_image_archive(filename)
     else:
         object_number = utils.get_object_number(filename)
         part, whole = utils.check_part_whole(filename)
+
+    if not incomplete_scan or part != 1 or whole != 1:
+        previous_part = check_for_multipart(filename, part, whole)
+        if previous_part is True:
+            context.log.info(f"Mulitpart cleared for ingest: {filename}")
+        elif previous_part is False:
+            context.log.info(f"Part whole absent for multipart checks: {filename}")
+            errors.append(f"Cannot parse partWhole from filename {filename}")
+            do_ingest = False
+        elif isinstance(previous_part, str):
+            pp_field_details = db.lookup_file_details(previous_part)
+            if not pp_field_details:
+                context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                return Output(
+                    {},
+                    metadata={
+                        "duration_sec": round(time.perf_counter() - tic, 3),
+                        "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
+                    },
+                )
+            else:
+                if pp_field_details[6] == "FALSE":
+                    context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                    return Output(
+                        {},
+                        metadata={
+                            "duration_sec": round(time.perf_counter() - tic, 3),
+                            "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
+                        },
+                    )
+
+    filename_check = utils.check_filename(filename, screencraft)
+    if not filename_check:
+        context.log.info(f"Filename did not pass filename checks: {filename}")
+        errors.append("Filename formatted incorrectly")
+        do_ingest = False
 
     if not part or not whole:
         context.log.info(f"Part whole failed checks: {filename}")
@@ -178,26 +208,6 @@ def assess_filename(context: OpExecutionContext) -> Output:
         context.log.info(f"File has already been ingested to Black Pearl: {filename} - Buckets {bucket_list}")
         errors.append(f"Filename has already been ingested to DPI: <{filename}>")
         do_ingest = False
-
-    if not incomplete_scan or part != 1 or whole != 1:
-        previous_part = check_for_multipart(filename, part, whole)
-        if previous_part is False:
-            context.log.info(f"Part whole absent for multipart checks: {filename}")
-            errors.append(f"Cannot parse partWhole from filename {filename}")
-            do_ingest = False
-        elif previous_part is True:
-            pass
-        elif isinstance(previous_part, str):
-            pp_field_details = db.lookup_file_details(previous_part)
-            if not pp_field_details:
-                context.log.info(f"Skipping ingest - previous part has not been ingested yet")
-                errors.append("Skip object as previous part not yet ingested or queued for ingest")
-                do_ingest = False
-            else:
-                if pp_field_details[6] == "FALSE":
-                    context.log.info(f"Skipping ingest - previous part has not been ingested yet")
-                    errors.append("Skip object as previous part not yet ingested or queued for ingest")
-                    do_ingest = False
 
     returns = {}
     returns["file_name"] = filename
