@@ -39,8 +39,8 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
         mdata_times[mtype] = round(mt_toc - mt_tic, 3)
         file_info[mtype] = mdata
 
-    if str(file_info["mdata_full_json"]).startswith('{"media": null, '):
-        context.log.error("*** JSON metadata absent — mediainfo could not parse tracks for %s", file_name)
+    if str(file_info["mdata_full_json"]).startswith('{"media": null, ') or file_info["mdata_full_json"] == "":
+        context.log.error(f"*** JSON metadata absent — mediainfo could not parse tracks for {file_name}")
         error_msg = "MediaInfo metadata extraction failed"
         try:
             with db.get_connection() as conn:

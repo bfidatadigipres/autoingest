@@ -14,6 +14,7 @@ import hashlib
 import subprocess
 from typing import Final, Optional, Union, List, Tuple
 import ffmpeg
+from tenacity import retry, stop_after_attempt
 
 # BFI library
 import autoingest.resources.adlib as adlib
@@ -546,8 +547,11 @@ def make_metadata(fpath: str, arg: str) -> str:
 
     if data:
         return data.decode("utf-8").strip()
+    else:
+        return ""
 
 
+@retry(stop=stop_after_attempt(10))
 def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: Optional[str] = None) -> Optional[bytes]:
     """
     Output mediainfo data to text files
@@ -564,9 +568,8 @@ def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: 
         results = subprocess.run(command, shell=False, capture_output=True)
     except Exception as err:
         print(err)
-        return None
+        raise Exception
 
-    # Check file created has contents
     if results.stdout:
         return results.stdout
     if results.stderr:
