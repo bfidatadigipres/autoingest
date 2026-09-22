@@ -1,5 +1,6 @@
 import os
 import json
+import random
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -328,14 +329,30 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     # ── Phase 6: Launch RunRequests ───────────────────────────
 
     phase6_start = time.perf_counter()
+
+    # Prioritize retry candidates over new files so stuck files
+    # get a chance before fresh ones consume the launch slots.
+    retry_candidates = []
+    new_candidates = []
+    for file_key in candidates:
+        db_status = existing_statuses.get(file_key)
+        if db_status in RETRYABLE_STATUSES:
+            retry_candidates.append(file_key)
+        else:
+            new_candidates.append(file_key)
+
+    random.shuffle(retry_candidates)
+    random.shuffle(new_candidates)
+    ordered = new_candidates + retry_candidates
+
     run_requests = []
     launched = 0
     path_launch_counts: dict[str, int] = {}
-    for file_key in candidates:
+    for file_key in ordered:
         if launched >= MAX_NEW_PER_TICK:
             context.log.info(
                 f"Per-tick launch cap ({MAX_NEW_PER_TICK}) reached — "
-                f"{len(candidates) - launched} candidates deferred"
+                f"{len(ordered) - launched} candidates deferred"
             )
             break
 
