@@ -41,21 +41,6 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
 
     if str(file_info["mdata_full_json"]).startswith('{"media": null, ') or file_info["mdata_full_json"] == "":
         context.log.error(f"*** JSON metadata absent — mediainfo could not parse tracks for {file_name}")
-        error_msg = "MediaInfo metadata extraction failed"
-        try:
-            with db.get_connection() as conn:
-                with conn.cursor() as cur:
-                    db._retry_query(conn, cur,
-                        "UPDATE app.file_catalogue SET file_status = 'Failed assessment', "
-                        "error_message = %s, updated_at = NOW() WHERE id = ("
-                        "SELECT id FROM app.file_catalogue WHERE file_name = %s "
-                        "ORDER BY created_at ASC LIMIT 1"
-                        ")",
-                        (error_msg, file_name),
-                        context.log,
-                    )
-        except Exception as exc:
-            context.log.error(f"Failed to reset status for {file_name}: {exc}")
         raise RuntimeError(f"MediaInfo metadata extraction failed for {file_name}")
 
     mime_type = file_info.get("mime_type", "")
@@ -187,6 +172,30 @@ def extract_metadata(context: OpExecutionContext, file_info: dict[str, Any]) -> 
                 ), context.log)
     except Exception as exc:
         context.log.error(f"Failed to write metadata to DB for {file_name}: {exc}")
+        try:
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    db._retry_query(conn, cur,
+                        "UPDATE app.file_catalogue SET file_status = 'No Status', "
+                        "error_message = %s, updated_at = NOW() WHERE file_name = %s",
+                        (f"Metadata extraction failed: {exc}", file_name),
+                        context.log,
+                    )
+        except Exception as reset_exc:
+            context.log.error(f"Failed to reset status for {file_name}: {reset_exc}")
+        raise
+
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                db._retry_query(conn, cur,
+                    "UPDATE app.file_catalogue SET file_status = 'assessed', "
+                    "updated_at = NOW() WHERE file_name = %s",
+                    (file_name,),
+                    context.log,
+                )
+    except Exception as exc:
+        context.log.error(f"Failed to set 'assessed' status for {file_name}: {exc}")
         raise
 
     toc = time.perf_counter()

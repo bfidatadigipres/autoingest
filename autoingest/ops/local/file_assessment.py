@@ -257,7 +257,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
     context.log.info(autoingest_path)
 
     if do_ingest:
-        returns["file_status"] = "assessed"
+        returns["file_status"] = "processing"
     returns["part"] = part
     returns["whole"] = whole
     returns["ffprobe_exit"] = ffprobe_exit
