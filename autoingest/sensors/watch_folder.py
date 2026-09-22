@@ -10,7 +10,9 @@ from autoingest.resources.utils import accepted_file_type
 
 
 MAX_INGEST_DEPTH = 30
-MAX_NEW_PER_TICK = 30  # was 50, reduced to keep ticks well under 60s deadline
+MAX_NEW_PER_TICK = 30
+MAX_FILES_PER_PATH_PER_TICK = 100
+MAX_LAUNCHES_PER_PATH_PER_TICK = 3
 TICK_DEADLINE_SEC = 55
 CURSOR_TIMEOUT_SEC = 900  # 15 minutes
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
@@ -48,6 +50,11 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     db = context.resources.workflow_db
 
+    # ── Round-robin: rotate which path goes first each tick ──
+    tick_number = int(time.time()) // 30
+    n = tick_number % len(watch_paths)
+    rotated_paths = watch_paths[n:] + watch_paths[:n]
+
     # ── Phase 1: Scan watch directories ──────────────────────
     # Always scan, regardless of pipeline depth.
 
@@ -59,17 +66,22 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     skipped_size = 0
     timed_out = False
 
-    for watch_path in watch_paths:
+    for watch_path in rotated_paths:
         watch_dir = Path(watch_path)
         if not watch_dir.exists():
             context.log.warning(f"Watch folder does not exist: {watch_path}")
             continue
 
+        path_count = 0
+
         def _scan_recursive(dir_path):
-            nonlocal total_scanned, skipped_extension, skipped_not_file, skipped_size, timed_out
+            nonlocal total_scanned, skipped_extension, skipped_not_file, skipped_size, timed_out, path_count
             try:
                 with os.scandir(dir_path) as scan_iter:
                     for file_entry in scan_iter:
+                        if path_count >= MAX_FILES_PER_PATH_PER_TICK:
+                            return
+
                         total_scanned += 1
 
                         if time.perf_counter() - tick_start > TICK_DEADLINE_SEC:
@@ -108,6 +120,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                             "size": st.st_size,
                             "mtime": st.st_mtime,
                         }
+                        path_count += 1
             except OSError:
                 pass
 
@@ -117,10 +130,16 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                     if not entry.is_dir():
                         continue
                     _scan_recursive(entry.path)
-                    if timed_out:
+                    if timed_out or path_count >= MAX_FILES_PER_PATH_PER_TICK:
                         break
         except OSError:
             pass
+
+        if path_count >= MAX_FILES_PER_PATH_PER_TICK:
+            context.log.info(
+                f"Path {watch_path} reached scan budget ({MAX_FILES_PER_PATH_PER_TICK}) — "
+                f"remaining files deferred to next tick"
+            )
 
         if timed_out:
             context.log.warning(
@@ -311,6 +330,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     phase6_start = time.perf_counter()
     run_requests = []
     launched = 0
+    path_launch_counts: dict[str, int] = {}
     for file_key in candidates:
         if launched >= MAX_NEW_PER_TICK:
             context.log.info(
@@ -318,6 +338,17 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                 f"{len(candidates) - launched} candidates deferred"
             )
             break
+
+        # Resolve which watch_path this file belongs to
+        wp = None
+        for p in watch_paths:
+            if file_key.startswith(p):
+                wp = p
+                break
+
+        if wp and path_launch_counts.get(wp, 0) >= MAX_LAUNCHES_PER_PATH_PER_TICK:
+            continue
+
         fname = Path(file_key).name
         context.log.info(f"New file detected: {fname}")
         run_requests.append(
@@ -335,6 +366,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         submitted_paths.add(file_key)
         submitted_timestamps[file_key] = datetime.now(timezone.utc).isoformat()
         launched += 1
+        if wp:
+            path_launch_counts[wp] = path_launch_counts.get(wp, 0) + 1
 
     # ── Phase 7: Update cursor ────────────────────────────────
 
