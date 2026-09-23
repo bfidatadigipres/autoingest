@@ -21,6 +21,10 @@ STORAGE_OPTIONS = [
 ]
 
 GUIDANCE = {
+    "Waiting for previous part to ingest": {
+        "text": "This indicates that the previous part has not been ingested as required. Please raise a ticket in Service Desk if you suspect there may be an error with part ingests for this file.",
+        "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
+    },
     "Cannot parse partWhole from filename": {
         "text": "This indicates poorly formed partWhole statement, eg 01of002. Please change filename to use correct partWhole syntax making sure to use an underscore to separate Object Number, not a hyphen or space.",
         "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
