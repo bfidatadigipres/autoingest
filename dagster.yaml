@@ -20,11 +20,11 @@ run_coordinator:
   module: dagster._core.run_coordinator
   class: QueuedRunCoordinator
   config:
-    max_concurrent_runs: 120
+    max_concurrent_runs: 150
     tag_concurrency_limits:
       - key: "dagster/job"
         value: "encoding_celery_job"
-        limit: 90
+        limit: 120
       - key: "dagster/job"
         value: "ingest_celery_job"
         limit: 10

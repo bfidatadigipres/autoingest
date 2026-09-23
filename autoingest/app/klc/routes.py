@@ -9,14 +9,14 @@ klc_bp = Blueprint(
 )
 
 STORAGE_OPTIONS = [
-    # "qnap_01/Public/F47",
+    "qnap_01/Public/F47",
     "qnap_03",
     "qnap_04",
     # "qnap_05/Public",
-    # "qnap_06",
-    # "qnap_08",
+    "qnap_06",
+    "qnap_08",
     "qnap_09",
-    # "qnap_10",
+    "qnap_10",
     # "qnap_11/digital_operations",
 ]
 
