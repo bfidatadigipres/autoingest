@@ -101,18 +101,24 @@ def assess_filename(context: OpExecutionContext) -> Output:
         elif isinstance(previous_part, str):
             pp_field_details = db.lookup_file_details(previous_part)
             if not pp_field_details:
-                context.log.info(f"Skipping ingest - previous part has not been ingested yet")
-                db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
-                return Output(
-                    {},
-                    metadata={
-                        "duration_sec": round(time.perf_counter() - tic, 3),
-                        "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
-                    },
-                )
-            if pp_field_details[2] is not None:
+                try:
+                    ingests = get_media_ingests(object_number)
+                    if ingests and previous_part in ingests:
+                        context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
+                except Exception as err:
+                    print(err)
+                    context.log.info("Skipping ingest - previous part has not been ingested yet")
+                    db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
+                    return Output(
+                        {},
+                        metadata={
+                            "duration_sec": round(time.perf_counter() - tic, 3),
+                            "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
+                        },
+                    )
+            elif pp_field_details[2] is not None:
                 if pp_field_details[2] == "No Status":
-                    context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                    context.log.info("Skipping ingest - previous part has not been ingested yet")
                     db.update_file_status(field_details[0], file_status="No Status")
                     return Output(
                         {},
@@ -123,7 +129,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
                     )
             else:
                 if pp_field_details[6] == "FALSE":
-                    context.log.info(f"Skipping ingest - previous part has not been ingested yet")
+                    context.log.info("Skipping ingest - previous part has not been ingested yet")
                     db.update_file_status(field_details[0], file_status="No Status")
                     return Output(
                         {},
@@ -191,7 +197,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
         except Exception as err:
             context.log.warning(f"CID API error during file_type check: {err}")
             file_type_match = False
-            errors.append(f"Cannot reach CID database API")
+            errors.append("Cannot reach CID database API")
             do_ingest = False
         if not file_type_match and ftype:
             context.log.warning(f"Extension {filetype} does not match file type in record")
@@ -199,18 +205,18 @@ def assess_filename(context: OpExecutionContext) -> Output:
             do_ingest = False
         elif not file_type_match and not ftype:
             context.log.info(f"File exension does not match CID Item file_type: {ftype}")
-            errors.append(f"Invalid <file_type> in Collect record")
+            errors.append("Invalid <file_type> in Collect record")
             do_ingest = False
         else:
             context.log.info(f"File extension {filetype} matches CID record file type {ftype}")
 
     media_check = utils.check_file_has_media_rec(filename)
     if media_check is None:
-        context.log.info(f"Media dB could not be reached...")
-        errors.append(f"Cannot reach CID database API")
+        context.log.info("Media dB could not be reached...")
+        errors.append("Cannot reach CID database API")
         do_ingest = False
     if media_check is True:
-        context.log.info(f"Filename already matched to CID media record!")
+        context.log.info("Filename already matched to CID media record!")
         errors.append(f"Filename already has a CID Media record: {filename}")
         do_ingest = False
     context.log.info(f"No CID Media record found for file: {filename}")
@@ -492,3 +498,31 @@ def check_for_multipart(filename: str, part: int | None, whole: int | None) -> U
     previous_part = filename_range[previous]
 
     return f"{previous_part}.{ext}"
+
+
+def get_media_ingests(object_number: str) -> Optional[list[str]]:
+    """
+    Use object_number to retrieve all media records
+    """
+
+    search = f'object.object_number="{object_number}"'
+    hits, record = adlib.retrieve_record(
+        CID_API, "media", search, "0", ["imagen.media.original_filename"]
+    )
+    if hits is None:
+        print(f'"CID API was unreachable for Media search: {search}')
+        raise Exception(f"CID API was unreachable for Media search: {search}")
+    if record is None:
+        print(f"No digitised assets found for this object_number: {object_number}")
+        return None
+
+    original_filenames = []
+    try:
+        for r in record:
+            filename = adlib.retrieve_field_name(r, "imagen.media.original_filename")[0]
+            original_filenames.append(filename)
+    except Exception as err:
+        print(err)
+        return None
+
+    return original_filenames
