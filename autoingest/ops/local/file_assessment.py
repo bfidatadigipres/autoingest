@@ -89,66 +89,47 @@ def assess_filename(context: OpExecutionContext) -> Output:
         object_number = utils.get_object_number(filename)
         part, whole = utils.check_part_whole(filename)
 
-    if not incomplete_scan or part != 1 or whole != 1:
+    def _defer_for_previous_part(prev_part):
+        context.log.info(f"Deferring ingest - previous part not yet ingested: {prev_part}")
+        db.update_file_status(
+            field_details[0],
+            file_status="No Status",
+            error_message="Waiting for previous part to ingest",
+        )
+        return Output(
+            {},
+            metadata={
+                "duration_sec": round(time.perf_counter() - tic, 3),
+                "preview": f"Previous part not yet ingested: {filename} - previous part {prev_part}",
+            },
+        )
+
+    if not incomplete_scan and part != 1:
         previous_part = check_for_multipart(filename, part, whole)
         context.log.info(f"Previous part: {previous_part}")
         if previous_part is True:
-            context.log.info(f"Mulitpart cleared for ingest: {filename}")
-        if previous_part is False:
+            context.log.info(f"Multipart cleared for ingest: {filename}")
+        elif previous_part is False:
             context.log.info(f"Part whole absent for multipart checks: {filename}")
             errors.append(f"Cannot parse partWhole from filename {filename}")
             do_ingest = False
-        if isinstance(previous_part, str):
+        elif isinstance(previous_part, str):
             pp_field_details = db.lookup_file_details(previous_part)
             if not pp_field_details:
+                context.log.info("Previous part not found in PostgreSQL. Checking CID Media records...")
                 try:
                     ingests = get_media_ingests(object_number)
-                    if len(ingests) >= 1:
-                        if previous_part in ingests:
-                            context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
+                    if ingests and previous_part in ingests:
+                        context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
+                    else:
+                        return _defer_for_previous_part(previous_part)
                 except Exception as err:
-                    print(err)
-                    context.log.info("Skipping ingest - previous part has not been ingested yet")
-                    db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
-                    return Output(
-                        {},
-                        metadata={
-                            "duration_sec": round(time.perf_counter() - tic, 3),
-                            "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
-                        },
-                    )
-            elif pp_field_details[2] is not None:
-                if pp_field_details[2] == "No Status":
-                    context.log.info("Skipping ingest - previous part has not been ingested yet")
-                    db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
-                    return Output(
-                        {},
-                        metadata={
-                            "duration_sec": round(time.perf_counter() - tic, 3),
-                            "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
-                        },
-                    )
-            else:
-                if pp_field_details[6] == "FALSE":
-                    context.log.info("Skipping ingest - previous part has not been ingested yet")
-                    db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
-                    return Output(
-                        {},
-                        metadata={
-                            "duration_sec": round(time.perf_counter() - tic, 3),
-                            "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
-                        },
-                    )
-        else:
-            context.log.info("Skipping ingest - previous part has not been ingested yet")
-            db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
-            return Output(
-                {},
-                metadata={
-                    "duration_sec": round(time.perf_counter() - tic, 3),
-                    "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
-                },
-            )
+                    context.log.error(f"CID Media search failed: {err}")
+                    return _defer_for_previous_part(previous_part)
+            elif pp_field_details[2] == "No Status":
+                return _defer_for_previous_part(previous_part)
+            elif len(pp_field_details) > 6 and pp_field_details[6] == "FALSE":
+                return _defer_for_previous_part(previous_part)
 
     filename_check = utils.check_filename(filename, screencraft)
     if not filename_check:
