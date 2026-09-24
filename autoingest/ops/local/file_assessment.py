@@ -94,17 +94,18 @@ def assess_filename(context: OpExecutionContext) -> Output:
         context.log.info(f"Previous part: {previous_part}")
         if previous_part is True:
             context.log.info(f"Mulitpart cleared for ingest: {filename}")
-        elif previous_part is False:
+        if previous_part is False:
             context.log.info(f"Part whole absent for multipart checks: {filename}")
             errors.append(f"Cannot parse partWhole from filename {filename}")
             do_ingest = False
-        elif isinstance(previous_part, str):
+        if isinstance(previous_part, str):
             pp_field_details = db.lookup_file_details(previous_part)
             if not pp_field_details:
                 try:
                     ingests = get_media_ingests(object_number)
-                    if ingests and previous_part in ingests:
-                        context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
+                    if len(ingests) >= 1:
+                        if previous_part in ingests:
+                            context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
                 except Exception as err:
                     print(err)
                     context.log.info("Skipping ingest - previous part has not been ingested yet")
@@ -119,7 +120,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
             elif pp_field_details[2] is not None:
                 if pp_field_details[2] == "No Status":
                     context.log.info("Skipping ingest - previous part has not been ingested yet")
-                    db.update_file_status(field_details[0], file_status="No Status")
+                    db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
                     return Output(
                         {},
                         metadata={
@@ -130,7 +131,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
             else:
                 if pp_field_details[6] == "FALSE":
                     context.log.info("Skipping ingest - previous part has not been ingested yet")
-                    db.update_file_status(field_details[0], file_status="No Status")
+                    db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
                     return Output(
                         {},
                         metadata={
@@ -138,6 +139,16 @@ def assess_filename(context: OpExecutionContext) -> Output:
                             "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
                         },
                     )
+        else:
+            context.log.info("Skipping ingest - previous part has not been ingested yet")
+            db.update_file_status(field_details[0], file_status="No Status", error_message="Waiting for previous part to ingest")
+            return Output(
+                {},
+                metadata={
+                    "duration_sec": round(time.perf_counter() - tic, 3),
+                    "preview": f"Previous part not yet ingested: {filename} - previous part {previous_part}",
+                },
+            )
 
     filename_check = utils.check_filename(filename, screencraft)
     if not filename_check:
