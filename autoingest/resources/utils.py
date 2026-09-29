@@ -58,6 +58,7 @@ ACCEPTED_EXT: Final = [
     "txt",
     "vtt",
     "ttml",
+    "m4v",
 ]
 
 
@@ -99,6 +100,7 @@ def accepted_file_type(ext: str) -> Optional[str]:
         "pdf": "pdf",
         "txt": "txt",
         "ttml": "ttml",
+        "m4v": "m4v",
     }
 
     ext = ext.lower()
@@ -318,6 +320,7 @@ def sort_ext(ext: str) -> Optional[str]:
             "ts",
             "mpeg",
             "m2ts",
+            "m4v",
         ],
         "image": ["png", "gif", "jpeg", "jpg", "tif", "pct", "tiff"],
         "audio": ["wav", "flac", "mp3"],
