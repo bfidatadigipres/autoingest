@@ -22,7 +22,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
             cur.execute(
                 "SELECT id, file_status, file_path, bp_job_id, proxy_video_path, "
                 "proxy_image_path, proxy_thumb_path, cid_media_priref, checksum_md5, "
-                "checksum_date, mime_type "
+                "checksum_date, mime_type, source "
                 "FROM app.file_catalogue WHERE file_name = %s "
                 "ORDER BY created_at ASC LIMIT 1",
                 (file_name,),
@@ -43,6 +43,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
     checksum_md5 = row[8] or ""
     checksum_date = row[9] or ""
     mime_type = row[10] or ""
+    source = row[11] or ""
 
     if file_status == "deleting_source":
         context.log.info(f"File {file_name} is already being cleaned up. Skipping.")
@@ -103,7 +104,10 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
                 cid_update_time = 0.0
                 context.log.info(f"Skipping CID update — no media priref or proxy data for {file_name}")
 
-            db.update_file_status(file_id, proxy_created=True)
+            has_proxy = bool(proxy_video_path or proxy_image_path or proxy_thumb_path)
+            db.update_file_status(file_id, proxy_created=has_proxy)
+            if not has_proxy and source in ['Netflix', 'Disney', 'Amazon']:
+                context.log.info(f"Source is {source} — no proxy created (expected)")
 
         except Exception:
             _rollback_deleting_status(db, file_id)
