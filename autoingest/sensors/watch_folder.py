@@ -219,6 +219,15 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             f"older than {CURSOR_TIMEOUT_SEC}s — will retry"
         )
 
+    # Clean up orphaned timestamp entries (not in submitted_paths)
+    orphaned_timestamps = set(submitted_timestamps.keys()) - submitted_paths
+    for path in orphaned_timestamps:
+        submitted_timestamps.pop(path, None)
+    if orphaned_timestamps:
+        context.log.info(
+            f"Cursor: cleaned up {len(orphaned_timestamps)} orphaned timestamp entries"
+        )
+
     # ── Phase 3: DB batch lookup ─────────────────────────────
     # Cross-reference both disk files and cursor entries against
     # DB to determine what truly needs processing.
@@ -242,6 +251,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     # and this tick — the DB is now authoritative for those files.
     cursor_with_db = {p for p in submitted_paths if p in existing_statuses}
     submitted_paths -= cursor_with_db
+    for path in cursor_with_db:
+        submitted_timestamps.pop(path, None)
     if cursor_with_db:
         context.log.info(
             f"Cursor: removed {len(cursor_with_db)} paths now in DB"
