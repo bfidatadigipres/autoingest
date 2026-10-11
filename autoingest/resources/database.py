@@ -208,11 +208,12 @@ class WorkflowDatabase:
                 cur.execute(
                     "SELECT id, file_status, file_path FROM app.file_catalogue "
                     "WHERE file_name = %s "
-                    "ORDER BY created_at ASC LIMIT 1 FOR UPDATE",
+                    "ORDER BY id ASC LIMIT 1 FOR UPDATE",
                     (file_name,),
                 )
                 existing = cur.fetchone()
                 if existing is None:
+                    logger.info(f"try_claim_file: No existing record for {file_name}, inserting new record")
                     cur.execute(
                         "INSERT INTO app.file_catalogue "
                         "(file_name, file_path, file_status) "
@@ -221,7 +222,12 @@ class WorkflowDatabase:
                     )
                     return (cur.fetchone()[0], None, None)
                 elif existing[1].strip() in ("No Status", "Failed assessment"):
-                    cur.execute(
+                    logger.info(
+                        f"try_claim_file: Found retryable record for {file_name}: "
+                        f"id={existing[0]}, status='{existing[1]}', path='{existing[2]}'"
+                    )
+                    self._retry_query(
+                        conn, cur,
                         "UPDATE app.file_catalogue "
                         "SET file_status = 'processing', updated_at = NOW() "
                         "WHERE id = %s",
@@ -229,6 +235,10 @@ class WorkflowDatabase:
                     )
                     return (existing[0], existing[1], existing[2])
                 else:
+                    logger.info(
+                        f"try_claim_file: Found non-retryable record for {file_name}: "
+                        f"id={existing[0]}, status='{existing[1]}', path='{existing[2]}'"
+                    )
                     return (None, existing[1], existing[2])
 
     def insert_duplicate_error(
