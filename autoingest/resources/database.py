@@ -200,7 +200,6 @@ class WorkflowDatabase:
                     return True
         return False
 
-
     def try_claim_file(
         self, file_name: str, file_path: str
     ) -> tuple[int | None, str | None, str | None]:
@@ -221,15 +220,16 @@ class WorkflowDatabase:
                         (file_name, file_path),
                     )
                     return (cur.fetchone()[0], None, None)
-                if existing[1] in ("No Status", "Failed assessment"):
+                elif existing[1].strip() in ("No Status", "Failed assessment"):
                     cur.execute(
                         "UPDATE app.file_catalogue "
                         "SET file_status = 'processing', updated_at = NOW() "
                         "WHERE id = %s",
                         (existing[0],),
                     )
-                    return (existing[0], None, None)
-                return (None, existing[1], existing[2])
+                    return (existing[0], existing[1], existing[2])
+                else:
+                    return (None, existing[1], existing[2])
 
     def insert_duplicate_error(
         self, file_name: str, file_path: str, existing_status: str, existing_path: str
