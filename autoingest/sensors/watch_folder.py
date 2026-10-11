@@ -11,7 +11,7 @@ from autoingest.resources.utils import accepted_file_type
 
 
 MAX_INGEST_DEPTH = 30
-MAX_NEW_PER_TICK = 30
+MAX_NEW_PER_TICK = 60
 MAX_FILES_PER_PATH_PER_TICK = 100
 MAX_LAUNCHES_PER_PATH_PER_TICK = 3
 TICK_DEADLINE_SEC = 55
@@ -341,9 +341,18 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         else:
             new_candidates.append(file_key)
 
+    # Sort new candidates by filename (ascending)
+    new_candidates.sort(key=lambda p: Path(p).name)
+    
+    # Randomly shuffle retry candidates for variety across ticks
     random.shuffle(retry_candidates)
-    random.shuffle(new_candidates)
-    ordered = new_candidates + retry_candidates
+    
+    # Allocate slots: 75% new, 25% retry
+    total_slots = MAX_NEW_PER_TICK  # 60
+    retry_slots = int(total_slots * 0.25)  # 15
+    new_slots = total_slots - retry_slots  # 45
+    
+    ordered = new_candidates[:new_slots] + retry_candidates[:retry_slots]
 
     run_requests = []
     launched = 0
