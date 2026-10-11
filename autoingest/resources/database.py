@@ -221,7 +221,7 @@ class WorkflowDatabase:
                         (file_name, file_path),
                     )
                     return (cur.fetchone()[0], None, None)
-                if existing[1] in ("No Status", "Failed assessment"):
+                if existing[2] in ("No Status", "Failed assessment"):
                     cur.execute(
                         "UPDATE app.file_catalogue "
                         "SET file_status = 'processing', updated_at = NOW() "
