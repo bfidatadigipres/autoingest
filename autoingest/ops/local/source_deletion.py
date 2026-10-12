@@ -75,11 +75,11 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
     if mime_type in ['video', 'image']:
         try:
             media_data = []
-            if proxy_video_path:
+            if len(proxy_video_path) > 0:
                 media_data.append(f"<access_rendition.mp4>{Path(proxy_video_path).name}</access_rendition.mp4>")
-            if proxy_image_path:
+            if len(proxy_image_path) > 0:
                 media_data.append(f"<access_rendition.largeimage>{Path(proxy_image_path).name}</access_rendition.largeimage>")
-            if proxy_thumb_path:
+            if len(proxy_thumb_path) > 0:
                 media_data.append(f"<access_rendition.thumbnail>{Path(proxy_thumb_path).name}</access_rendition.thumbnail>")
             if checksum_md5 and checksum_date:
                 media_data.append(f"<Checksum><checksum.value>{checksum_md5}</checksum.value><checksum.type>MD5</checksum.type>")
@@ -89,6 +89,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
                 media_data.append(f"<edit.time>{str(datetime.datetime.now())[11:19]}</edit.time>")
                 media_data.append("<edit.notes>Automated bulk checksum and proxy documentation.</edit.notes></Edit>")
 
+            context.log.info(f"Data to be written to CID media record:\n{media_data}")
             if media_priref and media_data:
                 cid_tic = time.perf_counter()
                 success = utils.cid_media_append(media_priref, media_data)
@@ -105,6 +106,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
                 context.log.info(f"Skipping CID update — no media priref or proxy data for {file_name}")
 
             has_proxy = bool(proxy_video_path or proxy_image_path or proxy_thumb_path)
+            context.log.info(f"Has proxy bool: {has_proxy}")
             db.update_file_status(file_id, proxy_created=has_proxy)
             if not has_proxy and source in ['Netflix', 'Disney', 'Amazon']:
                 context.log.info(f"Source is {source} — no proxy created (expected)")
