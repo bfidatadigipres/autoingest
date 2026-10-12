@@ -579,7 +579,7 @@ def mediainfo_create(arg: str, output_type: str, filepath: str, mediainfo_path: 
         return results.stderr
 
 
-def cid_media_append(priref: str, data: list[str]) -> Optional[bool]:
+def cid_media_append(priref: str, data: list[str], filename: str) -> Optional[bool]:
     """
     Receive data and priref and append to CID media record
     """
@@ -591,13 +591,14 @@ def cid_media_append(priref: str, data: list[str]) -> Optional[bool]:
 
     try:
         rec = adlib.post(CID_API, payload, "media", "updaterecord")
+        print(rec)
     except Exception as err:
         print(f"cid_media_append(): CID API unreachable — {err}")
         return False
     if rec is None:
         return False
 
-    if "access_rendition" in str(rec):
+    if filename in str(rec):
         return True
 
 

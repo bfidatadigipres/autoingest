@@ -92,7 +92,7 @@ def check_and_delete_source(context: OpExecutionContext) -> Output:
             context.log.info(f"Data to be written to CID media record:\n{media_data}")
             if media_priref and media_data:
                 cid_tic = time.perf_counter()
-                success = utils.cid_media_append(media_priref, media_data)
+                success = utils.cid_media_append(media_priref, media_data, file_name)
                 cid_toc = time.perf_counter()
                 cid_update_time = round(cid_toc - cid_tic, 3)
                 if not success:
