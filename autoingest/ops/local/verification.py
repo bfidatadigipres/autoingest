@@ -193,7 +193,11 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.warning(f"Could not retrieve Version ID from BlackPearl for file {file}")
 
     mcheck = utils.check_file_has_media_rec(file)
-    if mcheck is not False:
+    if mcheck is None:
+        context.log.warning(f"Unable to retrieve response from API")
+        errors.append(f"Cannot reach CID media database API")
+        validation_pass = False
+    elif mcheck is True:
         context.log.info(
                 f"Media record already exists for file: {file}"
             )
