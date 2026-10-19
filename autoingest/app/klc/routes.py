@@ -241,6 +241,42 @@ def api_files():
     return jsonify(rows)
 
 
+@klc_bp.route("/api/file")
+def api_file():
+    db = _db()
+    name = request.args.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "name parameter is required"}), 400
+
+    query = """
+        SELECT id, file_name, file_status, error_message, file_path,
+               file_size, mime_type, checksum_md5,
+               file_fmt, updated_at
+        FROM app.file_catalogue
+        WHERE file_name = %s
+        ORDER BY updated_at DESC
+        LIMIT 100
+    """
+
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (name,))
+            columns = [desc[0] for desc in cur.description]
+            raw_rows = cur.fetchall()
+
+    rows = []
+    for row in raw_rows:
+        r = dict(zip(columns, row))
+        r["storage"] = _extract_storage(r.get("file_path") or "")
+        r["file_size_fmt"] = _format_size(r.get("file_size"))
+        r["checksum_md5_short"] = r.get("checksum_md5") or ""
+        if r.get("updated_at"):
+            r["updated_at"] = r["updated_at"].strftime("%Y-%m-%d %H:%M")
+        rows.append(r)
+
+    return jsonify(rows)
+
+
 @klc_bp.route("/api/stats")
 def api_stats():
     db = _db()
