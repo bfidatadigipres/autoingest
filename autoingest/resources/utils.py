@@ -499,6 +499,7 @@ def fetch_item_priref(ob_num: str) -> str:
     return priref or ""
 
 
+@retry(stop=stop_after_attempt(10))
 def check_file_has_media_rec(
     fname: str
 ) -> bool | None:
@@ -513,11 +514,11 @@ def check_file_has_media_rec(
         hits = adlib.retrieve_record(CID_API, "media", search, "0")[0]
     except Exception as err:
         print(f"Unable to retrieve CID Media record {err}")
-        return None
+        raise Exception
 
     if hits is None:
         print(f"CID API was unreachable for Media search: {search}")
-        return None
+        raise Exception
 
     print(f"check_media_record(): AdlibV3 record for hits: {hits}")
     if int(hits) >= 1:
