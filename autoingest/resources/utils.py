@@ -23,6 +23,7 @@ STORAGE_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "storage_control.js
 CONTROL_JSON: str = os.path.join(os.environ.get("LOG_PATH"), "downtime_control.json")
 PREFIX = ["N", "C", "PD", "SPD", "PBS", "PBM", "PBL", "SCR", "CA"]
 DPI_BUCKETS = os.environ.get("DPI_BUCKET")
+WAITING_FOR_PREVIOUS_PART_MSG: Final = "Waiting for previous part to ingest"
 
 ACCEPTED_EXT: Final = [
     "avi",

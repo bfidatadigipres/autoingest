@@ -29,6 +29,27 @@ def assess_filename(context: OpExecutionContext) -> Output:
         filename, str(file_path)
     )
     if claimed_id is None:
+        already_in_progress = (
+            existing_path == str(file_path)
+            and existing_status in {
+                "processing",
+                "assessed",
+                "generating_checksum",
+                "checksummed",
+                "cataloguing",
+            }
+        )
+        if already_in_progress:
+            context.log.info(
+                f"{filename} is already in progress at this path — skipping"
+            )
+            return Output(
+                {},
+                metadata={
+                    "duration_sec": round(time.perf_counter() - tic, 3),
+                    "preview": f"Already in progress: {filename}",
+                },
+            )
         if existing_status is not None:
             db.insert_duplicate_error(
                 filename, str(file_path), existing_status, existing_path or "unknown"
@@ -94,7 +115,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
         db.update_file_status(
             field_details[0],
             file_status="No Status",
-            error_message="Waiting for previous part to ingest",
+            error_message=utils.WAITING_FOR_PREVIOUS_PART_MSG,
         )
         return Output(
             {},

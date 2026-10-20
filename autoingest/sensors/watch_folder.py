@@ -7,7 +7,10 @@ from pathlib import Path
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from autoingest.jobs.ingest_jobs import ingest_local_job
-from autoingest.resources.utils import accepted_file_type
+from autoingest.resources.utils import (
+    WAITING_FOR_PREVIOUS_PART_MSG,
+    accepted_file_type,
+)
 
 
 MAX_INGEST_DEPTH = 30
@@ -17,6 +20,7 @@ MAX_LAUNCHES_PER_PATH_PER_TICK = 3
 TICK_DEADLINE_SEC = 55
 CURSOR_TIMEOUT_SEC = 900  # 15 minutes
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
+DEFERRED_RETRY_MIN_AGE_SEC = 4 * 60 * 60  # 4 hours
 
 
 @sensor(
@@ -237,10 +241,10 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     all_disk_paths = set(current_files.keys())
     lookup_paths = all_disk_paths | submitted_paths
 
-    existing_statuses: dict[str, str] = {}
+    existing_states: dict[str, tuple[str, str | None, datetime]] = {}
     try:
         if lookup_paths:
-            existing_statuses = db.batch_lookup_file_statuses(lookup_paths)
+            existing_states = db.batch_lookup_file_states(lookup_paths)
     except Exception as exc:
         context.log.warning(
             f"DB batch lookup failed, proceeding with empty lookup: {exc}"
@@ -249,7 +253,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     # Prune cursor: remove paths that now have DB records.
     # This means the op processed the file between the last launch
     # and this tick — the DB is now authoritative for those files.
-    cursor_with_db = {p for p in submitted_paths if p in existing_statuses}
+    cursor_with_db = {p for p in submitted_paths if p in existing_states}
     submitted_paths -= cursor_with_db
     for path in cursor_with_db:
         submitted_timestamps.pop(path, None)
@@ -276,16 +280,37 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     candidates = []
     skipped_cursor = 0
     skipped_db = 0
+    skipped_backoff = 0
 
     for file_key in current_files:
         if file_key in submitted_paths:
             skipped_cursor += 1
             continue
 
-        db_status = existing_statuses.get(file_key)
-        if db_status is None:
+        state = existing_states.get(file_key)
+        if state is None:
             candidates.append(file_key)
-        elif db_status in RETRYABLE_STATUSES:
+            continue
+
+        db_status, db_error, db_updated_at = state
+
+        if db_status == "No Status" and db_error == WAITING_FOR_PREVIOUS_PART_MSG:
+            age_sec = (
+                (now - db_updated_at).total_seconds()
+                if db_updated_at is not None
+                else float("inf")
+            )
+            if age_sec >= DEFERRED_RETRY_MIN_AGE_SEC:
+                candidates.append(file_key)
+                context.log.info(
+                    f"  Deferred retry candidate: {Path(file_key).name} "
+                    f"(waiting {age_sec / 3600:.1f}h)"
+                )
+            else:
+                skipped_backoff += 1
+            continue
+
+        if db_status in RETRYABLE_STATUSES:
             candidates.append(file_key)
             context.log.info(
                 f"  Retry candidate: {Path(file_key).name} "
@@ -296,7 +321,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     context.log.info(
         f"Dedup: {len(candidates)} candidates, "
-        f"skipped: cursor={skipped_cursor} db={skipped_db}"
+        f"skipped: cursor={skipped_cursor} db={skipped_db} "
+        f"backoff={skipped_backoff}"
     )
     context.log.info(f"Phase 4 (filter) took {time.perf_counter() - phase4_start:.2f}s")
 
@@ -345,24 +371,37 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     # get a chance before fresh ones consume the launch slots.
     retry_candidates = []
     new_candidates = []
+    deferred_retry_tokens: dict[str, int] = {}
+
     for file_key in candidates:
-        db_status = existing_statuses.get(file_key)
+        state = existing_states.get(file_key)
+        if state is None:
+            new_candidates.append(file_key)
+            continue
+
+        db_status, db_error, db_updated_at = state
         if db_status in RETRYABLE_STATUSES:
             retry_candidates.append(file_key)
+            if (
+                db_status == "No Status"
+                and db_error == WAITING_FOR_PREVIOUS_PART_MSG
+                and db_updated_at is not None
+            ):
+                deferred_retry_tokens[file_key] = int(db_updated_at.timestamp())
         else:
             new_candidates.append(file_key)
 
     # Sort new candidates by filename (ascending)
     new_candidates.sort(key=lambda p: Path(p).name)
-    
+
     # Randomly shuffle retry candidates for variety across ticks
     random.shuffle(retry_candidates)
-    
+
     # Allocate slots: 75% new, 25% retry
     total_slots = MAX_NEW_PER_TICK  # 60
     retry_slots = int(total_slots * 0.25)  # 15
     new_slots = total_slots - retry_slots  # 45
-    
+
     ordered = new_candidates[:new_slots] + retry_candidates[:retry_slots]
 
     run_requests = []
@@ -387,10 +426,20 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             continue
 
         fname = Path(file_key).name
-        context.log.info(f"New file detected: {fname}")
+        base_run_key = f"ingest-{fname}-{int(current_files[file_key]['mtime'])}"
+        retry_token = deferred_retry_tokens.get(file_key)
+        if retry_token is None:
+            run_key = base_run_key
+            context.log.info(f"New file detected: {fname}")
+        else:
+            run_key = f"{base_run_key}-retry-{retry_token}"
+            context.log.info(
+                f"Retrying deferred file: {fname} "
+                f"(deferral ts={retry_token})"
+            )
         run_requests.append(
             RunRequest(
-                run_key=f"ingest-{fname}-{int(current_files[file_key]['mtime'])}",
+                run_key=run_key,
                 run_config={
                     "ops": {
                         "assess_filename": {

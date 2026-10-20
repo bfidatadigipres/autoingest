@@ -2,6 +2,7 @@ import os
 import json
 import time
 import logging
+from datetime import datetime
 from typing import Any
 
 import psycopg2
@@ -327,18 +328,25 @@ class WorkflowDatabase:
                     (file_id,),
                 )
 
-    def batch_lookup_file_statuses(self, file_paths: set[str]) -> dict[str, str]:
+    def batch_lookup_file_states(
+        self, file_paths: set[str]
+    ) -> dict[str, tuple[str, str | None, datetime]]:
         if not file_paths:
             return {}
         placeholders = ", ".join(["%s"] * len(file_paths))
         query = (
-            f"SELECT file_path, file_status FROM app.file_catalogue "
-            f"WHERE file_path IN ({placeholders})"
+            f"SELECT file_path, file_status, error_message, updated_at "
+            f"FROM app.file_catalogue "
+            f"WHERE file_path IN ({placeholders}) "
+            f"ORDER BY id ASC"
         )
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(query, list(file_paths))
-                return {row[0]: row[1] for row in cur.fetchall()}
+                states = {}
+                for row in cur.fetchall():
+                    states.setdefault(row[0], (row[1], row[2], row[3]))
+                return states
 
     def record_pipeline_event(
         self,

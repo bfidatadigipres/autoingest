@@ -19,10 +19,13 @@ with open(_control, "w") as f:
 with open(os.environ["DPI_BUCKET"], "w") as f:
     json.dump({"bfi0": True}, f)
 
+from dagster import build_op_context
+
 from autoingest.ops.local.file_assessment import (
+    assess_filename,
+    check_for_multipart,
     get_data_from_path,
     process_image_archive,
-    check_for_multipart,
 )
 
 
@@ -113,3 +116,27 @@ class TestCheckForMultipart:
     def test_second_part_of_two(self):
         result = check_for_multipart("CA_123456_02of02.dpx", 2, 2)
         assert result == "CA_123456_01of02"
+
+
+class TestSamePathDuplicateGuard:
+    def _context(self, tmp_path, existing_status, existing_path):
+        file_path = tmp_path / "N12345_01of01.mxf"
+        file_path.write_bytes(b"x")
+        db = MagicMock()
+        db.try_claim_file.return_value = (
+            None,
+            existing_status,
+            existing_path or str(file_path),
+        )
+        context = build_op_context(
+            resources={"workflow_db": db},
+            op_config={"file_path": str(file_path)},
+        )
+        return context, db, str(file_path)
+
+    def test_same_path_in_progress_skips_duplicate_row(self, tmp_path):
+        context, db, _ = self._context(tmp_path, "processing", None)
+        result = assess_filename(context)
+
+        assert result.value == {}
+        db.insert_duplicate_error.assert_not_called()
