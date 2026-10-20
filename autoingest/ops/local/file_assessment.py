@@ -119,6 +119,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
                 context.log.info("Previous part not found in PostgreSQL. Checking CID Media records...")
                 try:
                     ingests = get_media_ingests(object_number)
+                    context.log.info(f"Previous ingests: {ingests}")
                     if ingests and previous_part in ingests:
                         context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
                     else:
