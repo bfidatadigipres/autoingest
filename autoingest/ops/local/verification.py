@@ -6,7 +6,7 @@ import os
 import time
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 from dagster import op, Out, Output, OpExecutionContext
 
@@ -445,6 +445,7 @@ def create_media_record(file_info: tuple) -> Optional[str]:
 
     media_priref = ""
     print(record_data)
+
     record_data_xml = adlib.create_record_data(
         CID_API, "media", "", record_data
     )
@@ -456,11 +457,35 @@ def create_media_record(file_info: tuple) -> Optional[str]:
         print(f"\nUnable to create CID media record for {file_info[16]}")
         raise error
 
-    if item_rec:
+    if item_rec and "{'@attributes': {'priref':" in str(item_rec):
         try:
             media_priref = adlib.retrieve_field_name(item_rec, "priref")[0]
             print(f"** CID media record created with Priref {media_priref}")
         except Exception as err:
             raise err
+    else:
+        time.sleep(30)
+        search = f"{_time_window_last_15min('creation')} and reference_number='{file_info[1]}'"
+        hits, record = adlib.retrieve_record(CID_API, "media", search, 0)
+        if hits and hits == 1:
+            try:
+                media_priref = adlib.retrieve_field_name(record, "priref")[0]
+                print(f"** CID media record created with Priref {media_priref}")
+            except Exception as err:
+                raise err
+        elif hits > 1:
+            print(f"Aborting: More than one CID media record matches file: {file_info[1]}")
+        else:
+            print(f"No CID media record found for this file.")
 
     return media_priref
+
+
+def _time_window_last_15min(type: str) -> str:
+    """
+    Return a search string for records created in the last 15 minutes.
+    Type determines search against 'creation' or 'modification'
+    """
+    now = datetime.now()
+    window_start = now - timedelta(minutes=15)
+    return f"{type} > '{window_start.strftime('%Y-%m-%d %H:%M:%S')}'"
