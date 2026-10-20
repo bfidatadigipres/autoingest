@@ -127,7 +127,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
                 except Exception as err:
                     context.log.error(f"CID Media search failed: {err}")
                     return _defer_for_previous_part(previous_part)
-            elif pp_field_details[2] == "No Status":
+            elif pp_field_details[2] in ("No Status", "Failed assessment"):
                 return _defer_for_previous_part(previous_part)
             elif len(pp_field_details) > 6 and pp_field_details[6] == "FALSE":
                 return _defer_for_previous_part(previous_part)
