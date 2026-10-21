@@ -157,9 +157,14 @@ function renderTable(files) {
 
     if (files.length === 0) {
         var fileSearch = document.getElementById("fileSearchInput").value.trim();
-        tbody.innerHTML = fileSearch
-            ? '<tr><td colspan="9">No file found matching "' + esc(fileSearch) + '"</td></tr>'
-            : '<tr><td colspan="9">No files found</td></tr>';
+        var row = document.createElement("tr");
+        var cell = document.createElement("td");
+        cell.colSpan = 9;
+        cell.textContent = fileSearch
+            ? 'No file found matching "' + fileSearch + '"'
+            : "No files found";
+        row.appendChild(cell);
+        tbody.replaceChildren(row);
         return;
     }
 
