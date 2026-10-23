@@ -143,6 +143,8 @@ def assess_filename(context: OpExecutionContext) -> Output:
                     context.log.info(f"Previous ingests: {ingests}")
                     if ingests and previous_part in ingests:
                         context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
+                    elif ingests and previous_part.split(".")[0] in str(ingests):
+                        context.log.info(f"Multipart found previously ingested to DPI and in CID with different extension: {ingests}")
                     else:
                         return _defer_for_previous_part(previous_part)
                 except Exception as err:
