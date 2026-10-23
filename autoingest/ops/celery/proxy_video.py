@@ -90,7 +90,7 @@ def encode_proxy_mp4(
 
     root = file_path.split("/autoingest")[0]
     source_path = os.path.join(root, f"autoingest/validation/{bp_job_id}/{filename}")
-    if not source_path.is_file():
+    if not os.path.exists(source_path):
         context.log.warning(
             f"Source file not found at validation path: {source_path}. "
             f"Original ingest path ({file_path}) may be stale — file has moved through the pipeline."
