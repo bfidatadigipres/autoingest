@@ -88,8 +88,8 @@ def encode_proxy_mp4(
             "proxy_size": "",
         }, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
-    root = Path(file_path).parent.parent.parent.parent
-    source_path = root / "autoingest" / "validation" / (bp_job_id or "") / filename
+    root = file_path.split("/autoingest")[0]
+    source_path = os.path.join(root, f"autoingest/validation/{bp_job_id}/{filename}")
     if not source_path.is_file():
         context.log.warning(
             f"Source file not found at validation path: {source_path}. "
