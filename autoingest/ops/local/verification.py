@@ -56,8 +56,8 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 (file_info[0],),
             )
     path_to_autoingest = file_info[45]
-    fp = Path(file_path_str)
-    autoingest_path = str(fp.parent.parent.parent.parent / Path(path_to_autoingest))
+    fp = file_path_str.split("/autoingest/")[0]
+    autoingest_path = os.path.join(fp, path_to_autoingest)
     if not autoingest_path or not os.path.exists(autoingest_path):
         context.log.warning(f"Autoingest path not found:\n{autoingest_path}")
         _set_validation_status(db, file_info[0], "File cleared for ingest", "")
