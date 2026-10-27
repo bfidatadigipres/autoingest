@@ -99,23 +99,23 @@ class TestCheckForMultipart:
 
     def test_returns_previous_part(self):
         result = check_for_multipart("N12345_02of02.mxf", 2, 2)
-        assert result == "N12345_01of02"
+        assert result == "N12345_01of02.mxf"
 
     def test_three_part_series(self):
         result = check_for_multipart("N12345_03of03.mxf", 3, 3)
-        assert result == "N12345_02of03"
+        assert result == "N12345_02of03.mxf"
 
     def test_four_segment_filename(self):
         result = check_for_multipart("N_123_AB_02of04.mov", 2, 4)
-        assert result == "N_123_AB_01of04"
+        assert result == "N_123_AB_01of04.mov"
 
     def test_different_padding_length(self):
         result = check_for_multipart("N1_0002of0010.mxf", 2, 10)
-        assert result == "N1_0001of0010"
+        assert result == "N1_0001of0010.mxf"
 
     def test_second_part_of_two(self):
         result = check_for_multipart("CA_123456_02of02.dpx", 2, 2)
-        assert result == "CA_123456_01of02"
+        assert result == "CA_123456_01of02.dpx"
 
 
 class TestSamePathDuplicateGuard:

@@ -1,26 +1,111 @@
-import os
 import json
-import random
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
+
+from dagster import DefaultSensorStatus, RunRequest, SensorEvaluationContext, sensor
 
 from autoingest.jobs.ingest_jobs import ingest_local_job
+from autoingest.ops.local.file_assessment import check_for_multipart
 from autoingest.resources.utils import (
     WAITING_FOR_PREVIOUS_PART_MSG,
     accepted_file_type,
+    check_part_whole,
 )
-
 
 MAX_INGEST_DEPTH = 30
 MAX_NEW_PER_TICK = 60
 MAX_FILES_PER_PATH_PER_TICK = 100
-MAX_LAUNCHES_PER_PATH_PER_TICK = 3
+MAX_LAUNCHES_PER_STORAGE_PER_TICK = 3
 TICK_DEADLINE_SEC = 55
 CURSOR_TIMEOUT_SEC = 900  # 15 minutes
 RETRYABLE_STATUSES = {"No Status", "Failed assessment"}
 DEFERRED_RETRY_MIN_AGE_SEC = 4 * 60 * 60  # 4 hours
+
+
+def _storage_key(path: str) -> str:
+    for marker in ("/autoingest/", "/ingest/"):
+        prefix, sep, _ = path.partition(marker)
+        if sep:
+            if prefix.startswith("/mnt/"):
+                return prefix[len("/mnt/") :]
+            return prefix
+    if path.startswith("/mnt/"):
+        return path.split("/", 3)[2]
+    return str(Path(path).parent)
+
+
+def _prioritise_multipart(
+    db, candidates: list[str], existing_states: dict, seen_paths: set[str]
+) -> list[str]:
+    series: dict[str, list[tuple[int, str, str]]] = {}
+    others: list[tuple[int | None, str]] = []
+
+    for path in candidates:
+        name = Path(path).name
+        if "/incomplete_scan/" in path or "_" not in name or "of" not in name:
+            others.append((None, path))
+            continue
+
+        part, whole = check_part_whole(name)
+        if not part or part == 1:
+            others.append((part, path))
+            continue
+
+        previous = check_for_multipart(name, part, whole)
+        if not isinstance(previous, str):
+            others.append((part, path))
+            continue
+
+        series.setdefault(name.rsplit("_", 1)[0], []).append((part, previous, path))
+
+    ready: list[tuple[int, str]] = []
+    now = datetime.now(timezone.utc)
+
+    for items in series.values():
+        items.sort(key=lambda item: item[0])
+        part, previous, path = items[0]
+        previous_path = os.path.join(os.path.dirname(path), previous)
+        details = db.lookup_file_details(previous)
+
+        if details is None:
+            if previous_path in seen_paths:
+                continue
+            state = existing_states.get(path)
+            if state is not None:
+                updated_at = state[2]
+                age = (
+                    (now - updated_at).total_seconds()
+                    if updated_at is not None
+                    else float("inf")
+                )
+                if age < DEFERRED_RETRY_MIN_AGE_SEC:
+                    continue
+        else:
+            status = details[2]
+            do_ingest = details[6] if len(details) > 6 else None
+            if status in (
+                "No Status",
+                "Failed assessment",
+                "Error",
+                "Duplicate filename",
+            ):
+                continue
+            if do_ingest == "FALSE":
+                continue
+
+        ready.append((part, path))
+
+    ready.sort(key=lambda item: item[0])
+    others.sort(
+        key=lambda item: (
+            item[0] is None,
+            item[0] or 0,
+            Path(item[1]).name,
+        )
+    )
+    return [path for _, path in ready] + [path for _, path in others]
 
 
 @sensor(
@@ -65,6 +150,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     phase1_start = time.perf_counter()
     current_files: dict[str, dict] = {}
+    seen_paths: set[str] = set()
     total_scanned = 0
     skipped_extension = 0
     skipped_not_file = 0
@@ -104,6 +190,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                         ):
                             skipped_extension += 1
                             continue
+
+                        seen_paths.add(file_entry.path)
 
                         try:
                             st = file_entry.stat()
@@ -280,7 +368,6 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     candidates = []
     skipped_cursor = 0
     skipped_db = 0
-    skipped_backoff = 0
 
     for file_key in current_files:
         if file_key in submitted_paths:
@@ -292,37 +379,18 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             candidates.append(file_key)
             continue
 
-        db_status, db_error, db_updated_at = state
-
-        if db_status == "No Status" and db_error == WAITING_FOR_PREVIOUS_PART_MSG:
-            age_sec = (
-                (now - db_updated_at).total_seconds()
-                if db_updated_at is not None
-                else float("inf")
-            )
-            if age_sec >= DEFERRED_RETRY_MIN_AGE_SEC:
-                candidates.append(file_key)
-                context.log.info(
-                    f"  Deferred retry candidate: {Path(file_key).name} "
-                    f"(waiting {age_sec / 3600:.1f}h)"
-                )
-            else:
-                skipped_backoff += 1
-            continue
-
+        db_status = state[0]
         if db_status in RETRYABLE_STATUSES:
             candidates.append(file_key)
-            context.log.info(
-                f"  Retry candidate: {Path(file_key).name} "
-                f"(status={db_status})"
+            context.log.debug(
+                f"  Retry candidate: {Path(file_key).name} (status={db_status})"
             )
         else:
             skipped_db += 1
 
     context.log.info(
         f"Dedup: {len(candidates)} candidates, "
-        f"skipped: cursor={skipped_cursor} db={skipped_db} "
-        f"backoff={skipped_backoff}"
+        f"skipped: cursor={skipped_cursor} db={skipped_db}"
     )
     context.log.info(f"Phase 4 (filter) took {time.perf_counter() - phase4_start:.2f}s")
 
@@ -341,7 +409,8 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
                     "WHERE file_status IN ("
                     "'No Status', 'assessed', 'checksummed', "
                     "'cataloguing'"
-                    ")"
+                    ") AND NOT (file_status = 'No Status' AND error_message = %s)",
+                    (WAITING_FOR_PREVIOUS_PART_MSG,),
                 )
                 ingest_count = cur.fetchone()[0]
     except Exception as exc:
@@ -367,46 +436,48 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     phase6_start = time.perf_counter()
 
-    # Prioritize retry candidates over new files so stuck files
-    # get a chance before fresh ones consume the launch slots.
     retry_candidates = []
     new_candidates = []
-    deferred_retry_tokens: dict[str, int] = {}
 
     for file_key in candidates:
         state = existing_states.get(file_key)
-        if state is None:
-            new_candidates.append(file_key)
-            continue
-
-        db_status, db_error, db_updated_at = state
-        if db_status in RETRYABLE_STATUSES:
+        if state is not None and state[0] in RETRYABLE_STATUSES:
             retry_candidates.append(file_key)
-            if (
-                db_status == "No Status"
-                and db_error == WAITING_FOR_PREVIOUS_PART_MSG
-                and db_updated_at is not None
-            ):
-                deferred_retry_tokens[file_key] = int(db_updated_at.timestamp())
         else:
             new_candidates.append(file_key)
 
-    # Sort new candidates by filename (ascending)
     new_candidates.sort(key=lambda p: Path(p).name)
+    new_candidates = _prioritise_multipart(
+        db, new_candidates, existing_states, seen_paths
+    )
+    retry_candidates = _prioritise_multipart(
+        db, retry_candidates, existing_states, seen_paths
+    )
 
-    # Randomly shuffle retry candidates for variety across ticks
-    random.shuffle(retry_candidates)
+    storage_groups: dict[str, dict[str, list[str]]] = {}
+    for file_key in new_candidates:
+        storage = _storage_key(file_key)
+        group = storage_groups.setdefault(storage, {"new": [], "retry": []})
+        group["new"].append(file_key)
+    for file_key in retry_candidates:
+        storage = _storage_key(file_key)
+        group = storage_groups.setdefault(storage, {"new": [], "retry": []})
+        group["retry"].append(file_key)
 
-    # Allocate slots: 75% new, 25% retry
-    total_slots = MAX_NEW_PER_TICK  # 60
-    retry_slots = int(total_slots * 0.25)  # 15
-    new_slots = total_slots - retry_slots  # 45
+    ordered = []
+    storage_order = sorted(storage_groups)
+    if storage_order:
+        offset = tick_number % len(storage_order)
+        storage_order = storage_order[offset:] + storage_order[:offset]
+    for storage in storage_order:
+        group = storage_groups[storage]
+        ordered += group["new"][:1] + group["retry"] + group["new"][1:]
 
-    ordered = new_candidates[:new_slots] + retry_candidates[:retry_slots]
+    retry_paths = set(retry_candidates)
 
     run_requests = []
     launched = 0
-    path_launch_counts: dict[str, int] = {}
+    storage_launch_counts: dict[str, int] = {}
     for file_key in ordered:
         if launched >= MAX_NEW_PER_TICK:
             context.log.info(
@@ -415,28 +486,21 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
             )
             break
 
-        # Resolve which watch_path this file belongs to
-        wp = None
-        for p in watch_paths:
-            if file_key.startswith(p):
-                wp = p
-                break
-
-        if wp and path_launch_counts.get(wp, 0) >= MAX_LAUNCHES_PER_PATH_PER_TICK:
+        storage = _storage_key(file_key)
+        if storage_launch_counts.get(storage, 0) >= MAX_LAUNCHES_PER_STORAGE_PER_TICK:
             continue
 
         fname = Path(file_key).name
         base_run_key = f"ingest-{fname}-{int(current_files[file_key]['mtime'])}"
-        retry_token = deferred_retry_tokens.get(file_key)
-        if retry_token is None:
-            run_key = base_run_key
-            context.log.info(f"New file detected: {fname}")
-        else:
+        if file_key in retry_paths:
+            retry_token = int(time.time())
             run_key = f"{base_run_key}-retry-{retry_token}"
             context.log.info(
-                f"Retrying deferred file: {fname} "
-                f"(deferral ts={retry_token})"
+                f"Retrying deferred file: {fname} (retry ts={retry_token})"
             )
+        else:
+            run_key = base_run_key
+            context.log.info(f"New file detected: {fname}")
         run_requests.append(
             RunRequest(
                 run_key=run_key,
@@ -452,8 +516,7 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         submitted_paths.add(file_key)
         submitted_timestamps[file_key] = datetime.now(timezone.utc).isoformat()
         launched += 1
-        if wp:
-            path_launch_counts[wp] = path_launch_counts.get(wp, 0) + 1
+        storage_launch_counts[storage] = storage_launch_counts.get(storage, 0) + 1
 
     # ── Phase 7: Update cursor ────────────────────────────────
 
