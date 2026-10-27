@@ -19,7 +19,13 @@ with open(os.path.join(_tmp, "downtime_control.json"), "w") as f:
 with open(os.environ["DPI_BUCKET"], "w") as f:
     json.dump({"bfi0": True}, f)
 
-from autoingest.sensors.watch_folder import _prioritise_multipart, _storage_key
+from autoingest.resources.utils import WAITING_FOR_PREVIOUS_PART_MSG
+from autoingest.sensors.watch_folder import (
+    _launch_budget,
+    _prioritise_multipart,
+    _retry_token,
+    _storage_key,
+)
 
 BASE = "/mnt/qnap_09/autoingest/ingest/bfi"
 
@@ -125,3 +131,37 @@ def test_storage_key_ingest_only_path():
 
 def test_storage_key_falls_back_to_mount():
     assert _storage_key("/mnt/qnap_09/foo/f.mxf") == "qnap_09"
+
+
+def test_launch_budget_below_soft_limit():
+    assert _launch_budget(149) == (60, 45, 15)
+
+
+def test_launch_budget_at_soft_limit():
+    assert _launch_budget(150) == (5, 4, 1)
+
+
+def test_launch_budget_at_hard_limit():
+    assert _launch_budget(300) == (5, 4, 1)
+
+
+def test_launch_budget_above_hard_limit():
+    assert _launch_budget(301) is None
+
+
+def test_retry_token_for_waiting_part_uses_updated_at():
+    updated = datetime.now(UTC)
+    state = ("No Status", WAITING_FOR_PREVIOUS_PART_MSG, updated)
+    assert _retry_token(_candidate(2), {_candidate(2): state}) == int(
+        updated.timestamp()
+    )
+
+
+def test_retry_token_for_failed_assessment_is_none():
+    state = ("Failed assessment", "FFprobe failed", datetime.now(UTC))
+    assert _retry_token(_candidate(2), {_candidate(2): state}) is None
+
+
+def test_retry_token_for_other_no_status_is_none():
+    state = ("No Status", "", datetime.now(UTC))
+    assert _retry_token(_candidate(2), {_candidate(2): state}) is None

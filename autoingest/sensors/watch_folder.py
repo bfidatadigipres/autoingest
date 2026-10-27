@@ -4,7 +4,14 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dagster import DefaultSensorStatus, RunRequest, SensorEvaluationContext, sensor
+from dagster import (
+    DagsterRunStatus,
+    DefaultSensorStatus,
+    RunRequest,
+    RunsFilter,
+    SensorEvaluationContext,
+    sensor,
+)
 
 from autoingest.jobs.ingest_jobs import ingest_local_job
 from autoingest.ops.local.file_assessment import check_for_multipart
@@ -14,8 +21,12 @@ from autoingest.resources.utils import (
     check_part_whole,
 )
 
-MAX_INGEST_DEPTH = 30
 MAX_NEW_PER_TICK = 60
+NORMAL_RETRY_SLOTS = 15
+QUEUE_SOFT_LIMIT = 150
+QUEUE_HARD_LIMIT = 300
+THROTTLED_LAUNCHES_PER_TICK = 5
+THROTTLED_RETRY_SLOTS = 1
 MAX_FILES_PER_PATH_PER_TICK = 100
 MAX_LAUNCHES_PER_STORAGE_PER_TICK = 3
 TICK_DEADLINE_SEC = 55
@@ -34,6 +45,30 @@ def _storage_key(path: str) -> str:
     if path.startswith("/mnt/"):
         return path.split("/", 3)[2]
     return str(Path(path).parent)
+
+
+def _launch_budget(queue_depth: int) -> tuple[int, int, int] | None:
+    if queue_depth > QUEUE_HARD_LIMIT:
+        return None
+    if queue_depth >= QUEUE_SOFT_LIMIT:
+        per_tick_cap = THROTTLED_LAUNCHES_PER_TICK
+        retry_slots = THROTTLED_RETRY_SLOTS
+    else:
+        per_tick_cap = MAX_NEW_PER_TICK
+        retry_slots = NORMAL_RETRY_SLOTS
+    return per_tick_cap, per_tick_cap - retry_slots, retry_slots
+
+
+def _retry_token(file_key: str, existing_states: dict) -> int | None:
+    state = existing_states.get(file_key)
+    if (
+        state is not None
+        and state[0] == "No Status"
+        and state[1] == WAITING_FOR_PREVIOUS_PART_MSG
+        and state[2] is not None
+    ):
+        return int(state[2].timestamp())
+    return None
 
 
 def _prioritise_multipart(
@@ -116,6 +151,33 @@ def _prioritise_multipart(
 )
 def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     tick_start = time.perf_counter()
+
+    try:
+        queue_depth = context.instance.get_runs_count(
+            filters=RunsFilter(
+                statuses=[
+                    DagsterRunStatus.QUEUED,
+                    DagsterRunStatus.NOT_STARTED,
+                ]
+            )
+        )
+    except Exception as exc:
+        context.log.warning(f"Queue-depth check failed, skipping launches: {exc}")
+        return []
+
+    budget = _launch_budget(queue_depth)
+    if budget is None:
+        context.log.info(
+            f"Dagster queue depth {queue_depth} exceeds "
+            f"{QUEUE_HARD_LIMIT} — skipping launches"
+        )
+        return []
+
+    per_tick_cap, new_slots, retry_slots = budget
+    context.log.info(
+        f"Dagster queue depth {queue_depth} — launch budget {per_tick_cap} "
+        f"({new_slots} new, {retry_slots} retry)"
+    )
 
     watch_paths_file = os.environ.get("WATCH_PATHS_FILE", "")
     if watch_paths_file:
@@ -394,47 +456,9 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     )
     context.log.info(f"Phase 4 (filter) took {time.perf_counter() - phase4_start:.2f}s")
 
-    # ── Phase 5: Gate check (ingest stages only) ─────────────
-    # Only count Files actively in the pre-BP-PUT ingest pipeline.
-    # 'File cleared for ingest' is excluded — it means catalogue
-    # is done and the file is waiting for external BP PUT.
+    # ── Phase 5: Launch RunRequests ───────────────────────────
 
     phase5_start = time.perf_counter()
-
-    try:
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT COUNT(*) FROM app.file_catalogue "
-                    "WHERE file_status IN ("
-                    "'No Status', 'assessed', 'checksummed', "
-                    "'cataloguing'"
-                    ") AND NOT (file_status = 'No Status' AND error_message = %s)",
-                    (WAITING_FOR_PREVIOUS_PART_MSG,),
-                )
-                ingest_count = cur.fetchone()[0]
-    except Exception as exc:
-        context.log.warning(
-            f"Ingest-depth check failed, skipping new launches: {exc}"
-        )
-        ingest_count = MAX_INGEST_DEPTH + 1
-
-    if ingest_count > MAX_INGEST_DEPTH:
-        context.log.info(
-            f"watch_folder_sensor: drain mode — "
-            f"{ingest_count} files in ingest pipeline, "
-            f"launching at reduced rate"
-        )
-
-    context.log.info(
-        f"watch_folder_sensor: ingest depth — "
-        f"{ingest_count} files (limit {MAX_INGEST_DEPTH})"
-    )
-    context.log.info(f"Phase 5 (gate check) took {time.perf_counter() - phase5_start:.2f}s")
-
-    # ── Phase 6: Launch RunRequests ───────────────────────────
-
-    phase6_start = time.perf_counter()
 
     retry_candidates = []
     new_candidates = []
@@ -477,14 +501,23 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
     run_requests = []
     launched = 0
+    new_launched = 0
+    retry_launched = 0
     storage_launch_counts: dict[str, int] = {}
     for file_key in ordered:
-        if launched >= MAX_NEW_PER_TICK:
+        if launched >= per_tick_cap:
             context.log.info(
-                f"Per-tick launch cap ({MAX_NEW_PER_TICK}) reached — "
+                f"Per-tick launch cap ({per_tick_cap}) reached — "
                 f"{len(ordered) - launched} candidates deferred"
             )
             break
+
+        is_retry = file_key in retry_paths
+        if is_retry:
+            if retry_launched >= retry_slots:
+                continue
+        elif new_launched >= new_slots:
+            continue
 
         storage = _storage_key(file_key)
         if storage_launch_counts.get(storage, 0) >= MAX_LAUNCHES_PER_STORAGE_PER_TICK:
@@ -492,12 +525,16 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
 
         fname = Path(file_key).name
         base_run_key = f"ingest-{fname}-{int(current_files[file_key]['mtime'])}"
-        if file_key in retry_paths:
-            retry_token = int(time.time())
-            run_key = f"{base_run_key}-retry-{retry_token}"
-            context.log.info(
-                f"Retrying deferred file: {fname} (retry ts={retry_token})"
-            )
+        if is_retry:
+            retry_token = _retry_token(file_key, existing_states)
+            if retry_token is None:
+                run_key = base_run_key
+                context.log.info(f"Retrying file: {fname}")
+            else:
+                run_key = f"{base_run_key}-retry-{retry_token}"
+                context.log.info(
+                    f"Retrying deferred file: {fname} (deferral ts={retry_token})"
+                )
         else:
             run_key = base_run_key
             context.log.info(f"New file detected: {fname}")
@@ -516,6 +553,10 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
         submitted_paths.add(file_key)
         submitted_timestamps[file_key] = datetime.now(timezone.utc).isoformat()
         launched += 1
+        if is_retry:
+            retry_launched += 1
+        else:
+            new_launched += 1
         storage_launch_counts[storage] = storage_launch_counts.get(storage, 0) + 1
 
     # ── Phase 7: Update cursor ────────────────────────────────
@@ -526,10 +567,11 @@ def watch_folder_sensor(context: SensorEvaluationContext) -> list[RunRequest]:
     }
     context.update_cursor(json.dumps(cursor_data))
     context.log.info(
-        f"Cursor updated — {launched} launched, "
+        f"Cursor updated — {launched} launched "
+        f"({new_launched} new, {retry_launched} retry), "
         f"{len(submitted_paths)} pending, "
         f"{len(current_files)} files on disk"
     )
-    context.log.info(f"Phase 6 (launch) took {time.perf_counter() - phase6_start:.2f}s")
+    context.log.info(f"Phase 5 (launch) took {time.perf_counter() - phase5_start:.2f}s")
     context.log.info(f"Total tick time: {time.perf_counter() - tick_start:.2f}s")
     return run_requests
