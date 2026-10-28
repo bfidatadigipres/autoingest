@@ -9,15 +9,26 @@ klc_bp = Blueprint(
 )
 
 STORAGE_OPTIONS = [
+    "bp_nas/digital",
+    "bp_nas/curatorial/Screencraft",
+    "bp_nas/film/image_quality",
+    "bp_nas/film/laboratory",
+    "bp_nas/film/micrl",
+    "bp_nas/film/operations",
+    "bp_nas/film/preservation",
+    "bp_nas/film/scanning",
+    "bp_nas/video_audio/audio",
+    "bp_nas/video_audio/video",
+    #"EditShare-Director/scans_1",
     "qnap_01/Public/F47",
     "qnap_03",
     "qnap_04",
-    # "qnap_05/Public",
+    "qnap_05/Public",
     "qnap_06",
     "qnap_08",
     "qnap_09",
     "qnap_10",
-    # "qnap_11/digital_operations",
+    "qnap_11/digital_operations",
 ]
 
 GUIDANCE = {
