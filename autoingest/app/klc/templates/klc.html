@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta http-equiv="refresh" content="300">
     <title>BFI National Archive — KLC File Progress</title>
     <link rel="stylesheet" href="/static/klc.css">
 </head>
@@ -12,7 +11,7 @@
     <img src="/static/logo.png" alt="BFI" class="brand-logo">
     <span class="brand-title">BFI National Archive — Autoingest Dashboard</span>
     <div class="brand-actions">
-        <button onclick="location.reload()" class="btn-refresh">Refresh</button>
+        <button onclick="refresh()" class="btn-refresh">Refresh</button>
         {% if confluence_url %}
         <a href="{{ confluence_url }}" target="_blank" rel="noopener" class="btn-servicedesk">Instructions</a>
         {% endif %}
@@ -55,7 +54,7 @@
 <table id="fileTable">
     <thead>
         <tr>
-            <th>File Name</th>
+            <th id="fileNameHeader" class="sortable" role="button" tabindex="0" aria-sort="none" title="Sort by file name">File Name <span class="sort-indicator" aria-hidden="true"></span></th>
             <th>Status</th>
             <th>Error</th>
             <th>Storage</th>
@@ -75,10 +74,50 @@
 <div id="lastUpdate" class="footer"></div>
 
 <script>
+const REFRESH_MS = 2 * 60 * 1000;
+const nameCollator = new Intl.Collator(undefined, {numeric: true, sensitivity: "base"});
 let guidance = {};
 let searchTimeout = null;
 let fileSearchTimeout = null;
 let tooltipLeave = null;
+let refreshTimer = null;
+let currentFiles = [];
+let sortActive = false;
+let sortAsc = true;
+
+function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(refresh, REFRESH_MS);
+}
+
+function markUpdated() {
+    document.getElementById("lastUpdate").textContent =
+        "Last updated: " + new Date().toLocaleTimeString() + " · Auto-refreshes every 2 minutes";
+}
+
+function updateSortIndicator() {
+    var header = document.getElementById("fileNameHeader");
+    var indicator = header.querySelector(".sort-indicator");
+    if (!sortActive) {
+        header.setAttribute("aria-sort", "none");
+        indicator.textContent = "";
+        return;
+    }
+    header.setAttribute("aria-sort", sortAsc ? "ascending" : "descending");
+    indicator.textContent = sortAsc ? "▲" : "▼";
+}
+
+function sortByFileName() {
+    if (!currentFiles.length) return;
+    if (sortActive) {
+        sortAsc = !sortAsc;
+    } else {
+        sortActive = true;
+        sortAsc = true;
+    }
+    updateSortIndicator();
+    renderTable(currentFiles);
+}
 
 async function loadGuidance() {
     try {
@@ -119,9 +158,8 @@ async function loadFiles() {
         document.getElementById("tableBody").innerHTML =
             '<tr><td colspan="9" class="error-cell">Error loading data</td></tr>';
     }
-    document.getElementById("lastUpdate").textContent =
-        "Last updated: " + new Date().toLocaleTimeString();
-    setTimeout(refresh, 30000);
+    markUpdated();
+    scheduleRefresh();
 }
 
 async function loadFile(name) {
@@ -136,9 +174,8 @@ async function loadFile(name) {
         document.getElementById("tableBody").innerHTML =
             '<tr><td colspan="9" class="error-cell">Error loading data</td></tr>';
     }
-    document.getElementById("lastUpdate").textContent =
-        "Last updated: " + new Date().toLocaleTimeString();
-    setTimeout(refresh, 30000);
+    markUpdated();
+    scheduleRefresh();
 }
 
 function refresh() {
@@ -151,6 +188,15 @@ function refresh() {
 }
 
 function renderTable(files) {
+    currentFiles = files.slice();
+    var sorted = currentFiles;
+    if (sortActive) {
+        sorted = currentFiles.slice().sort(function(a, b) {
+            var cmp = nameCollator.compare(a.file_name || "", b.file_name || "");
+            return sortAsc ? cmp : -cmp;
+        });
+    }
+
     var tbody = document.getElementById("tableBody");
     document.getElementById("resultCount").textContent =
         files.length + " file" + (files.length !== 1 ? "s" : "");
@@ -169,8 +215,8 @@ function renderTable(files) {
     }
 
     var html = "";
-    for (var i = 0; i < files.length; i++) {
-        var f = files[i];
+    for (var i = 0; i < sorted.length; i++) {
+        var f = sorted[i];
         var errorText = f.error_message || "";
         var g = matchGuidance(errorText);
 
@@ -268,6 +314,13 @@ document.getElementById("tableBody").addEventListener("mouseout", function(ev) {
     if (ev.target.closest(".error-icon")) hideTooltip();
 });
 
+document.getElementById("fileNameHeader").addEventListener("click", sortByFileName);
+document.getElementById("fileNameHeader").addEventListener("keydown", function(ev) {
+    if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        sortByFileName();
+    }
+});
 document.getElementById("searchInput").addEventListener("input", function() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(refresh, 350);

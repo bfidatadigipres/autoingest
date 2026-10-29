@@ -169,13 +169,14 @@ export KLC_HELP_URL=https://your-confluence.example.com/display   # optional —
 python -m autoingest.app
 ```
 
-Opens on `http://localhost:5050` (and `/klc` for the KLC viewer). Pages auto-refresh every 30 seconds (a 5-minute meta-refresh also applies to `/klc`).
+Opens on `http://localhost:5050` (and `/klc` for the KLC viewer). The main viewer auto-refreshes every 30 seconds. The KLC viewer polls every 2 minutes without a full page reload, and its API responses are cached server-side for 60 seconds.
 
 ### KLC File Progress Viewer
 
 A read-only Flask Blueprint at `/klc` designed for KLC colleagues to review file progress. Features:
 
 - **9-column table** — File Name, Status, Error, Storage, File Size (adaptive GB/MB/KB), Media Type, MD5 checksum, File format, Last updated
+- **Sortable file names** — click the File Name header (or focus it and press Enter/Space) to toggle ascending/descending order; sorting happens in the browser with no extra database queries
 - **72-hour default window** — shows files updated in the last 72 hours; the **Errors** dropdown bypasses this to surface all unresolved errors regardless of age
 - **Search** by file name, status, or error message (debounced 350ms); searches the full database history
 - **Storage filter** — dropdown for qnap_01 through qnap_11 paths (prefix-matched to support subpaths)

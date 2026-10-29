@@ -1,5 +1,9 @@
 import re
-from flask import Blueprint, render_template, jsonify, request, current_app
+import threading
+import time
+from collections.abc import Callable
+
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 klc_bp = Blueprint(
     "klc_routes",
@@ -19,7 +23,7 @@ STORAGE_OPTIONS = [
     "bp_nas/film/scanning",
     "bp_nas/video_audio/audio",
     "bp_nas/video_audio/video",
-    #"EditShare-Director/scans_1",
+    # "EditShare-Director/scans_1",
     "qnap_01/Public/F47",
     "qnap_03",
     "qnap_04",
@@ -131,6 +135,31 @@ GUIDANCE = {
 }
 
 
+CACHE_TTL_SECONDS = 60
+CACHE_MAX_ENTRIES = 128
+
+_cache: dict[tuple, tuple[float, list]] = {}
+_cache_lock = threading.Lock()
+
+
+def _cached(key: tuple, fetch: Callable[[], list]) -> list:
+    now = time.monotonic()
+    with _cache_lock:
+        hit = _cache.get(key)
+        if hit and now - hit[0] < CACHE_TTL_SECONDS:
+            return hit[1]
+
+    value = fetch()
+
+    with _cache_lock:
+        if len(_cache) >= CACHE_MAX_ENTRIES:
+            oldest = min(_cache, key=lambda k: _cache[k][0])
+            _cache.pop(oldest, None)
+        _cache[key] = (time.monotonic(), value)
+
+    return value
+
+
 def _db():
     return current_app.config["db"]
 
@@ -185,14 +214,8 @@ def index():
     )
 
 
-@klc_bp.route("/api/files")
-def api_files():
+def _fetch_files(search: str, storage: str, has_error: str, limit: int) -> list[dict]:
     db = _db()
-    search = request.args.get("search", "").strip()
-    storage = request.args.get("storage", "").strip()
-    has_error = request.args.get("has_error", "").strip()
-    limit = min(int(request.args.get("limit", "1000")), 1000)
-
     conditions = []
     params = []
 
@@ -233,11 +256,10 @@ def api_files():
     """
     params.append(limit)
 
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            columns = [desc[0] for desc in cur.description]
-            raw_rows = cur.fetchall()
+    with db.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(query, params)
+        columns = [desc[0] for desc in cur.description]
+        raw_rows = cur.fetchall()
 
     rows = []
     for row in raw_rows:
@@ -249,16 +271,11 @@ def api_files():
             r["updated_at"] = r["updated_at"].strftime("%Y-%m-%d %H:%M")
         rows.append(r)
 
-    return jsonify(rows)
+    return rows
 
 
-@klc_bp.route("/api/file")
-def api_file():
+def _fetch_file(name: str) -> list[dict]:
     db = _db()
-    name = request.args.get("name", "").strip()
-    if not name:
-        return jsonify({"error": "name parameter is required"}), 400
-
     query = """
         SELECT id, file_name, file_status, error_message, file_path,
                file_size, mime_type, checksum_md5,
@@ -269,11 +286,10 @@ def api_file():
         LIMIT 100
     """
 
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, (name,))
-            columns = [desc[0] for desc in cur.description]
-            raw_rows = cur.fetchall()
+    with db.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(query, (name,))
+        columns = [desc[0] for desc in cur.description]
+        raw_rows = cur.fetchall()
 
     rows = []
     for row in raw_rows:
@@ -285,20 +301,45 @@ def api_file():
             r["updated_at"] = r["updated_at"].strftime("%Y-%m-%d %H:%M")
         rows.append(r)
 
+    return rows
+
+
+def _fetch_stats() -> list[dict]:
+    db = _db()
+    with db.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT file_status, COUNT(*) FROM app.file_catalogue "
+            "GROUP BY file_status ORDER BY COUNT(*) DESC"
+        )
+        stats_rows = cur.fetchall()
+    return [{"status": r[0], "count": r[1]} for r in stats_rows]
+
+
+@klc_bp.route("/api/files")
+def api_files():
+    search = request.args.get("search", "").strip()
+    storage = request.args.get("storage", "").strip()
+    has_error = request.args.get("has_error", "").strip()
+    limit = min(int(request.args.get("limit", "1000")), 1000)
+
+    key = ("files", search, storage, has_error, limit)
+    rows = _cached(key, lambda: _fetch_files(search, storage, has_error, limit))
+    return jsonify(rows)
+
+
+@klc_bp.route("/api/file")
+def api_file():
+    name = request.args.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "name parameter is required"}), 400
+
+    rows = _cached(("file", name), lambda: _fetch_file(name))
     return jsonify(rows)
 
 
 @klc_bp.route("/api/stats")
 def api_stats():
-    db = _db()
-    with db.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT file_status, COUNT(*) FROM app.file_catalogue "
-                "GROUP BY file_status ORDER BY COUNT(*) DESC"
-            )
-            stats_rows = cur.fetchall()
-    return jsonify([{"status": r[0], "count": r[1]} for r in stats_rows])
+    return jsonify(_cached(("stats",), _fetch_stats))
 
 
 @klc_bp.route("/api/guidance")
