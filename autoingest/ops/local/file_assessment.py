@@ -137,6 +137,9 @@ def assess_filename(context: OpExecutionContext) -> Output:
         elif isinstance(previous_part, str):
             pp_field_details = db.lookup_file_details(previous_part)
             if not pp_field_details:
+                pp_field_details = db.lookup_file_details_by_stem(previous_part)
+
+            if not pp_field_details:
                 context.log.info("Previous part not found in PostgreSQL. Checking CID Media records...")
                 try:
                     ingests = get_media_ingests(object_number)
@@ -144,7 +147,7 @@ def assess_filename(context: OpExecutionContext) -> Output:
                     if ingests and previous_part in ingests:
                         context.log.info(f"Multipart found previously ingested to DPI and in CID: {ingests}")
                     elif ingests and previous_part.split(".")[0] in str(ingests):
-                        context.log.info(f"Multipart found previously ingested to DPI and in CID with different extension: {ingests}")
+                        context.log.info(f"Multipart found previously ingested to DPI and in CID with different extension: {previous_part.split(".")[0]}")
                     else:
                         return _defer_for_previous_part(previous_part)
                 except Exception as err:

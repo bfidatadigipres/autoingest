@@ -103,6 +103,8 @@ def _prioritise_multipart(
         part, previous, path = items[0]
         previous_path = os.path.join(os.path.dirname(path), previous)
         details = db.lookup_file_details(previous)
+        if details is None:
+            details = db.lookup_file_details_by_stem(previous)        
 
         if details is None:
             if previous_path in seen_paths:

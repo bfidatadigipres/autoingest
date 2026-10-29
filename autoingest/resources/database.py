@@ -122,6 +122,18 @@ class WorkflowDatabase:
                 )
                 return cur.fetchone()
 
+    def lookup_file_details_by_stem(self, file_name: str) -> tuple[Any, ...] | None:
+        stem = os.path.splitext(file_name)[0]
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT * FROM app.file_catalogue "
+                    "WHERE split_part(file_name, '.', 1) = %s "
+                    "ORDER BY created_at ASC LIMIT 1",
+                    (stem,),
+                )
+                return cur.fetchone()
+
     def create_file_record(self, file_data: list[str | int]) -> int:
         fname, fpath, ftype, fsize = file_data
         with self.get_connection() as conn:
