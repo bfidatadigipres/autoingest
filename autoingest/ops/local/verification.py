@@ -122,6 +122,14 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
     if file_info[47] == "Group":
         local_checksum = file_info[22].strip()
+        if len(local_checksum) == 0:
+            context.log.warning(
+                "MD5 checksum for file was not retrieved. Please manually retrieve for file to advance"
+            )
+            validation_pass = False
+            deletion_needed = False
+            ingest_retry_needed = False
+            errors.append("MD5 checksum extraction failed: unable to verify file")
         if local_checksum.lower() != bp_checksum.lower():
             context.log.warning(f"Black Pearl version of {file} has different checksum to local:\n{bp_checksum}\n{local_checksum}")
             validation_pass = False
