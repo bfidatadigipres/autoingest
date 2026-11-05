@@ -23,7 +23,7 @@ STORAGE_OPTIONS = [
     "bp_nas/film/scanning",
     "bp_nas/video_audio/audio",
     "bp_nas/video_audio/video",
-    # "EditShare-Director/scans_1",
+    "EditShare-Director/scans_1",
     "qnap_01/Public/F47",
     "qnap_03",
     "qnap_04",
