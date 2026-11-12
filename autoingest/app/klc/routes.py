@@ -85,7 +85,7 @@ GUIDANCE = {
         "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Failed fixity check: checksums do not match": {
-        "text": "TThis indicates the MD5 checksum created for the file is different to the MD5 checksum that Black Pearl has stored for the file. This could be an ingest failure or a media management issue. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether there is a media management issue, or whether this indicates an ingest failure.",
+        "text": "This indicates the MD5 checksum created for the file is different to the MD5 checksum that Black Pearl has stored for the file. This could be an ingest failure or a media management issue. This requires investigation by someone close to the digitisation or acquisition activity, to establish whether there is a media management issue, or whether this indicates an ingest failure.",
         "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Cannot find record": {
@@ -105,7 +105,7 @@ GUIDANCE = {
         "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "Filename has already been ingested to DPI": {
-        "text": "TTis indicates a problem has arisen with the Black Pearl ingest scripts. An instance exists in the BlackPearl library that has the same filename. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
+        "text": "This indicates a problem has arisen with the Black Pearl ingest scripts. A file exists in the BlackPearl library that has the same filename. Please raise a ticket in Collections Systems Service Desk to request a review of the problem.",
         "link": "https://bficollectionssystems.atlassian.net/servicedesk/customer/portal/1/article/4691591282",
     },
     "No CID Media record found for this file": {
