@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 from dagster import op, Out, Output, OpExecutionContext
 
-JSON_PATH = os.path.join(os.environ.get("LOG_PATH", ""), "black_pearl/")
 CID_API = utils.get_current_api()
 
 
@@ -81,9 +80,13 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         context.log.error(f"Ingest folder job ID does not match that stored for file: {file_info[46]}")
         _set_validation_status(db, file_info[0], "File cleared for ingest", "")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
-    json_path = retrieve_json_data(bp_job_id.strip())
-    if not json_path:
-        context.log.warning(f"Unable to locate file in JSON path:\n{json_path}")
+    put_status = bp.get_job_status(bp_job_id.strip())
+    if put_status == "IN_PROGRESS":
+        context.log.info(f"PUT completion still progressing...")
+        _set_validation_status(db, file_info[0], "bp_json_pending", "")
+        return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
+    elif put_status != "COMPLETED":
+        context.log.warning(f"PUT completion status is {put_status}")
         _set_validation_status(db, file_info[0], "bp_json_pending", "")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
 
@@ -92,12 +95,6 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
     ingest_retry_needed = False
     deletion_needed = False
     results = {}
-
-    success = check_for_failed_file(file, json_path)
-    if success:
-        validation_pass = False
-        ingest_retry_needed = True
-        errors.append(f"BlackPearl failed to ingest file {file}")
 
     bp_bucket = file_info[18]
     bucket_list = file_info[19]
@@ -391,48 +388,6 @@ def _record_verify_event(
         )
     except Exception as exc:
         context.log.warning(f"Failed to record pipeline event for {file}: {exc}")
-
-
-def retrieve_json_data(job_id: str) -> Optional[str]:
-    json_file = [x for x in os.listdir(JSON_PATH) if str(job_id) in str(x)]
-    if json_file:
-        return os.path.join(JSON_PATH, json_file[0])
-    else:
-        return None
-
-
-def check_for_failed_file(file: str, json_file: str) -> bool:
-    failed_files = json_check(json_file)
-    if not failed_files:
-        return False
-    for ffile in failed_files:
-        for key, value in ffile.items():
-            if key == "Name":
-                if value == file:
-                    return True
-    return False
-
-
-def json_check(json_pth: str) -> Optional[str]:
-    with open(json_pth) as file:
-        dct = json.load(file)
-
-    notifications = None
-    for k, v in dct.items():
-        if k == "Notification":
-            notifications = v
-    if not isinstance(notifications, dict):
-        return None
-    events = None
-    for ky, vl in notifications.items():
-        if ky == "Event":
-            events = vl
-    if not isinstance(events, dict):
-        return None
-    for key, val in events.items():
-        if key == "ObjectsNotPersisted":
-            return val
-    return None
 
 
 def create_media_record(file_info: tuple) -> Optional[str]:

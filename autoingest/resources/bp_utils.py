@@ -111,7 +111,28 @@ def get_job_status(job_id: str) -> tuple[str, str]:
     print(f"Status for JOB ID: {job_id}")
     print(f"{status}, {cached}")
 
-    return status, cached
+    return status
+
+
+def get_completed_status(job_id: str) -> tuple[str, str]:
+    """
+    Fetch job success statements
+    """
+    from ds3 import ds3
+    CLIENT = ds3.createClientFromEnv()
+
+    job_status: ds3.GetCompletedJobSpectraS3Request = CLIENT.get_completed_job_spectra_s3(
+        ds3.GetCompletedJobSpectraS3Request(job_id.strip())
+    )
+
+    if job_status.result["ErrorMessage"]:
+        errors = job_status.result["ErrorMessage"]
+    if job_status.result["Truncated"]:
+        truncated = job_status.result["Truncated"]
+    print(f"Status for JOB ID: {job_id}")
+    print(f"{errors}, {truncated}")
+
+    return truncated
 
 
 def get_bp_md5(fname: str, bucket: str) -> Optional[str]:
@@ -297,24 +318,6 @@ def put_directory(directory_pth: str, bucket: str) -> Optional[list[str]]:
     for job_id in put_job_ids:
         job_list.append(job_id)
     return job_list
-
-
-def put_notification(job_id: str) -> str:
-    """
-    Ensure job notification is sent to Isilon/ BP NAS
-    """
-    from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
-
-    job_completed_registration = (
-        CLIENT.put_job_completed_notification_registration_spectra_s3(
-            ds3.PutJobCompletedNotificationRegistrationSpectraS3Request(
-                notification_end_point=JSON_END, format="JSON", job_id=job_id
-            )
-        )
-    )
-
-    return job_completed_registration.result["NotificationEndPoint"]
 
 
 def download_bp_object(fname: str, outpath: str, bucket: str) -> str:

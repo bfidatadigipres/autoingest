@@ -152,9 +152,8 @@ def main():
 
             # Confirm job list exists / send notification / write to postgreSQL
             if put_job_id:
-                confirmation = bp.put_notification(put_job_id)
                 LOGGER.info(
-                    "Job %s registered for completion notification at %s", put_job_id, confirmation
+                    "Job ID received: %s. Building validation path...", put_job_id
                 )
                 validate_path = os.path.join(fullpath, os.environ.get("VALIDATION"), f"{put_job_id}/")
                 LOGGER.info("Moving file into new folder: %s", validate_path)

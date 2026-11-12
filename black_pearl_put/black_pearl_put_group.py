@@ -425,13 +425,6 @@ def put_dir(directory_pth: str, bucket_choice: str) -> list[str]:
     if job_list is None:
         job_list = []
 
-    for job_id in job_list:
-        confirmation = bp.put_notification(job_id)
-        print(f"bp.put_notification: {confirmation}")
-        logger.info(
-            "Job %s registered for completion notification at %s", job_id, confirmation
-        )
-
     return job_list
 
 
