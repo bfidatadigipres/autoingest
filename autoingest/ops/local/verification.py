@@ -1,14 +1,12 @@
-from ...resources import utils
-from ...resources import bp_utils as bp
-from ...resources import adlib
-
 import os
 import time
-import json
-from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Optional
 from dagster import op, Out, Output, OpExecutionContext
+
+from ...resources import utils
+from ...resources import bp_utils as bp
+from ...resources import adlib
 
 CID_API = utils.get_current_api()
 
@@ -82,7 +80,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     put_status = bp.get_job_status(bp_job_id.strip())
     if put_status == "IN_PROGRESS":
-        context.log.info(f"PUT completion still progressing...")
+        context.log.info("PUT completion still progressing...")
         _set_validation_status(db, file_info[0], "bp_json_pending", "")
         return Output({}, metadata={"duration_sec": round(time.perf_counter() - tic, 3)})
     elif put_status != "COMPLETED":
@@ -199,8 +197,8 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
 
     mcheck = utils.check_file_has_media_rec(file)
     if mcheck is None:
-        context.log.warning(f"Unable to retrieve response from API")
-        errors.append(f"Cannot reach CID media database API")
+        context.log.warning("Unable to retrieve response from API")
+        errors.append("Cannot reach CID media database API")
         validation_pass = False
     elif mcheck is True:
         context.log.info(
@@ -248,7 +246,7 @@ def verify_tape_copy(context: OpExecutionContext) -> Output:
                 results["do_ingest"] = True
                 results["validated"] = False
             else:
-                context.log.warning(f"Move error for {file_info['file_name']}:\n{err}")
+                context.log.warning(f"Move error for {file_info['file_name']}")
                 results["error_message"] = "Reingest requested - manual move of file to ingest path needed"
                 results["do_ingest"] = True
                 results["validated"] = False
@@ -439,16 +437,16 @@ def create_media_record(file_info: tuple) -> Optional[str]:
         elif hits > 1:
             print(f"Aborting: More than one CID media record matches file: {file_info[1]}")
         else:
-            print(f"No CID media record found for this file.")
+            print("No CID media record found for this file.")
 
     return media_priref
 
 
-def _time_window_last_15min(type: str) -> str:
+def _time_window_last_15min(time_type: str) -> str:
     """
     Return a search string for records created in the last 15 minutes.
-    Type determines search against 'creation' or 'modification'
+    Time type determines search against 'creation' or 'modification'
     """
     now = datetime.now()
     window_start = now - timedelta(minutes=15)
-    return f"{type} > '{window_start.strftime('%Y-%m-%d %H:%M:%S')}'"
+    return f"{time_type} > '{window_start.strftime('%Y-%m-%d %H:%M:%S')}'"

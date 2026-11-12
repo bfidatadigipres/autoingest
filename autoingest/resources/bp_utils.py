@@ -23,7 +23,7 @@ def get_buckets(bucket_collection: str, blob_accepted: bool) -> tuple[str, list[
     key_bucket: str = ""
     bucket_collection = bucket_collection.strip().lower()
 
-    with open(DPI_BUCKETS) as data:
+    with open(DPI_BUCKETS, "r", encoding="utf-8") as data:
         bucket_data: dict[str, str] = json.load(data)
     for key, value in bucket_data.items():
         if bucket_collection == "bfi":
@@ -64,13 +64,13 @@ def check_no_bp_status(fname: str, bucket_list: list[str]) -> bool:
     multiple ingests of files
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
-    
+    client = ds3.createClientFromEnv()
+
     exist_across_buckets: list[str] = []
     for bucket in bucket_list:
         try:
             query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
-            result: ds3.HeadObjectResponse = CLIENT.head_object(query)
+            result: ds3.HeadObjectResponse = client.head_object(query)
 
             # Only return false if DOESNTEXIST is missing, eg file found
             if "DOESNTEXIST" in str(result.result):
@@ -82,7 +82,7 @@ def check_no_bp_status(fname: str, bucket_list: list[str]) -> bool:
         except Exception as err:
             print(err)
     print(exist_across_buckets)
-    if exist_across_buckets == []:
+    if not exist_across_buckets:
         return False
     if "PRESENT" in str(exist_across_buckets):
         return False
@@ -96,11 +96,11 @@ def get_job_status(job_id: str) -> tuple[str, str]:
     Fetch job status for specific ID
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     cached = status = ""
 
-    job_status: ds3.GetJobSpectraS3Request = CLIENT.get_job_spectra_s3(
+    job_status: ds3.GetJobSpectraS3Request = client.get_job_spectra_s3(
         ds3.GetJobSpectraS3Request(job_id.strip())
     )
 
@@ -119,19 +119,19 @@ def get_completed_status(job_id: str) -> tuple[str, str]:
     Fetch job success statements
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
-    job_status: ds3.GetCompletedJobSpectraS3Request = CLIENT.get_completed_job_spectra_s3(
+    job_status: ds3.GetCompletedJobSpectraS3Request = client.get_completed_job_spectra_s3(
         ds3.GetCompletedJobSpectraS3Request(job_id.strip())
     )
 
     if job_status.result["ErrorMessage"]:
         errors = job_status.result["ErrorMessage"]
+        print(f"Error message: {errors}")
     if job_status.result["Truncated"]:
         truncated = job_status.result["Truncated"]
-    print(f"Status for JOB ID: {job_id}")
-    print(f"{errors}, {truncated}")
-
+    else:
+        truncated = None
     return truncated
 
 
@@ -142,11 +142,11 @@ def get_bp_md5(fname: str, bucket: str) -> Optional[str]:
     to new local MD5
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     md5: str = ""
     query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
-    result: ds3.HeadObjectResponse = CLIENT.head_object(query)
+    result: ds3.HeadObjectResponse = client.head_object(query)
     try:
         md5: str = result.response.msg["ETag"]
     except Exception as err:
@@ -163,12 +163,12 @@ def get_bp_length(fname: str, bucket: str) -> Optional[str]:
     to new local MD5
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
 
     size: str = ""
     query: ds3.HeadObjectRequest = ds3.HeadObjectRequest(bucket, fname)
-    result: ds3.HeadObjectResponse = CLIENT.head_object(query)
+    result: ds3.HeadObjectResponse = client.head_object(query)
     try:
         size = result.response.msg["Content-Length"]
     except Exception as err:
@@ -186,7 +186,7 @@ def get_confirmation_length_md5(
     avoiding full_details requests
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     flist: list[str] = [fname]
     try:
@@ -194,7 +194,7 @@ def get_confirmation_length_md5(
             [ds3.Ds3GetObject(name=fname) for fname in flist]
         )
         res = ds3.GetPhysicalPlacementForObjectsSpectraS3Request(bucket, object_flist)
-        result = CLIENT.get_physical_placement_for_objects_spectra_s3(res)
+        result = client.get_physical_placement_for_objects_spectra_s3(res)
         data = result.result
     except Exception as err:
         print(err)
@@ -207,7 +207,7 @@ def get_confirmation_length_md5(
                 res = ds3.GetPhysicalPlacementForObjectsSpectraS3Request(
                     buck, object_flist
                 )
-                result = CLIENT.get_physical_placement_for_objects_spectra_s3(res)
+                result = client.get_physical_placement_for_objects_spectra_s3(res)
                 print(result.result)
                 if len(result.result["TapeList"]) > 0:
                     data = result.result
@@ -238,13 +238,13 @@ def get_object_list(
     Get all details to check file persisted
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     request = ds3.GetObjectsWithFullDetailsSpectraS3Request(
         name=f"{fname}", include_physical_placement=True
     )
     try:
-        result = CLIENT.get_objects_with_full_details_spectra_s3(request)
+        result = client.get_objects_with_full_details_spectra_s3(request)
         data = result.result
     except Exception as err:
         print(err)
@@ -273,13 +273,13 @@ def get_object_list_items(fname: str) -> Optional[List[Dict[str, Any]]]:
     Get all details to check file persisted
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     request = ds3.GetObjectsWithFullDetailsSpectraS3Request(
         name=f"{fname}", include_physical_placement=True
     )
     try:
-        result = CLIENT.get_objects_with_full_details_spectra_s3(request)
+        result = client.get_objects_with_full_details_spectra_s3(request)
         data = result.result
     except Exception as err:
         print(err)
@@ -300,11 +300,11 @@ def put_directory(directory_pth: str, bucket: str) -> Optional[list[str]]:
     Retrieve job number and launch json notification
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = ds3.createClientFromEnv()
-    HELPER = ds3Helpers.Helper(client=CLIENT)
+    client = ds3.createClientFromEnv()
+    helper = ds3Helpers.Helper(client=client)
 
     try:
-        put_job_ids: list[str] = HELPER.put_all_objects_in_directory(
+        put_job_ids: list[str] = helper.put_all_objects_in_directory(
             source_dir=directory_pth,
             bucket=bucket,
             objects_per_bp_job=5000,
@@ -326,8 +326,8 @@ def download_bp_object(fname: str, outpath: str, bucket: str) -> str:
     tape library and save to outpath
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = ds3.createClientFromEnv()
-    HELPER = ds3Helpers.Helper(client=CLIENT)
+    client = ds3.createClientFromEnv()
+    helper = ds3Helpers.Helper(client=client)
 
     if bucket == "":
         bucket = "imagen"
@@ -337,7 +337,7 @@ def download_bp_object(fname: str, outpath: str, bucket: str) -> str:
         ds3Helpers.HelperGetObject(fname, file_path)
     ]
     try:
-        get_job_id: str = HELPER.get_objects(get_objects, bucket)
+        get_job_id: str = helper.get_objects(get_objects, bucket)
         print(f"BP get job ID: {get_job_id}")
     except Exception as err:
         raise Exception(f"Unable to retrieve file {fname} from Black Pearl: {err}")
@@ -351,8 +351,8 @@ def download_blobbed_object(fname: str, outpath: str, bucket: str) -> str:
     tape library using single thread
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = ds3.createClientFromEnv()
-    HELPER = ds3Helpers.Helper(client=CLIENT)
+    client = ds3.createClientFromEnv()
+    helper = ds3Helpers.Helper(client=client)
 
     if bucket == "":
         bucket = "imagen"
@@ -362,7 +362,7 @@ def download_blobbed_object(fname: str, outpath: str, bucket: str) -> str:
         ds3Helpers.HelperGetObject(fname, file_path)
     ]
     try:
-        get_job_id: str = HELPER.get_objects(get_objects, bucket, max_threads=1)
+        get_job_id: str = helper.get_objects(get_objects, bucket, max_threads=1)
         print(f"BP get job ID: {get_job_id}")
     except Exception as err:
         raise Exception(f"Unable to retrieve file {fname} from Black Pearl: {err}")
@@ -376,15 +376,15 @@ def put_single_file(fpath: str, ref_num: str, bucket_name: str, check: bool = Fa
     Fine for < or > 1TB
     """
     from ds3 import ds3, ds3Helpers
-    CLIENT = ds3.createClientFromEnv()
-    HELPER = ds3Helpers.Helper(client=CLIENT)
+    client = ds3.createClientFromEnv()
+    helper = ds3Helpers.Helper(client=client)
 
     file_size: int = os.path.getsize(fpath)
     put_obj: ds3Helpers.HelperPutObject = [
         ds3Helpers.HelperPutObject(object_name=ref_num, file_path=fpath, size=file_size)
     ]
     try:
-        put_job_id: str = HELPER.put_objects(
+        put_job_id: str = helper.put_objects(
             put_objects=put_obj,
             bucket=bucket_name,
             max_threads=1,
@@ -405,11 +405,11 @@ def delete_black_pearl_object(
     deletion of object
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     try:
         request = ds3.DeleteObjectRequest(bucket, ref_num, version_id=version)
-        job_deletion: str = CLIENT.delete_object(request)
+        job_deletion: str = client.delete_object(request)
         return job_deletion
     except Exception as exc:
         print(exc)
@@ -421,10 +421,10 @@ def etag_deletion_confirmation(ref_num: str, bucket: str) -> Optional[str]:
     Get confirmation of deletion
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     resp = ds3.HeadObjectRequest(bucket, ref_num)
-    result: ds3.HeadObjectResponse = CLIENT.head_object(resp)
+    result: ds3.HeadObjectResponse = client.head_object(resp)
     etag = result.response.msg["ETag"]
     if etag is None:
         return "Deleted"
@@ -436,12 +436,12 @@ def get_version_id(ref_num: str, bucket: str) -> Optional[str]:
     Get confirmation of deletion
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     resp = ds3.HeadObjectRequest(bucket, ref_num)
-    result: ds3.HeadObjectResponse = CLIENT.head_object(resp)
+    result: ds3.HeadObjectResponse = client.head_object(resp)
     version_id = result.response.msg["version-id"]
-    
+
     return version_id
 
 
@@ -450,14 +450,14 @@ def get_version_id_object(ref_num: str) -> Optional[str]:
     Fallback method if version_id does not come from the HeadObject
     """
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     resp: ds3.GetObjectsWithFullDetailsSpectraS3Request = (
         ds3.GetObjectsWithFullDetailsSpectraS3Request(
             name=ref_num, include_physical_placement=True
         )
     )
-    result = CLIENT.get_objects_with_full_details_spectra_s3(resp)
+    result = client.get_objects_with_full_details_spectra_s3(resp)
     obj = result.result
 
     if not obj:
@@ -489,10 +489,10 @@ def get_object_details(fname: str, bucket: str) -> Optional[List[Dict[str, Any]]
     """
 
     from ds3 import ds3
-    CLIENT = ds3.createClientFromEnv()
+    client = ds3.createClientFromEnv()
 
     r = ds3.GetObjectsDetailsSpectraS3Request(name=fname, bucket_id=bucket)
-    result = CLIENT.get_objects_details_spectra_s3(r)
+    result = client.get_objects_details_spectra_s3(r)
     obj_list = result.result.get("S3ObjectList", [])
     print(f"Length of object list found for {fname} is {len(obj_list)}")
 

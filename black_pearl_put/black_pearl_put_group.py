@@ -406,7 +406,7 @@ def main():
         logger.info("More files to process, restarting move sequence.\n")
         files = files_remaining
 
-    logger.info(f"======== END Black Pearl ingest %s END ========", sys.argv[1])
+    logger.info("======== END Black Pearl ingest %s END ========", sys.argv[1])
 
 
 def put_dir(directory_pth: str, bucket_choice: str) -> list[str]:

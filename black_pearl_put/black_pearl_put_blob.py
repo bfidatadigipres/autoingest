@@ -99,7 +99,7 @@ def main():
         LOGGER.warning("Complication with autoingest path: %s", autoingest)
         sys.exit("Supplied argument did not match path")
 
-    # Get current bucket name for bucket_collection type 
+    # Get current bucket name for bucket_collection type
     # _ bucket_list response will be needed later in script life
     bucket, _ = bp.get_buckets(bucket_collection, True)
 
@@ -184,7 +184,7 @@ def main():
                     put_job_id,
                 )
 
-    LOGGER.info(f"======== END Black Pearl blob ingest {sys.argv[1]} END ========")
+    LOGGER.info("======== END Black Pearl blob ingest %s END ========", sys.argv[1])
 
 
 def _get_db() -> WorkflowDatabase:
