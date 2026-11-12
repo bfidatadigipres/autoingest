@@ -6,8 +6,7 @@ import time
 from dagster import sensor, RunRequest, SensorEvaluationContext, DefaultSensorStatus
 
 from autoingest.jobs.validation_jobs import verify_local_job
-from autoingest.ops.local.verification import retrieve_json_data
-
+from autoingest.resources.bp_utils import get_job_status
 
 MAX_QUEUED_PER_STAGE = 30
 MAX_NEW_PER_TICK = 50
@@ -139,8 +138,8 @@ def validation_folder_sensor(context: SensorEvaluationContext) -> list[RunReques
                 pass
 
         json_checked[file_key] = now.isoformat()
-        json_path = retrieve_json_data(bp_job_id.strip())
-        if json_path:
+        status = get_job_status(bp_job_id.strip())
+        if status == "COMPLETED":
             db.update_file_status(
                 file_id, file_status="File cleared for ingest", error_message=""
             )
